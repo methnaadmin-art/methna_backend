@@ -9,11 +9,15 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
             inject: [ConfigService],
             useFactory: (configService: ConfigService) => ({
                 type: 'postgres',
-                host: configService.get<string>('database.host'),
-                port: configService.get<number>('database.port'),
-                username: configService.get<string>('database.username'),
-                password: configService.get<string>('database.password'),
-                database: configService.get<string>('database.name'),
+                ...(configService.get<string>('database.url')
+                    ? { url: configService.get<string>('database.url') }
+                    : {
+                        host: configService.get<string>('database.host'),
+                        port: configService.get<number>('database.port'),
+                        username: configService.get<string>('database.username'),
+                        password: configService.get<string>('database.password'),
+                        database: configService.get<string>('database.name'),
+                    }),
                 ssl: configService.get<boolean>('database.ssl')
                     ? { rejectUnauthorized: false }
                     : false,
