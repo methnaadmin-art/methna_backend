@@ -8,7 +8,12 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
+import * as dns from 'node:dns';
+
 async function bootstrap() {
+    // Force IPv4 resolution for Supabase connection on Railway
+    dns.setDefaultResultOrder('ipv4first');
+
     const logger = new Logger('Bootstrap');
     const app = await NestFactory.create(AppModule);
 
