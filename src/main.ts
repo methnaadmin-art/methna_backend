@@ -69,14 +69,20 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, swaggerConfig);
     SwaggerModule.setup('api/docs', app, document);
 
-    if (process.env.VERCEL) {
-        await app.init();
-        return app.getHttpAdapter().getInstance();
-    } else {
+    if (!process.env.VERCEL) {
         await app.listen(port, '0.0.0.0');
         logger.log(`🚀 Wafaa API running on http://0.0.0.0:${port}/${apiPrefix}`);
         logger.log(`📚 Swagger docs at http://0.0.0.0:${port}/api/docs`);
     }
+
+    return app.getHttpAdapter().getInstance();
 }
 
-export default bootstrap();
+let cachedServer: any;
+
+export default async function handler(req: any, res: any) {
+    if (!cachedServer) {
+        cachedServer = await bootstrap();
+    }
+    return cachedServer(req, res);
+}
