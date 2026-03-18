@@ -1,32 +1,50 @@
 import {
     IsString,
-    IsOptional,
     IsEnum,
-    IsDateString,
-    IsNumber,
+    IsOptional,
+    IsDate,
     IsBoolean,
+    IsInt,
     IsArray,
-    MaxLength,
+    IsNumber,
     Min,
     Max,
+    MaxLength,
+    MinLength,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Gender, MaritalStatus, ReligiousLevel } from '../../../database/entities/profile.entity';
+import {
+    Gender,
+    MaritalStatus,
+    ReligiousLevel,
+    LivingSituation,
+    EducationLevel,
+    FamilyPlans,
+    CommunicationStyle,
+    MarriageIntention,
+    SecondWifePreference,
+    BloodType,
+    WorkoutFrequency,
+    SleepSchedule,
+    SocialMediaUsage,
+} from '../../../database/entities/profile.entity';
 
 export class CreateProfileDto {
-    @ApiProperty({ enum: Gender })
-    @IsEnum(Gender)
-    gender: Gender;
-
-    @ApiProperty({ example: '1995-06-15' })
-    @IsDateString()
-    dateOfBirth: string;
-
     @ApiPropertyOptional({ maxLength: 500 })
     @IsOptional()
     @IsString()
     @MaxLength(500)
     bio?: string;
+
+    @ApiProperty({ enum: Gender })
+    @IsEnum(Gender)
+    gender: Gender;
+
+    @ApiProperty({ example: '1995-01-15' })
+    @Type(() => Date)
+    @IsDate()
+    dateOfBirth: Date;
 
     @ApiPropertyOptional({ enum: MaritalStatus })
     @IsOptional()
@@ -48,52 +66,145 @@ export class CreateProfileDto {
     @IsString()
     nationality?: string;
 
-    @ApiPropertyOptional()
-    @IsOptional()
-    @IsString()
-    education?: string;
+    // Extended fields
 
-    @ApiPropertyOptional()
+    @ApiPropertyOptional({ minimum: 100, maximum: 250, description: 'Height in cm' })
     @IsOptional()
-    @IsString()
-    occupation?: string;
-
-    @ApiPropertyOptional({ description: 'Height in cm' })
-    @IsOptional()
-    @IsNumber()
+    @IsInt()
     @Min(100)
     @Max(250)
     height?: number;
 
-    @ApiPropertyOptional()
+    @ApiPropertyOptional({ minimum: 30, maximum: 300, description: 'Weight in kg' })
     @IsOptional()
-    @IsString()
-    city?: string;
+    @IsInt()
+    @Min(30)
+    @Max(300)
+    weight?: number;
+
+    @ApiPropertyOptional({ enum: LivingSituation })
+    @IsOptional()
+    @IsEnum(LivingSituation)
+    livingSituation?: LivingSituation;
 
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
-    country?: string;
+    jobTitle?: string;
+
+    @ApiPropertyOptional({ enum: EducationLevel })
+    @IsOptional()
+    @IsEnum(EducationLevel)
+    education?: EducationLevel;
 
     @ApiPropertyOptional()
     @IsOptional()
-    @IsNumber()
-    latitude?: number;
+    @IsString()
+    educationDetails?: string;
+
+    @ApiPropertyOptional({ enum: FamilyPlans })
+    @IsOptional()
+    @IsEnum(FamilyPlans)
+    familyPlans?: FamilyPlans;
+
+    @ApiPropertyOptional({ enum: CommunicationStyle })
+    @IsOptional()
+    @IsEnum(CommunicationStyle)
+    communicationStyle?: CommunicationStyle;
+
+    @ApiPropertyOptional({ enum: MarriageIntention })
+    @IsOptional()
+    @IsEnum(MarriageIntention)
+    marriageIntention?: MarriageIntention;
+
+    @ApiPropertyOptional({ enum: SecondWifePreference })
+    @IsOptional()
+    @IsEnum(SecondWifePreference)
+    secondWifePreference?: SecondWifePreference;
+
+    // Health & Body
 
     @ApiPropertyOptional()
     @IsOptional()
-    @IsNumber()
-    longitude?: number;
+    @IsBoolean()
+    vaccinationStatus?: boolean;
+
+    @ApiPropertyOptional({ enum: BloodType })
+    @IsOptional()
+    @IsEnum(BloodType)
+    bloodType?: BloodType;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    healthNotes?: string;
+
+    // Lifestyle
+
+    @ApiPropertyOptional({ enum: WorkoutFrequency })
+    @IsOptional()
+    @IsEnum(WorkoutFrequency)
+    workoutFrequency?: WorkoutFrequency;
+
+    @ApiPropertyOptional({ enum: SleepSchedule })
+    @IsOptional()
+    @IsEnum(SleepSchedule)
+    sleepSchedule?: SleepSchedule;
+
+    @ApiPropertyOptional({ enum: SocialMediaUsage })
+    @IsOptional()
+    @IsEnum(SocialMediaUsage)
+    socialMediaUsage?: SocialMediaUsage;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsBoolean()
+    hasPets?: boolean;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    petPreference?: string;
+
+    // Preferences & Hobbies
 
     @ApiPropertyOptional({ type: [String] })
     @IsOptional()
     @IsArray()
+    @IsString({ each: true })
     interests?: string[];
 
     @ApiPropertyOptional({ type: [String] })
     @IsOptional()
     @IsArray()
+    @IsString({ each: true })
     languages?: string[];
+
+    @ApiPropertyOptional({ type: [String] })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    favoriteMusic?: string[];
+
+    @ApiPropertyOptional({ type: [String] })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    favoriteMovies?: string[];
+
+    @ApiPropertyOptional({ type: [String] })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    favoriteBooks?: string[];
+
+    @ApiPropertyOptional({ type: [String] })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    travelPreferences?: string[];
+
+    // Family
 
     @ApiPropertyOptional()
     @IsOptional()
@@ -102,7 +213,8 @@ export class CreateProfileDto {
 
     @ApiPropertyOptional()
     @IsOptional()
-    @IsNumber()
+    @IsInt()
+    @Min(0)
     numberOfChildren?: number;
 
     @ApiPropertyOptional()
@@ -115,6 +227,20 @@ export class CreateProfileDto {
     @IsBoolean()
     willingToRelocate?: boolean;
 
+    // Location
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    city?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    country?: string;
+
+    // About partner
+
     @ApiPropertyOptional({ maxLength: 1000 })
     @IsOptional()
     @IsString()
@@ -124,16 +250,58 @@ export class CreateProfileDto {
 
 export class UpdateProfileDto extends CreateProfileDto { }
 
-export class UpdatePreferencesDto {
-    @ApiPropertyOptional({ default: 18, minimum: 18 })
+export class UpdatePrivacySettingsDto {
+    @ApiPropertyOptional()
     @IsOptional()
+    @IsBoolean()
+    showAge?: boolean;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsBoolean()
+    showDistance?: boolean;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsBoolean()
+    showOnlineStatus?: boolean;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsBoolean()
+    showLastSeen?: boolean;
+}
+
+export class UpdateLocationDto {
+    @ApiProperty({ description: 'Latitude', example: 24.7136 })
     @IsNumber()
+    latitude: number;
+
+    @ApiProperty({ description: 'Longitude', example: 46.6753 })
+    @IsNumber()
+    longitude: number;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    city?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    country?: string;
+}
+
+export class UpdatePreferencesDto {
+    @ApiPropertyOptional({ minimum: 18 })
+    @IsOptional()
+    @IsInt()
     @Min(18)
     minAge?: number;
 
-    @ApiPropertyOptional({ default: 60 })
+    @ApiPropertyOptional({ maximum: 100 })
     @IsOptional()
-    @IsNumber()
+    @IsInt()
     @Max(100)
     maxAge?: number;
 
@@ -142,9 +310,9 @@ export class UpdatePreferencesDto {
     @IsEnum(Gender)
     preferredGender?: Gender;
 
-    @ApiPropertyOptional({ description: 'Maximum distance in km', default: 100 })
+    @ApiPropertyOptional({ minimum: 1, maximum: 500, description: 'Max distance in km' })
     @IsOptional()
-    @IsNumber()
+    @IsInt()
     @Min(1)
     @Max(500)
     maxDistance?: number;
@@ -152,12 +320,8 @@ export class UpdatePreferencesDto {
     @ApiPropertyOptional({ type: [String] })
     @IsOptional()
     @IsArray()
+    @IsString({ each: true })
     preferredEthnicities?: string[];
-
-    @ApiPropertyOptional({ type: [String] })
-    @IsOptional()
-    @IsArray()
-    preferredNationalities?: string[];
 
     @ApiPropertyOptional({ enum: ReligiousLevel })
     @IsOptional()
@@ -172,5 +336,16 @@ export class UpdatePreferencesDto {
     @ApiPropertyOptional({ type: [String] })
     @IsOptional()
     @IsArray()
+    @IsString({ each: true })
     preferredInterests?: string[];
+
+    @ApiPropertyOptional({ enum: MarriageIntention })
+    @IsOptional()
+    @IsEnum(MarriageIntention)
+    preferredMarriageIntention?: MarriageIntention;
+
+    @ApiPropertyOptional({ enum: SecondWifePreference })
+    @IsOptional()
+    @IsEnum(SecondWifePreference)
+    preferredSecondWifePreference?: SecondWifePreference;
 }

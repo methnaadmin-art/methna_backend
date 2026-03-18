@@ -2,10 +2,13 @@ import {
     Controller,
     Get,
     Patch,
+    Delete,
     Param,
     Query,
     Body,
     UseGuards,
+    HttpCode,
+    HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
@@ -15,6 +18,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole, UserStatus } from '../../database/entities/user.entity';
 import { ReportStatus } from '../../database/entities/report.entity';
+import { PhotoModerationStatus } from '../../database/entities/photo.entity';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -36,6 +40,17 @@ class ResolveReportDto {
     moderatorNote?: string;
 }
 
+class ModeratePhotoDto {
+    @ApiProperty({ enum: PhotoModerationStatus })
+    @IsEnum(PhotoModerationStatus)
+    status: PhotoModerationStatus;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    moderationNote?: string;
+}
+
 @ApiTags('admin')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -43,6 +58,8 @@ class ResolveReportDto {
 @Controller('admin')
 export class AdminController {
     constructor(private readonly adminService: AdminService) { }
+
+    // ─── USERS ──────────────────────────────────────────────
 
     @Get('users')
     @ApiOperation({ summary: 'List all users (admin only)' })
@@ -53,6 +70,12 @@ export class AdminController {
         return this.adminService.getUsers(pagination, status);
     }
 
+    @Get('users/:id')
+    @ApiOperation({ summary: 'Get user detail with profile, photos, subscription' })
+    async getUserDetail(@Param('id') userId: string) {
+        return this.adminService.getUserDetail(userId);
+    }
+
     @Patch('users/:id/status')
     @ApiOperation({ summary: 'Update user status (ban/suspend/activate)' })
     async updateUserStatus(
@@ -61,6 +84,15 @@ export class AdminController {
     ) {
         return this.adminService.updateUserStatus(userId, dto.status);
     }
+
+    @Delete('users/:id')
+    @HttpCode(HttpStatus.NO_CONTENT)
+    @ApiOperation({ summary: 'Soft-delete a user account' })
+    async deleteUser(@Param('id') userId: string) {
+        await this.adminService.deleteUserAccount(userId);
+    }
+
+    // ─── REPORTS ────────────────────────────────────────────
 
     @Get('reports')
     @ApiOperation({ summary: 'List all reports (admin only)' })
@@ -85,6 +117,25 @@ export class AdminController {
             dto.moderatorNote,
         );
     }
+
+    // ─── PHOTO MODERATION ───────────────────────────────────
+
+    @Get('photos/pending')
+    @ApiOperation({ summary: 'List photos pending moderation' })
+    async getPendingPhotos(@Query() pagination: PaginationDto) {
+        return this.adminService.getPendingPhotos(pagination);
+    }
+
+    @Patch('photos/:id/moderate')
+    @ApiOperation({ summary: 'Approve or reject a photo' })
+    async moderatePhoto(
+        @Param('id') photoId: string,
+        @Body() dto: ModeratePhotoDto,
+    ) {
+        return this.adminService.moderatePhoto(photoId, dto.status, dto.moderationNote);
+    }
+
+    // ─── ANALYTICS ──────────────────────────────────────────
 
     @Get('stats')
     @ApiOperation({ summary: 'Get dashboard statistics' })

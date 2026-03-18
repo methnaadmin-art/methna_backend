@@ -1,10 +1,22 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+    Injectable,
+    NotFoundException,
+    ConflictException,
+    BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Profile } from '../../database/entities/profile.entity';
 import { UserPreference } from '../../database/entities/user-preference.entity';
-import { CreateProfileDto, UpdateProfileDto, UpdatePreferencesDto } from './dto/profile.dto';
+import { User } from '../../database/entities/user.entity';
 import { RedisService } from '../redis/redis.service';
+import {
+    CreateProfileDto,
+    UpdateProfileDto,
+    UpdatePreferencesDto,
+    UpdatePrivacySettingsDto,
+    UpdateLocationDto,
+} from './dto/profile.dto';
 
 @Injectable()
 export class ProfilesService {
@@ -16,56 +28,90 @@ export class ProfilesService {
         private readonly redisService: RedisService,
     ) { }
 
-    async getMyProfile(userId: string): Promise<Profile> {
-        const cached = await this.redisService.getJson<Profile>(`profile:${userId}`);
+    async getProfile(userId: string): Promise<Profile> {
+        const cacheKey = `profile:${userId}`;
+        const cached = await this.redisService.getJson<Profile>(cacheKey);
         if (cached) return cached;
 
         const profile = await this.profileRepository.findOne({
             where: { userId },
             relations: ['user'],
         });
-        if (!profile) throw new NotFoundException('Profile not found. Please create one.');
+        if (!profile) throw new NotFoundException('Profile not found');
 
-        await this.redisService.setJson(`profile:${userId}`, profile, 300);
+        await this.redisService.setJson(cacheKey, profile, 300);
         return profile;
     }
 
-    async createOrUpdateProfile(
-        userId: string,
-        dto: CreateProfileDto | UpdateProfileDto,
-    ): Promise<Profile> {
-        let profile = await this.profileRepository.findOne({ where: { userId } });
+    async createOrUpdateProfile(userId: string, dto: CreateProfileDto | UpdateProfileDto): Promise<Profile> {
+        let profile = await this.profileRepository.findOne({
+            where: { userId },
+        });
 
         if (profile) {
             Object.assign(profile, dto);
         } else {
-            profile = this.profileRepository.create({ ...dto, userId });
+            profile = this.profileRepository.create({
+                userId,
+                ...dto,
+            });
         }
 
-        // Check completeness
-        profile.isComplete = this.checkCompleteness(profile);
+        // Calculate profile completion and completeness
+        profile.profileCompletionPercentage = this.calculateCompletionPercentage(profile);
+        profile.isComplete = profile.profileCompletionPercentage >= 60;
+
+        const saved = await this.profileRepository.save(profile);
+
+        // Invalidate cache
+        await this.redisService.del(`profile:${userId}`);
+
+        return saved;
+    }
+
+    // ─── Location ───────────────────────────────────────────
+
+    async updateLocation(userId: string, dto: UpdateLocationDto): Promise<Profile> {
+        const profile = await this.profileRepository.findOne({ where: { userId } });
+        if (!profile) throw new NotFoundException('Profile not found');
+
+        profile.latitude = dto.latitude;
+        profile.longitude = dto.longitude;
+        if (dto.city) profile.city = dto.city;
+        if (dto.country) profile.country = dto.country;
 
         const saved = await this.profileRepository.save(profile);
         await this.redisService.del(`profile:${userId}`);
         return saved;
     }
 
-    async getProfileById(profileUserId: string): Promise<Profile> {
-        const cached = await this.redisService.getJson<Profile>(`profile:${profileUserId}`);
-        if (cached) return cached;
-
-        const profile = await this.profileRepository.findOne({
-            where: { userId: profileUserId },
-            relations: ['user'],
-        });
-        if (!profile) throw new NotFoundException('Profile not found');
-
-        await this.redisService.setJson(`profile:${profileUserId}`, profile, 300);
-        return profile;
+    async toggleLocation(userId: string, enabled: boolean): Promise<void> {
+        // This updates the User entity locationEnabled field
+        // Handled via UserRepository in users module, called from controller
     }
 
+    // ─── Privacy Settings ───────────────────────────────────
+
+    async updatePrivacySettings(userId: string, dto: UpdatePrivacySettingsDto): Promise<Profile> {
+        const profile = await this.profileRepository.findOne({ where: { userId } });
+        if (!profile) throw new NotFoundException('Profile not found');
+
+        if (dto.showAge !== undefined) profile.showAge = dto.showAge;
+        if (dto.showDistance !== undefined) profile.showDistance = dto.showDistance;
+        if (dto.showOnlineStatus !== undefined) profile.showOnlineStatus = dto.showOnlineStatus;
+        if (dto.showLastSeen !== undefined) profile.showLastSeen = dto.showLastSeen;
+
+        const saved = await this.profileRepository.save(profile);
+        await this.redisService.del(`profile:${userId}`);
+        return saved;
+    }
+
+    // ─── Preferences ────────────────────────────────────────
+
     async getPreferences(userId: string): Promise<UserPreference> {
-        let prefs = await this.preferenceRepository.findOne({ where: { userId } });
+        let prefs = await this.preferenceRepository.findOne({
+            where: { userId },
+        });
         if (!prefs) {
             prefs = this.preferenceRepository.create({ userId });
             await this.preferenceRepository.save(prefs);
@@ -73,31 +119,64 @@ export class ProfilesService {
         return prefs;
     }
 
-    async updatePreferences(
-        userId: string,
-        dto: UpdatePreferencesDto,
-    ): Promise<UserPreference> {
-        let prefs = await this.preferenceRepository.findOne({ where: { userId } });
+    async updatePreferences(userId: string, dto: UpdatePreferencesDto): Promise<UserPreference> {
+        let prefs = await this.preferenceRepository.findOne({
+            where: { userId },
+        });
         if (!prefs) {
-            prefs = this.preferenceRepository.create({ ...dto, userId });
+            prefs = this.preferenceRepository.create({ userId, ...dto });
         } else {
             Object.assign(prefs, dto);
         }
         return this.preferenceRepository.save(prefs);
     }
 
-    async updateActivityScore(userId: string, score: number): Promise<void> {
-        await this.profileRepository.update({ userId }, { activityScore: score });
-        await this.redisService.del(`profile:${userId}`);
+    // ─── Activity Score ─────────────────────────────────────
+
+    async updateActivityScore(userId: string): Promise<void> {
+        const profile = await this.profileRepository.findOne({
+            where: { userId },
+        });
+        if (profile) {
+            profile.activityScore = Math.min(100, profile.activityScore + 1);
+            await this.profileRepository.save(profile);
+        }
     }
 
-    private checkCompleteness(profile: Profile): boolean {
-        return !!(
-            profile.gender &&
-            profile.dateOfBirth &&
-            profile.bio &&
-            profile.city &&
-            profile.country
-        );
+    // ─── Profile Completion % ───────────────────────────────
+
+    private calculateCompletionPercentage(profile: Profile): number {
+        const fields = [
+            { value: profile.bio, weight: 10 },
+            { value: profile.gender, weight: 10 },
+            { value: profile.dateOfBirth, weight: 10 },
+            { value: profile.maritalStatus, weight: 5 },
+            { value: profile.religiousLevel, weight: 8 },
+            { value: profile.ethnicity, weight: 3 },
+            { value: profile.nationality, weight: 3 },
+            { value: profile.height, weight: 3 },
+            { value: profile.weight, weight: 2 },
+            { value: profile.jobTitle, weight: 4 },
+            { value: profile.education, weight: 4 },
+            { value: profile.familyPlans, weight: 5 },
+            { value: profile.marriageIntention, weight: 8 },
+            { value: profile.communicationStyle, weight: 3 },
+            { value: profile.secondWifePreference, weight: 3 },
+            { value: profile.city, weight: 5 },
+            { value: profile.country, weight: 5 },
+            { value: profile.interests && profile.interests.length > 0 ? true : null, weight: 5 },
+            { value: profile.languages && profile.languages.length > 0 ? true : null, weight: 3 },
+            { value: profile.aboutPartner, weight: 5 },
+        ];
+
+        const totalWeight = fields.reduce((sum, f) => sum + f.weight, 0);
+        const achievedWeight = fields.reduce((sum, f) => {
+            if (f.value !== null && f.value !== undefined && f.value !== '') {
+                return sum + f.weight;
+            }
+            return sum;
+        }, 0);
+
+        return Math.round((achievedWeight / totalWeight) * 100);
     }
 }

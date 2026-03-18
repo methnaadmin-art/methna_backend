@@ -39,6 +39,22 @@ export class MatchesController {
         return this.matchesService.getSuggestions(userId, limit || 20);
     }
 
+    @Get('nearby')
+    @ApiOperation({ summary: 'Get nearby users (radar)' })
+    async getNearbyUsers(
+        @CurrentUser('sub') userId: string,
+        @Query('radius') radius?: number,
+        @Query('limit') limit?: number,
+    ) {
+        return this.matchesService.getNearbyUsers(userId, radius || 50, limit || 30);
+    }
+
+    @Get('discover')
+    @ApiOperation({ summary: 'Get discovery categories (nearby, compatible, new)' })
+    async getDiscoveryCategories(@CurrentUser('sub') userId: string) {
+        return this.matchesService.getDiscoveryCategories(userId);
+    }
+
     @Delete(':id')
     @HttpCode(HttpStatus.NO_CONTENT)
     @ApiOperation({ summary: 'Unmatch a user' })

@@ -1,0 +1,1016 @@
+@startuml Wafaa Backend Architecture
+
+!define ENTITY_COLOR #E8F5E9
+!define ENUM_COLOR #FFF3E0
+!define MODULE_COLOR #E3F2FD
+!define SERVICE_COLOR #F3E5F5
+!define CONTROLLER_COLOR #FCE4EC
+!define GATEWAY_COLOR #E0F7FA
+!define REDIS_COLOR #FFEBEE
+!define CRON_COLOR #F1F8E9
+
+skinparam class {
+    BackgroundColor white
+    BorderColor #333
+    ArrowColor #555
+}
+skinparam package {
+    BackgroundColor white
+    BorderColor #666
+}
+skinparam note {
+    BackgroundColor #FFFDE7
+}
+
+title **Wafaa Backend — Full Architecture Diagram**\nMuslim Matchmaking Platform · NestJS + PostgreSQL + Redis + WebSockets
+
+' ============================================================
+' ENUMS
+' ============================================================
+
+package "Enums" <<Rectangle>> #FFF3E0 {
+    enum UserRole {
+        USER
+        ADMIN
+        MODERATOR
+    }
+    enum UserStatus {
+        ACTIVE
+        INACTIVE
+        SUSPENDED
+        BANNED
+    }
+    enum Gender {
+        MALE
+        FEMALE
+    }
+    enum MaritalStatus {
+        NEVER_MARRIED
+        DIVORCED
+        WIDOWED
+        MARRIED
+    }
+    enum ReligiousLevel {
+        VERY_RELIGIOUS
+        RELIGIOUS
+        MODERATE
+        LIBERAL
+    }
+    enum EducationLevel {
+        HIGH_SCHOOL
+        BACHELOR
+        MASTER
+        DOCTORATE
+        OTHER
+    }
+    enum FamilyPlans {
+        WANT_CHILDREN
+        DONT_WANT
+        OPEN_TO_IT
+        HAVE_CHILDREN
+    }
+    enum MarriageIntention {
+        WITHIN_YEAR
+        ONE_TO_TWO_YEARS
+        JUST_LOOKING
+        SERIOUS
+    }
+    enum LikeType {
+        LIKE
+        SUPER_LIKE
+        COMPLIMENT
+        PASS
+    }
+    enum MatchStatus {
+        ACTIVE
+        UNMATCHED
+    }
+    enum MessageType {
+        TEXT
+        IMAGE
+        SYSTEM
+    }
+    enum MessageStatus {
+        SENT
+        DELIVERED
+        SEEN
+    }
+    enum NotificationType {
+        MATCH
+        MESSAGE
+        LIKE
+        SYSTEM
+        SUBSCRIPTION
+    }
+    enum SubscriptionPlan {
+        FREE
+        PREMIUM
+        GOLD
+    }
+    enum SubscriptionStatus {
+        ACTIVE
+        CANCELLED
+        EXPIRED
+    }
+    enum ReportReason {
+        FAKE_PROFILE
+        INAPPROPRIATE_CONTENT
+        HARASSMENT
+        SPAM
+        SCAM
+        OTHER
+    }
+    enum ReportStatus {
+        PENDING
+        REVIEWED
+        RESOLVED
+        DISMISSED
+    }
+    enum PhotoModerationStatus {
+        PENDING
+        APPROVED
+        REJECTED
+    }
+    enum LoginResult {
+        SUCCESS
+        FAILED
+        BLOCKED
+        SUSPICIOUS
+    }
+    enum BoostType {
+        FREE
+        PAID
+        REWARD
+    }
+    enum ContentFlagType {
+        BAD_WORD
+        OFFENSIVE
+        SPAM
+        FAKE_PROFILE
+        INAPPROPRIATE_PHOTO
+        HARASSMENT
+        SCAM
+    }
+    enum ContentFlagStatus {
+        PENDING
+        REVIEWED
+        DISMISSED
+        ACTION_TAKEN
+    }
+    enum ContentFlagSource {
+        AUTO_DETECTED
+        USER_REPORT
+        ADMIN_FLAG
+    }
+    enum AnalyticsEventType {
+        USER_SIGNUP
+        USER_LOGIN
+        USER_ACTIVE
+        PROFILE_VIEW
+        SWIPE_LIKE
+        SWIPE_PASS
+        SWIPE_SUPER_LIKE
+        MATCH_CREATED
+        MESSAGE_SENT
+        SUBSCRIPTION_CREATED
+        BOOST_PURCHASED
+    }
+    enum FeatureFlag {
+        UNLIMITED_LIKES
+        ADVANCED_FILTERS
+        SEE_WHO_LIKED
+        SUPER_LIKE
+        PROFILE_BOOST
+        READ_RECEIPTS
+        PRIORITY_MATCHING
+        REWIND
+    }
+}
+
+' ============================================================
+' ENTITIES
+' ============================================================
+
+package "Entities (PostgreSQL)" <<Database>> #E8F5E9 {
+
+    class User {
+        +id : UUID <<PK>>
+        +username : varchar <<unique, nullable>>
+        +email : varchar <<unique>>
+        +password : varchar
+        +firstName : varchar
+        +lastName : varchar
+        +phone : varchar?
+        +role : UserRole
+        +status : UserStatus
+        +refreshToken : varchar?
+        +emailVerified : boolean
+        +otpCode : varchar?
+        +otpExpiresAt : timestamp?
+        +otpAttempts : int
+        +selfieVerified : boolean
+        +selfieUrl : varchar?
+        +fcmToken : varchar?
+        +notificationsEnabled : boolean
+        +matchNotifications : boolean
+        +messageNotifications : boolean
+        +likeNotifications : boolean
+        +locationEnabled : boolean
+        +boostedUntil : timestamp?
+        +isShadowBanned : boolean
+        +trustScore : int [0-100]
+        +flagCount : int
+        +lastKnownIp : varchar?
+        +deviceCount : int
+        +lastLoginAt : timestamp?
+        +createdAt : timestamp
+        +updatedAt : timestamp
+        +deletedAt : timestamp? <<soft delete>>
+    }
+
+    class Profile {
+        +id : UUID <<PK>>
+        +userId : UUID <<FK, unique>>
+        +bio : text?
+        +gender : Gender
+        +dateOfBirth : date
+        +maritalStatus : MaritalStatus
+        +religiousLevel : ReligiousLevel
+        +ethnicity : varchar
+        +nationality : varchar
+        +height : float?
+        +weight : float?
+        +jobTitle : varchar?
+        +education : EducationLevel
+        +familyPlans : FamilyPlans
+        +marriageIntention : MarriageIntention
+        +interests : text[]
+        +languages : text[]
+        +aboutPartner : text?
+        +latitude : float?
+        +longitude : float?
+        +city : varchar?
+        +country : varchar?
+        +showAge : boolean
+        +showDistance : boolean
+        +showOnlineStatus : boolean
+        +showLastSeen : boolean
+        +isComplete : boolean
+        +profileCompletionPercentage : int
+        +activityScore : int [0-100]
+    }
+
+    class Photo {
+        +id : UUID <<PK>>
+        +userId : UUID <<FK>>
+        +url : varchar
+        +publicId : varchar
+        +isMain : boolean
+        +isSelfieVerification : boolean
+        +order : int
+        +moderationStatus : PhotoModerationStatus
+        +moderationNote : varchar?
+        +createdAt : timestamp
+    }
+
+    class Like {
+        +id : UUID <<PK>>
+        +likerId : UUID <<FK>>
+        +likedId : UUID <<FK>>
+        +type : LikeType
+        +isLike : boolean
+        +complimentMessage : varchar?
+        +createdAt : timestamp
+        __
+        <<unique>> (likerId, likedId)
+    }
+
+    class Match {
+        +id : UUID <<PK>>
+        +user1Id : UUID <<FK>>
+        +user2Id : UUID <<FK>>
+        +status : MatchStatus
+        +matchedAt : timestamp
+        +updatedAt : timestamp
+        __
+        <<unique>> (user1Id, user2Id)
+    }
+
+    class Conversation {
+        +id : UUID <<PK>>
+        +user1Id : UUID <<FK>>
+        +user2Id : UUID <<FK>>
+        +matchId : UUID <<FK>>
+        +lastMessageContent : varchar?
+        +lastMessageAt : timestamp?
+        +lastMessageSenderId : UUID?
+        +user1UnreadCount : int
+        +user2UnreadCount : int
+        +user1Muted : boolean
+        +user2Muted : boolean
+        +isActive : boolean
+    }
+
+    class Message {
+        +id : UUID <<PK>>
+        +conversationId : UUID <<FK>>
+        +matchId : UUID <<FK>>
+        +senderId : UUID <<FK>>
+        +content : text
+        +type : MessageType
+        +status : MessageStatus
+        +deliveredAt : timestamp?
+        +readAt : timestamp?
+        +createdAt : timestamp
+    }
+
+    class Notification {
+        +id : UUID <<PK>>
+        +userId : UUID <<FK>>
+        +type : NotificationType
+        +title : varchar
+        +body : varchar
+        +data : jsonb?
+        +isRead : boolean
+        +createdAt : timestamp
+    }
+
+    class Subscription {
+        +id : UUID <<PK>>
+        +userId : UUID <<FK>>
+        +plan : SubscriptionPlan
+        +status : SubscriptionStatus
+        +startDate : timestamp?
+        +endDate : timestamp?
+        +paymentReference : varchar?
+    }
+
+    class Report {
+        +id : UUID <<PK>>
+        +reporterId : UUID <<FK>>
+        +reportedId : UUID <<FK>>
+        +reason : ReportReason
+        +details : text?
+        +status : ReportStatus
+        +moderatorNote : text?
+        +resolvedById : UUID?
+    }
+
+    class UserPreference {
+        +id : UUID <<PK>>
+        +userId : UUID <<FK, unique>>
+        +minAge : int?
+        +maxAge : int?
+        +preferredGender : Gender?
+        +maxDistance : int?
+        +preferredEthnicities : text[]?
+        +preferredNationalities : text[]?
+        +preferredReligiousLevel : ReligiousLevel?
+        +preferredMaritalStatus : MaritalStatus?
+        +preferredInterests : text[]?
+    }
+
+    class BlockedUser {
+        +id : UUID <<PK>>
+        +blockerId : UUID <<FK>>
+        +blockedId : UUID <<FK>>
+        +createdAt : timestamp
+    }
+
+    class UserDevice {
+        +id : UUID <<PK>>
+        +userId : UUID <<FK>>
+        +deviceFingerprint : varchar
+        +deviceName : varchar?
+        +platform : varchar?
+        +osVersion : varchar?
+        +appVersion : varchar?
+        +ipAddress : varchar?
+        +isTrusted : boolean
+        +lastActiveAt : timestamp
+        __
+        <<unique>> (userId, deviceFingerprint)
+    }
+
+    class LoginHistory {
+        +id : UUID <<PK>>
+        +userId : UUID <<FK>>
+        +ipAddress : varchar
+        +userAgent : varchar?
+        +deviceFingerprint : varchar?
+        +country : varchar?
+        +city : varchar?
+        +result : LoginResult
+        +failureReason : varchar?
+        +isSuspicious : boolean
+        +createdAt : timestamp
+    }
+
+    class UserBehavior {
+        +id : UUID <<PK>>
+        +userId : UUID <<FK, unique>>
+        +preferredEthnicities : text[]
+        +preferredReligiousLevels : text[]
+        +preferredAgeMin : int?
+        +preferredAgeMax : int?
+        +preferredInterests : text[]
+        +totalLikes : int
+        +totalPasses : int
+        +totalSuperLikes : int
+        +totalMatches : int
+        +totalMessagesStarted : int
+        +likeToMatchRatio : float
+        +daysActive : int
+        +lastActiveDate : date?
+    }
+
+    class AnalyticsEvent {
+        +id : UUID <<PK>>
+        +eventType : AnalyticsEventType
+        +userId : UUID?
+        +metadata : jsonb?
+        +eventDate : varchar
+        +createdAt : timestamp
+    }
+
+    class ContentFlag {
+        +id : UUID <<PK>>
+        +userId : UUID <<FK>>
+        +type : ContentFlagType
+        +status : ContentFlagStatus
+        +source : ContentFlagSource
+        +content : text?
+        +entityType : varchar
+        +entityId : varchar
+        +confidenceScore : float?
+        +reviewedById : UUID?
+        +reviewNote : text?
+        +createdAt : timestamp
+    }
+
+    class EmailBlacklist {
+        +id : UUID <<PK>>
+        +domain : varchar <<unique>>
+        +reason : varchar
+        +isActive : boolean
+        +addedBy : UUID
+        +createdAt : timestamp
+    }
+
+    class Boost {
+        +id : UUID <<PK>>
+        +userId : UUID <<FK>>
+        +type : BoostType
+        +startedAt : timestamp
+        +expiresAt : timestamp
+        +profileViewsGained : int
+        +isActive : boolean
+        +createdAt : timestamp
+    }
+}
+
+' ============================================================
+' ENTITY RELATIONSHIPS
+' ============================================================
+
+User "1" -- "0..1" Profile : has >
+User "1" -- "0..*" Photo : uploads >
+User "1" -- "0..*" Like : sends >
+User "1" -- "0..*" Match : participates >
+User "1" -- "0..*" Conversation : participates >
+User "1" -- "0..*" Message : sends >
+User "1" -- "0..*" Notification : receives >
+User "1" -- "0..*" Subscription : subscribes >
+User "1" -- "0..*" Report : reports / reported >
+User "1" -- "0..1" UserPreference : sets >
+User "1" -- "0..*" BlockedUser : blocks >
+User "1" -- "0..*" UserDevice : uses >
+User "1" -- "0..*" LoginHistory : has >
+User "1" -- "0..1" UserBehavior : tracked >
+User "1" -- "0..*" AnalyticsEvent : generates >
+User "1" -- "0..*" ContentFlag : flagged >
+User "1" -- "0..*" Boost : activates >
+
+Match "1" -- "0..1" Conversation : opens >
+Conversation "1" -- "0..*" Message : contains >
+
+Like "0..*" -- "1" User : liker >
+Like "0..*" -- "1" User : liked >
+Report "0..*" -- "1" User : reporter >
+Report "0..*" -- "1" User : reported >
+BlockedUser "0..*" -- "1" User : blocker >
+BlockedUser "0..*" -- "1" User : blocked >
+
+' ============================================================
+' MODULES + SERVICES + CONTROLLERS
+' ============================================================
+
+package "Modules / Services / Controllers" <<Frame>> #E3F2FD {
+
+    package "AuthModule" MODULE_COLOR {
+        class AuthService SERVICE_COLOR {
+            +register()
+            +verifyOtp()
+            +resendOtp()
+            +login()
+            +refreshToken()
+            +logout()
+            +forgotPassword()
+            +verifyResetOtp()
+            +resetPassword()
+            +updateFcmToken()
+        }
+        class AuthController CONTROLLER_COLOR {
+            POST /auth/register
+            POST /auth/verify-otp
+            POST /auth/resend-otp
+            POST /auth/login
+            POST /auth/refresh
+            POST /auth/logout
+            POST /auth/forgot-password
+            POST /auth/reset-password
+            PATCH /auth/fcm-token
+        }
+        class JwtStrategy {
+            +validate(payload)
+        }
+        class JwtAuthGuard {
+            +canActivate()
+        }
+    }
+
+    package "UsersModule" MODULE_COLOR {
+        class UsersService SERVICE_COLOR {
+            +findById()
+            +getMe()
+            +updateMe()
+            +softDelete()
+            +getPublicProfile()
+        }
+        class UsersController CONTROLLER_COLOR {
+            GET /users/me
+            PATCH /users/me
+            DELETE /users/me
+            GET /users/:id
+        }
+    }
+
+    package "ProfilesModule" MODULE_COLOR {
+        class ProfilesService SERVICE_COLOR {
+            +getProfile()
+            +createOrUpdateProfile()
+            +updateLocation()
+            +updatePrivacySettings()
+            +getPreferences()
+            +updatePreferences()
+            +updateActivityScore()
+        }
+        class ProfilesController CONTROLLER_COLOR {
+            GET /profiles/me
+            POST /profiles
+            PATCH /profiles/location
+            PATCH /profiles/privacy
+            GET /profiles/preferences
+            PUT /profiles/preferences
+            GET /profiles/:userId
+        }
+    }
+
+    package "PhotosModule" MODULE_COLOR {
+        class PhotosService SERVICE_COLOR {
+            +uploadPhoto()
+            +getMyPhotos()
+            +setMainPhoto()
+            +deletePhoto()
+        }
+        class CloudinaryService SERVICE_COLOR {
+            +uploadImage()
+            +deleteImage()
+        }
+        class PhotosController CONTROLLER_COLOR {
+            POST /photos/upload
+            GET /photos/me
+            PATCH /photos/:id/main
+            DELETE /photos/:id
+        }
+    }
+
+    package "SwipesModule" MODULE_COLOR {
+        class SwipesService SERVICE_COLOR {
+            +swipe()
+            +getWhoLikedMe()
+            +getCompatibilityScore()
+        }
+        class SwipesController CONTROLLER_COLOR {
+            POST /swipes
+            GET /swipes/who-liked-me
+            GET /swipes/compatibility/:id
+        }
+    }
+
+    package "MatchesModule" MODULE_COLOR {
+        class MatchesService SERVICE_COLOR {
+            +getMatches()
+            +unmatch()
+            +getNearbyUsers()
+            +getDiscoveryCategories()
+            +getSuggestions()
+        }
+        class MatchesController CONTROLLER_COLOR {
+            GET /matches
+            GET /matches/suggestions
+            GET /matches/nearby
+            GET /matches/discover
+            DELETE /matches/:id
+        }
+    }
+
+    package "ChatModule" MODULE_COLOR {
+        class ChatService SERVICE_COLOR {
+            +getConversations()
+            +getMessages()
+            +sendMessage()
+            +markAsDelivered()
+            +markAsRead()
+            +muteConversation()
+            +getTotalUnreadCount()
+        }
+        class ChatController CONTROLLER_COLOR {
+            GET /chat/conversations
+            GET /chat/conversations/:id/messages
+            PATCH /chat/.../read
+            PATCH /chat/.../delivered
+            PATCH /chat/.../mute
+            GET /chat/unread
+        }
+        class ChatGateway GATEWAY_COLOR {
+            WS joinConversation
+            WS leaveConversation
+            WS sendMessage
+            WS typing / stopTyping
+            WS markRead / markDelivered
+            WS checkOnline
+        }
+    }
+
+    package "NotificationsModule" MODULE_COLOR {
+        class NotificationsService SERVICE_COLOR {
+            +createNotification()
+            +getNotifications()
+            +markAsRead()
+            +markAllAsRead()
+            +deleteNotification()
+            +getNotificationSettings()
+            +updateNotificationSettings()
+        }
+        class NotificationsController CONTROLLER_COLOR {
+            GET /notifications
+            PATCH /notifications/:id/read
+            PATCH /notifications/read-all
+            DELETE /notifications/:id
+            GET /notifications/settings
+            PATCH /notifications/settings
+        }
+    }
+
+    package "SubscriptionsModule" MODULE_COLOR {
+        class SubscriptionsService SERVICE_COLOR {
+            +getMySubscription()
+            +createSubscription()
+            +cancelSubscription()
+            +isPremium()
+            +getPlanFeatures()
+        }
+        class SubscriptionsController CONTROLLER_COLOR {
+            GET /subscriptions/me
+            POST /subscriptions
+            DELETE /subscriptions
+            GET /subscriptions/plans
+        }
+    }
+
+    package "SearchModule" MODULE_COLOR {
+        class SearchService SERVICE_COLOR {
+            +search()
+        }
+        class SearchController CONTROLLER_COLOR {
+            GET /search
+        }
+    }
+
+    package "ReportsModule" MODULE_COLOR {
+        class ReportsService SERVICE_COLOR {
+            +createReport()
+            +blockUser()
+            +unblockUser()
+            +getBlockedUsers()
+        }
+        class ReportsController CONTROLLER_COLOR {
+            POST /reports
+            POST /reports/block/:id
+            DELETE /reports/block/:id
+            GET /reports/blocked
+        }
+    }
+
+    package "TrustSafetyModule" MODULE_COLOR {
+        class TrustSafetyService SERVICE_COLOR {
+            +filterBadWords()
+            +moderateMessage()
+            +moderateProfileText()
+            +detectSuspiciousBehavior()
+            +shadowBanUser()
+            +removeShadowBan()
+            +isShadowBanned()
+            +compareSelfieToPhotos()
+            +decrementTrustScore()
+            +incrementTrustScore()
+            +getTrustScore()
+            +getPendingFlags()
+            +resolveFlag()
+        }
+        class TrustSafetyController CONTROLLER_COLOR {
+            POST /trust-safety/selfie-verify
+            GET /trust-safety/trust-score
+            GET /trust-safety/admin/flags
+            PATCH /trust-safety/admin/flags/:id
+            POST /trust-safety/admin/shadow-ban/:id
+            POST /trust-safety/admin/detect-suspicious/:id
+        }
+    }
+
+    package "MatchingModule" MODULE_COLOR {
+        class MatchingService SERVICE_COLOR {
+            +trackSwipeBehavior()
+            +getSmartSuggestions()
+            +precomputeCompatibility()
+            +getCachedCompatibility()
+        }
+        class MatchingController CONTROLLER_COLOR {
+            GET /matching/smart-suggestions
+            POST /matching/precompute-compatibility
+            GET /matching/compatibility/:id
+        }
+    }
+
+    package "AnalyticsModule" MODULE_COLOR {
+        class AnalyticsService SERVICE_COLOR {
+            +trackEvent()
+            +getDailyActiveUsers()
+            +getLikeToMatchConversion()
+            +getUserRetention()
+            +getMatchesOverTime()
+            +getAdminAnalytics()
+        }
+        class AnalyticsController CONTROLLER_COLOR {
+            GET /analytics/dashboard
+            GET /analytics/dau
+            GET /analytics/conversion
+            GET /analytics/retention
+            GET /analytics/matches-over-time
+        }
+    }
+
+    package "MonetizationModule" MODULE_COLOR {
+        class MonetizationService SERVICE_COLOR {
+            +getUserPlan()
+            +isPremium()
+            +purchaseSubscription()
+            +getUserFeatures()
+            +hasFeature()
+            +getDailyLimits()
+            +getRemainingLikes()
+            +purchaseBoost()
+            +isUserBoosted()
+            +deactivateExpiredBoosts()
+            +getUserSubscriptionStatus()
+        }
+        class MonetizationController CONTROLLER_COLOR {
+            GET /monetization/status
+            GET /monetization/features
+            GET /monetization/remaining-likes
+            POST /monetization/subscribe
+            POST /monetization/boost
+            GET /monetization/boost
+        }
+    }
+
+    package "SecurityModule" MODULE_COLOR {
+        class SecurityService SERVICE_COLOR {
+            +registerDevice()
+            +getUserDevices()
+            +revokeDevice()
+            +checkIpRateLimit()
+            +recordLogin()
+            +getLoginHistory()
+            +recordFailedLogin()
+            +isEmailBlacklisted()
+            +addToBlacklist()
+            +removeFromBlacklist()
+        }
+        class SecurityController CONTROLLER_COLOR {
+            GET /security/devices
+            DELETE /security/devices/:id
+            GET /security/login-history
+            GET /security/admin/blacklist
+            POST /security/admin/blacklist
+            DELETE /security/admin/blacklist/:domain
+        }
+    }
+
+    package "AdminModule" MODULE_COLOR {
+        class AdminService SERVICE_COLOR {
+            +getUsers()
+            +getUserDetail()
+            +updateUserStatus()
+            +deleteUserAccount()
+            +getReports()
+            +resolveReport()
+            +getPendingPhotos()
+            +moderatePhoto()
+            +getDashboardStats()
+        }
+        class AdminController CONTROLLER_COLOR {
+            GET /admin/users
+            GET /admin/users/:id
+            PATCH /admin/users/:id/status
+            DELETE /admin/users/:id
+            GET /admin/reports
+            PATCH /admin/reports/:id
+            GET /admin/photos/pending
+            PATCH /admin/photos/:id/moderate
+            GET /admin/stats
+        }
+    }
+
+    package "JobsModule" MODULE_COLOR {
+        class JobsService CRON_COLOR {
+            +deactivateExpiredBoosts() [5min]
+            +precomputeCompatibilityScores() [1h]
+            +updateBehaviorStats() [6h]
+            +cleanupOldAnalytics() [midnight]
+        }
+    }
+}
+
+' ============================================================
+' INFRASTRUCTURE SERVICES
+' ============================================================
+
+package "Infrastructure" <<Cloud>> #FFEBEE {
+    class RedisService REDIS_COLOR {
+        +get() / set() / del()
+        +getJson() / setJson()
+        +incr() / expire()
+        +sadd() / srem() / smembers()
+        +setUserOnline() / setUserOffline()
+        +isUserOnline()
+        +checkRateLimit()
+    }
+    class MailService {
+        +sendOtpEmail()
+        +sendPasswordResetOtp()
+    }
+}
+
+' ============================================================
+' SERVICE DEPENDENCIES (key relationships)
+' ============================================================
+
+AuthController --> AuthService
+UsersController --> UsersService
+ProfilesController --> ProfilesService
+PhotosController --> PhotosService
+SwipesController --> SwipesService
+MatchesController --> MatchesService
+ChatController --> ChatService
+ChatGateway --> ChatService
+ChatGateway --> RedisService
+ChatGateway ..> TrustSafetyService : content moderation
+NotificationsController --> NotificationsService
+SubscriptionsController --> SubscriptionsService
+SearchController --> SearchService
+ReportsController --> ReportsService
+TrustSafetyController --> TrustSafetyService
+MatchingController --> MatchingService
+AnalyticsController --> AnalyticsService
+MonetizationController --> MonetizationService
+SecurityController --> SecurityService
+AdminController --> AdminService
+
+AuthService --> RedisService : OTP rate limit
+AuthService --> MailService : send OTP emails
+UsersService --> RedisService : user cache
+ProfilesService --> RedisService : profile cache
+MatchesService --> RedisService : suggestions cache\n+ presence
+SwipesService --> RedisService : swipe limits
+SwipesService --> NotificationsService : match/like notifications
+SearchService --> RedisService : search cache
+TrustSafetyService --> RedisService : shadow ban cache
+MatchingService --> RedisService : smart suggestions\n+ compat cache
+AnalyticsService --> RedisService : counters + dashboard cache
+MonetizationService --> RedisService : plan/features/boost cache
+SecurityService --> RedisService : IP rate limit\n+ blacklist cache
+JobsService --> RedisService : compat score cache
+PhotosService --> CloudinaryService : image upload/delete
+
+' ============================================================
+' REDIS CACHE DETAIL
+' ============================================================
+
+package "Redis Cache Keys" <<Database>> #FFEBEE {
+    note as RedisKeys
+        **User & Profile Cache**
+        user:{id} → 5min
+        profile:{id} → 5min
+
+        **Suggestions & Search**
+        suggestions:{id} → 10min
+        smart_suggestions:{id} → 5min
+        search:{id}:{hash} → 5min
+
+        **Compatibility**
+        compat:{id} → 1h
+
+        **Monetization**
+        plan:{id} → 1h
+        features:{id} → 1h
+        boost:{id} → dynamic TTL
+        likes_used:{id}:{date} → 24h
+
+        **Trust & Safety**
+        shadowban:{id} → 1h
+        email_bl:{domain} → 24h
+
+        **Presence**
+        online_users (SET)
+        lastSeen:{id} → 30d
+
+        **Rate Limiting**
+        otp:{id} → 30s
+        otp_cooldown:{email} → 60s
+        login_attempts:{email} → 1h
+        ip_limit:{ip}:{endpoint} → dynamic
+        ratelimit:{key} → dynamic
+
+        **Analytics**
+        analytics:{type}:{date} → 90d
+        analytics:dau:{date} → 1h
+        analytics:admin:{date} → 30min
+        analytics:retention:{days} → 1h
+    end note
+}
+
+' ============================================================
+' WEBSOCKET MESSAGE FLOW
+' ============================================================
+
+package "WebSocket Flow (Socket.IO /chat)" <<Cloud>> #E0F7FA {
+    note as WSFlow
+        **Client → Server Events**
+        ─ joinConversation({conversationId})
+        ─ leaveConversation({conversationId})
+        ─ sendMessage({conversationId, content, type?, imageUrl?})
+        ─ typing({conversationId})
+        ─ stopTyping({conversationId})
+        ─ markRead({conversationId})
+        ─ markDelivered({conversationId})
+        ─ checkOnline({userId})
+
+        **Server → Client Events**
+        ─ userOnline({userId, timestamp})
+        ─ userOffline({userId, lastSeen})
+        ─ newMessage({id, conversationId, senderId, ...})
+        ─ userTyping / userStoppedTyping
+        ─ messagesRead / messagesDelivered
+
+        **Flow:**
+        Client connects → Redis setUserOnline
+        Client sends msg → TrustSafety filter → DB save → emit newMessage
+        Client disconnects → Redis setUserOffline → store lastSeen
+    end note
+}
+
+' ============================================================
+' CRON JOBS
+' ============================================================
+
+package "Background Jobs (Cron)" <<Frame>> #F1F8E9 {
+    note as CronJobs
+        **Every 5 minutes**
+        → Deactivate expired boosts (Boost.isActive=false)
+
+        **Every hour**
+        → Precompute compatibility scores
+          (500 users × 50 candidates → Redis)
+
+        **Every 6 hours**
+        → Update UserBehavior stats
+          (totalMatches, likeToMatchRatio, daysActive)
+
+        **Daily at midnight**
+        → Cleanup analytics events > 90 days
+    end note
+}
+
+@enduml

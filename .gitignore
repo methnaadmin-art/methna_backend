@@ -3,5 +3,7 @@ dist/
 .env
 *.js.map
 *.d.ts
+!admin-panel/**/*.d.ts
 coverage/
 .DS_Store
+admin-panel/

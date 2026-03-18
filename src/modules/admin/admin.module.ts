@@ -7,9 +7,12 @@ import { Report } from '../../database/entities/report.entity';
 import { Profile } from '../../database/entities/profile.entity';
 import { Match } from '../../database/entities/match.entity';
 import { Subscription } from '../../database/entities/subscription.entity';
+import { Photo } from '../../database/entities/photo.entity';
+import { Like } from '../../database/entities/like.entity';
+import { Message } from '../../database/entities/message.entity';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([User, Report, Profile, Match, Subscription])],
+    imports: [TypeOrmModule.forFeature([User, Report, Profile, Match, Subscription, Photo, Like, Message])],
     controllers: [AdminController],
     providers: [AdminService],
 })

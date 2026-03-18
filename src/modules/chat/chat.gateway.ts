@@ -7,10 +7,12 @@ import {
     ConnectedSocket,
     MessageBody,
 } from '@nestjs/websockets';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger, Inject, Optional } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
 import { RedisService } from '../redis/redis.service';
+import { TrustSafetyService } from '../trust-safety/trust-safety.service';
+import { MessageType } from '../../database/entities/message.entity';
 
 @WebSocketGateway({
     cors: { origin: '*' },
@@ -25,7 +27,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     constructor(
         private readonly chatService: ChatService,
         private readonly redisService: RedisService,
+        @Optional() @Inject(TrustSafetyService)
+        private readonly trustSafetyService?: TrustSafetyService,
     ) { }
+
+    // ─── CONNECTION LIFECYCLE ───────────────────────────────
 
     async handleConnection(client: Socket) {
         try {
@@ -40,9 +46,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             client.join(`user:${userId}`);
 
             this.logger.log(`Client connected: ${userId}`);
-
-            // Broadcast online status
-            this.server.emit('userOnline', { userId });
+            this.server.emit('userOnline', { userId, timestamp: new Date() });
         } catch (error) {
             client.disconnect();
         }
@@ -52,69 +56,115 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         const userId = client.data?.userId;
         if (userId) {
             await this.redisService.setUserOffline(userId);
-            this.server.emit('userOffline', { userId });
+            // Store last seen timestamp
+            await this.redisService.set(`lastSeen:${userId}`, new Date().toISOString(), 86400 * 30);
+            this.server.emit('userOffline', { userId, lastSeen: new Date() });
             this.logger.log(`Client disconnected: ${userId}`);
         }
     }
 
+    // ─── CONVERSATION ROOMS ─────────────────────────────────
+
+    @SubscribeMessage('joinConversation')
+    async handleJoinConversation(
+        @ConnectedSocket() client: Socket,
+        @MessageBody() payload: { conversationId: string },
+    ) {
+        client.join(`conversation:${payload.conversationId}`);
+
+        // Auto-mark messages as delivered when joining
+        const userId = client.data.userId;
+        try {
+            await this.chatService.markAsDelivered(userId, payload.conversationId);
+            client.to(`conversation:${payload.conversationId}`).emit('messagesDelivered', {
+                conversationId: payload.conversationId,
+                deliveredTo: userId,
+            });
+        } catch { }
+
+        return { success: true };
+    }
+
+    @SubscribeMessage('leaveConversation')
+    async handleLeaveConversation(
+        @ConnectedSocket() client: Socket,
+        @MessageBody() payload: { conversationId: string },
+    ) {
+        client.leave(`conversation:${payload.conversationId}`);
+        return { success: true };
+    }
+
+    // ─── SEND MESSAGE ───────────────────────────────────────
+
     @SubscribeMessage('sendMessage')
     async handleSendMessage(
         @ConnectedSocket() client: Socket,
-        @MessageBody()
-        payload: { matchId: string; content: string },
+        @MessageBody() payload: { conversationId: string; content: string; type?: string; imageUrl?: string },
     ) {
         const senderId = client.data.userId;
-        const { matchId, content } = payload;
+        const { conversationId, content, type, imageUrl } = payload;
 
         try {
+            // Determine message type
+            let msgType = MessageType.TEXT;
+            let msgContent = content;
+
+            if (type === 'image' || imageUrl) {
+                msgType = MessageType.IMAGE;
+                msgContent = imageUrl || content;
+            }
+
+            // Content moderation for text messages
+            let flagged = false;
+            if (msgType === MessageType.TEXT && this.trustSafetyService) {
+                const moderation = await this.trustSafetyService.moderateMessage(senderId, '', msgContent);
+                if (!moderation.isClean) {
+                    msgContent = moderation.cleanContent;
+                    flagged = true;
+                }
+            }
+
             const message = await this.chatService.sendMessage(
                 senderId,
-                matchId,
-                content,
+                conversationId,
+                msgContent,
+                msgType,
             );
 
-            // Emit to the match room
-            this.server.to(`match:${matchId}`).emit('newMessage', {
+            // If flagged, run async moderation update with the actual message ID
+            if (flagged && this.trustSafetyService) {
+                // Re-flag with proper entity ID (fire-and-forget)
+                this.trustSafetyService.moderateMessage(senderId, message.id, content).catch(() => {});
+            }
+
+            // Emit to the conversation room
+            this.server.to(`conversation:${conversationId}`).emit('newMessage', {
                 id: message.id,
-                matchId: message.matchId,
+                conversationId: message.conversationId,
                 senderId: message.senderId,
                 content: message.content,
                 type: message.type,
+                status: message.status,
                 createdAt: message.createdAt,
+                flagged,
             });
 
-            return { success: true, messageId: message.id };
+            return { success: true, messageId: message.id, flagged };
         } catch (error) {
-            return { success: false, error: error.message };
+            return { success: false, error: (error as Error).message };
         }
     }
 
-    @SubscribeMessage('joinMatch')
-    async handleJoinMatch(
-        @ConnectedSocket() client: Socket,
-        @MessageBody() payload: { matchId: string },
-    ) {
-        client.join(`match:${payload.matchId}`);
-        return { success: true };
-    }
-
-    @SubscribeMessage('leaveMatch')
-    async handleLeaveMatch(
-        @ConnectedSocket() client: Socket,
-        @MessageBody() payload: { matchId: string },
-    ) {
-        client.leave(`match:${payload.matchId}`);
-        return { success: true };
-    }
+    // ─── TYPING INDICATORS ──────────────────────────────────
 
     @SubscribeMessage('typing')
     async handleTyping(
         @ConnectedSocket() client: Socket,
-        @MessageBody() payload: { matchId: string },
+        @MessageBody() payload: { conversationId: string },
     ) {
         const senderId = client.data.userId;
-        client.to(`match:${payload.matchId}`).emit('userTyping', {
-            matchId: payload.matchId,
+        client.to(`conversation:${payload.conversationId}`).emit('userTyping', {
+            conversationId: payload.conversationId,
             userId: senderId,
         });
     }
@@ -122,36 +172,65 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @SubscribeMessage('stopTyping')
     async handleStopTyping(
         @ConnectedSocket() client: Socket,
-        @MessageBody() payload: { matchId: string },
+        @MessageBody() payload: { conversationId: string },
     ) {
         const senderId = client.data.userId;
-        client.to(`match:${payload.matchId}`).emit('userStoppedTyping', {
-            matchId: payload.matchId,
+        client.to(`conversation:${payload.conversationId}`).emit('userStoppedTyping', {
+            conversationId: payload.conversationId,
             userId: senderId,
         });
     }
 
+    // ─── MESSAGE STATUS ─────────────────────────────────────
+
     @SubscribeMessage('markRead')
     async handleMarkRead(
         @ConnectedSocket() client: Socket,
-        @MessageBody() payload: { matchId: string },
+        @MessageBody() payload: { conversationId: string },
     ) {
         const userId = client.data.userId;
-        await this.chatService.markAsRead(userId, payload.matchId);
-
-        client.to(`match:${payload.matchId}`).emit('messagesRead', {
-            matchId: payload.matchId,
-            readBy: userId,
-        });
-
-        return { success: true };
+        try {
+            await this.chatService.markAsRead(userId, payload.conversationId);
+            client.to(`conversation:${payload.conversationId}`).emit('messagesRead', {
+                conversationId: payload.conversationId,
+                readBy: userId,
+                readAt: new Date(),
+            });
+            return { success: true };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
     }
+
+    @SubscribeMessage('markDelivered')
+    async handleMarkDelivered(
+        @ConnectedSocket() client: Socket,
+        @MessageBody() payload: { conversationId: string },
+    ) {
+        const userId = client.data.userId;
+        try {
+            await this.chatService.markAsDelivered(userId, payload.conversationId);
+            client.to(`conversation:${payload.conversationId}`).emit('messagesDelivered', {
+                conversationId: payload.conversationId,
+                deliveredTo: userId,
+            });
+            return { success: true };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    // ─── PRESENCE ───────────────────────────────────────────
 
     @SubscribeMessage('checkOnline')
     async handleCheckOnline(
         @MessageBody() payload: { userId: string },
     ) {
         const isOnline = await this.redisService.isUserOnline(payload.userId);
-        return { userId: payload.userId, online: isOnline };
+        let lastSeen: string | null = null;
+        if (!isOnline) {
+            lastSeen = await this.redisService.get(`lastSeen:${payload.userId}`);
+        }
+        return { userId: payload.userId, online: isOnline, lastSeen };
     }
 }

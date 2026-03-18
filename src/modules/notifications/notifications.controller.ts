@@ -2,8 +2,10 @@ import {
     Controller,
     Get,
     Patch,
+    Delete,
     Param,
     Query,
+    Body,
     UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -28,18 +30,60 @@ export class NotificationsController {
         return this.notificationsService.getNotifications(userId, pagination);
     }
 
+    @Get('unread-count')
+    @ApiOperation({ summary: 'Get unread notification count' })
+    async getUnreadCount(@CurrentUser('sub') userId: string) {
+        const count = await this.notificationsService.getUnreadCount(userId);
+        return { unreadCount: count };
+    }
+
     @Patch(':id/read')
     @ApiOperation({ summary: 'Mark notification as read' })
     async markAsRead(
         @CurrentUser('sub') userId: string,
         @Param('id') notificationId: string,
     ) {
-        return this.notificationsService.markAsRead(userId, notificationId);
+        await this.notificationsService.markAsRead(userId, notificationId);
+        return { message: 'Notification marked as read' };
     }
 
     @Patch('read-all')
     @ApiOperation({ summary: 'Mark all notifications as read' })
     async markAllAsRead(@CurrentUser('sub') userId: string) {
-        return this.notificationsService.markAllAsRead(userId);
+        await this.notificationsService.markAllAsRead(userId);
+        return { message: 'All notifications marked as read' };
+    }
+
+    @Delete(':id')
+    @ApiOperation({ summary: 'Delete a notification' })
+    async deleteNotification(
+        @CurrentUser('sub') userId: string,
+        @Param('id') notificationId: string,
+    ) {
+        await this.notificationsService.deleteNotification(userId, notificationId);
+        return { message: 'Notification deleted' };
+    }
+
+    // ─── SETTINGS ───────────────────────────────────────────
+
+    @Get('settings')
+    @ApiOperation({ summary: 'Get notification settings' })
+    async getSettings(@CurrentUser('sub') userId: string) {
+        return this.notificationsService.getNotificationSettings(userId);
+    }
+
+    @Patch('settings')
+    @ApiOperation({ summary: 'Update notification settings' })
+    async updateSettings(
+        @CurrentUser('sub') userId: string,
+        @Body() settings: {
+            enabled?: boolean;
+            matchNotifications?: boolean;
+            messageNotifications?: boolean;
+            likeNotifications?: boolean;
+        },
+    ) {
+        await this.notificationsService.updateNotificationSettings(userId, settings);
+        return { message: 'Notification settings updated' };
     }
 }

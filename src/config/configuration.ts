@@ -30,6 +30,26 @@ export default () => ({
         apiSecret: process.env.CLOUDINARY_API_SECRET || '',
     },
 
+    mail: {
+        host: process.env.MAIL_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.MAIL_PORT || '587', 10),
+        user: process.env.MAIL_USER || '',
+        pass: process.env.MAIL_PASS || '',
+        from: process.env.MAIL_FROM || 'noreply@wafaa.app',
+    },
+
+    firebase: {
+        projectId: process.env.FIREBASE_PROJECT_ID || '',
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL || '',
+        privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+    },
+
+    otp: {
+        expirySeconds: parseInt(process.env.OTP_EXPIRY_SECONDS || '30', 10),
+        cooldownSeconds: parseInt(process.env.OTP_COOLDOWN_SECONDS || '60', 10),
+        maxAttempts: parseInt(process.env.OTP_MAX_ATTEMPTS || '5', 10),
+    },
+
     throttle: {
         ttl: parseInt(process.env.THROTTLE_TTL || '60', 10),
         limit: parseInt(process.env.THROTTLE_LIMIT || '100', 10),

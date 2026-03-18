@@ -4,6 +4,7 @@ import {
     Patch,
     Param,
     Query,
+    Body,
     UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -19,29 +20,60 @@ import { PaginationDto } from '../../common/dto/pagination.dto';
 export class ChatController {
     constructor(private readonly chatService: ChatService) { }
 
-    @Get(':matchId/messages')
-    @ApiOperation({ summary: 'Get chat messages for a match' })
-    async getMessages(
+    @Get('conversations')
+    @ApiOperation({ summary: 'Get all conversations' })
+    async getConversations(
         @CurrentUser('sub') userId: string,
-        @Param('matchId') matchId: string,
         @Query() pagination: PaginationDto,
     ) {
-        return this.chatService.getMessages(userId, matchId, pagination);
+        return this.chatService.getConversations(userId, pagination);
     }
 
-    @Patch(':matchId/read')
-    @ApiOperation({ summary: 'Mark all messages in a chat as read' })
+    @Get('conversations/:conversationId/messages')
+    @ApiOperation({ summary: 'Get messages for a conversation' })
+    async getMessages(
+        @CurrentUser('sub') userId: string,
+        @Param('conversationId') conversationId: string,
+        @Query() pagination: PaginationDto,
+    ) {
+        return this.chatService.getMessages(userId, conversationId, pagination);
+    }
+
+    @Patch('conversations/:conversationId/read')
+    @ApiOperation({ summary: 'Mark all messages as read in a conversation' })
     async markAsRead(
         @CurrentUser('sub') userId: string,
-        @Param('matchId') matchId: string,
+        @Param('conversationId') conversationId: string,
     ) {
-        return this.chatService.markAsRead(userId, matchId);
+        await this.chatService.markAsRead(userId, conversationId);
+        return { message: 'Messages marked as read' };
+    }
+
+    @Patch('conversations/:conversationId/delivered')
+    @ApiOperation({ summary: 'Mark messages as delivered in a conversation' })
+    async markAsDelivered(
+        @CurrentUser('sub') userId: string,
+        @Param('conversationId') conversationId: string,
+    ) {
+        await this.chatService.markAsDelivered(userId, conversationId);
+        return { message: 'Messages marked as delivered' };
+    }
+
+    @Patch('conversations/:conversationId/mute')
+    @ApiOperation({ summary: 'Mute or unmute a conversation' })
+    async muteConversation(
+        @CurrentUser('sub') userId: string,
+        @Param('conversationId') conversationId: string,
+        @Body('muted') muted: boolean,
+    ) {
+        await this.chatService.muteConversation(userId, conversationId, muted);
+        return { message: muted ? 'Conversation muted' : 'Conversation unmuted' };
     }
 
     @Get('unread')
-    @ApiOperation({ summary: 'Get total unread message count' })
+    @ApiOperation({ summary: 'Get total unread message count across all conversations' })
     async getUnreadCount(@CurrentUser('sub') userId: string) {
-        const count = await this.chatService.getUnreadCount(userId);
+        const count = await this.chatService.getTotalUnreadCount(userId);
         return { unreadCount: count };
     }
 }

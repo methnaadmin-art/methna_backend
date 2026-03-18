@@ -1,0 +1,995 @@
+\documentclass[a4paper,11pt]{article}
+
+% ── Packages ──────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=2cm,headheight=14pt]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\usepackage{multicol}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{microtype}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows.meta,positioning,fit,calc}
+
+% ── Colors ────────────────────────────────────────────────────
+\definecolor{primary}{HTML}{2D7A4F}
+\definecolor{secondary}{HTML}{1565C0}
+\definecolor{accent}{HTML}{E65100}
+\definecolor{codebg}{HTML}{F5F5F5}
+\definecolor{darkgray}{HTML}{333333}
+\definecolor{lightgray}{HTML}{E0E0E0}
+
+% ── Hyperref ──────────────────────────────────────────────────
+\hypersetup{
+    colorlinks=true,
+    linkcolor=secondary,
+    urlcolor=secondary,
+    pdftitle={Wafaa Backend -- Architecture \& Technology Stack},
+    pdfauthor={Wafaa Team},
+}
+
+% ── Listings ──────────────────────────────────────────────────
+\lstset{
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{codebg},
+    breaklines=true,
+    frame=single,
+    rulecolor=\color{lightgray},
+    tabsize=2,
+    showstringspaces=false,
+}
+
+% ── Section formatting ────────────────────────────────────────
+\titleformat{\section}{\LARGE\bfseries\color{primary}}{}{0em}{}[\titlerule]
+\titleformat{\subsection}{\Large\bfseries\color{secondary}}{}{0em}{}
+\titleformat{\subsubsection}{\large\bfseries\color{accent}}{}{0em}{}
+
+% ── Header/Footer ────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textcolor{primary}{\textbf{Wafaa Backend}}}
+\fancyhead[R]{\textcolor{darkgray}{Architecture \& Technology Stack}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ── Tcolorbox styles ─────────────────────────────────────────
+\tcbuselibrary{skins,breakable}
+
+\newtcolorbox{notebox}[1][]{
+    colback=green!5,
+    colframe=primary,
+    fonttitle=\bfseries,
+    title=#1,
+    breakable,
+}
+
+\newtcolorbox{warnbox}[1][]{
+    colback=red!5,
+    colframe=red!60!black,
+    fonttitle=\bfseries,
+    title=#1,
+    breakable,
+}
+
+\newtcolorbox{infobox}[1][]{
+    colback=blue!5,
+    colframe=secondary,
+    fonttitle=\bfseries,
+    title=#1,
+    breakable,
+}
+
+\newtcolorbox{clientbox}[1][]{
+    colback=orange!5,
+    colframe=accent,
+    fonttitle=\bfseries,
+    title=#1,
+    breakable,
+}
+
+% ── Custom column type ───────────────────────────────────────
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+% ══════════════════════════════════════════════════════════════
+\begin{document}
+
+% ── TITLE PAGE ────────────────────────────────────────────────
+\begin{titlepage}
+\centering
+\vspace*{3cm}
+{\Huge\bfseries\textcolor{primary}{Wafaa Backend}\par}
+\vspace{0.5cm}
+{\LARGE\textcolor{darkgray}{Architecture \& Technology Stack}\par}
+\vspace{0.3cm}
+{\Large\textcolor{secondary}{Security $\cdot$ Scalability $\cdot$ Deployment Guide}\par}
+\vspace{1.5cm}
+{\large Muslim Matchmaking Platform\par}
+\vspace{0.5cm}
+{\large NestJS $\cdot$ PostgreSQL $\cdot$ Redis $\cdot$ WebSockets $\cdot$ Cloudinary\par}
+\vspace{2cm}
+\begin{tcolorbox}[colback=codebg,colframe=lightgray,width=0.8\textwidth]
+\centering
+\textit{Complete backend architecture documentation including\\technology stack, security layers, scaling strategy,\\and client-side requirements for production deployment.}
+\end{tcolorbox}
+\vfill
+{\large \today\par}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ══════════════════════════════════════════════════════════════
+% PART I — TECHNOLOGY STACK
+% ══════════════════════════════════════════════════════════════
+
+\section{Technology Stack Overview}
+
+\begin{center}
+\begin{tikzpicture}[
+    node distance=0.6cm,
+    layer/.style={draw, rounded corners, minimum width=14cm, minimum height=1.2cm, font=\bfseries\small, align=center},
+]
+\node[layer, fill=red!10]    (client)  {Client Layer --- Mobile App (Flutter/React Native) + Admin Dashboard};
+\node[layer, fill=blue!8, below=of client]  (gateway) {API Gateway --- Nginx / Cloud Load Balancer + SSL Termination};
+\node[layer, fill=green!8, below=of gateway] (app)     {Application Layer --- NestJS (Node.js) + Socket.IO};
+\node[layer, fill=yellow!10, below=of app]    (cache)   {Cache Layer --- Redis (Upstash) --- Sessions, Rate Limiting, Presence};
+\node[layer, fill=purple!8, below=of cache]  (db)      {Database Layer --- PostgreSQL + TypeORM --- All persistent data};
+\node[layer, fill=orange!8, below=of db]     (ext)     {External Services --- Cloudinary + Firebase + SMTP + GeoIP};
+
+\draw[-{Stealth}, thick] (client) -- (gateway);
+\draw[-{Stealth}, thick] (gateway) -- (app);
+\draw[{Stealth}-{Stealth}, thick] (app) -- (cache);
+\draw[{Stealth}-{Stealth}, thick] (app) -- (db);
+\draw[-{Stealth}, thick] (app) -- (ext);
+\end{tikzpicture}
+\end{center}
+
+% ══════════════════════════════════════════════════════════════
+\section{Backend Technologies --- What Each One Does \& Improves}
+
+% ── NestJS ────────────────────────────────────────────────────
+\subsection{NestJS v10 (Framework)}
+
+\begin{longtable}{L{3.5cm} L{11.5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Detail} \\
+\midrule
+\endhead
+\textbf{What it is} & A progressive Node.js framework built on TypeScript, using Express under the hood. \\
+\midrule
+\textbf{What it improves} & Provides modular architecture (Modules, Services, Controllers), dependency injection, guards, interceptors, pipes, and decorators. Makes large-scale backend code maintainable and testable. \\
+\midrule
+\textbf{Why chosen} & Enterprise-grade structure, TypeScript-first, excellent support for REST + WebSockets + GraphQL in one framework. Ecosystem of official packages (JWT, Passport, Swagger, Throttler, Schedule). \\
+\midrule
+\textbf{Our usage} & 20 feature modules, global exception filter, logging interceptor, response transformation, Swagger auto-docs, cron job scheduling, WebSocket gateway for real-time chat. \\
+\midrule
+\textbf{Production tip} & Enable \texttt{NODE\_ENV=production}, use \texttt{nest build} for compiled output, run with \texttt{node dist/main} (not \texttt{ts-node}). \\
+\bottomrule
+\end{longtable}
+
+% ── TypeScript ────────────────────────────────────────────────
+\subsection{TypeScript v5.3}
+
+\begin{longtable}{L{3.5cm} L{11.5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Detail} \\
+\midrule
+\endhead
+\textbf{What it is} & Typed superset of JavaScript that compiles to plain JS. \\
+\midrule
+\textbf{What it improves} & Catches type errors at compile time, improves IDE autocompletion, makes refactoring safe, enforces contracts between modules via interfaces and DTOs. \\
+\midrule
+\textbf{Our usage} & All source code is TypeScript. DTOs use \texttt{class-validator} decorators for runtime validation. Entities use TypeORM decorators for database schema. \\
+\bottomrule
+\end{longtable}
+
+% ── PostgreSQL ────────────────────────────────────────────────
+\subsection{PostgreSQL (Database)}
+
+\begin{longtable}{L{3.5cm} L{11.5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Detail} \\
+\midrule
+\endhead
+\textbf{What it is} & Open-source relational database, the most advanced SQL database available. \\
+\midrule
+\textbf{What it improves} & ACID compliance (data integrity for financial transactions like subscriptions). Native support for JSONB (analytics metadata), arrays (interests, languages), and advanced indexing (GiST for geospatial). \\
+\midrule
+\textbf{Why chosen} & Handles complex queries (Haversine distance, cohort retention analysis), scales vertically well, excellent TypeORM support, free tier on Neon/Supabase/Railway. \\
+\midrule
+\textbf{Our usage} & 18 entities, foreign key relationships, unique constraints, soft deletes, migration-based schema management, SSL connections. \\
+\midrule
+\textbf{Production tip} & Use connection pooling (PgBouncer), enable WAL archiving for point-in-time recovery, set up read replicas for analytics queries. \\
+\bottomrule
+\end{longtable}
+
+% ── TypeORM ───────────────────────────────────────────────────
+\subsection{TypeORM v0.3 (ORM)}
+
+\begin{longtable}{L{3.5cm} L{11.5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Detail} \\
+\midrule
+\endhead
+\textbf{What it is} & Object-Relational Mapper for TypeScript/JavaScript. Maps database tables to TypeScript classes. \\
+\midrule
+\textbf{What it improves} & No raw SQL needed for CRUD, automatic schema synchronization in dev, migration system for production, query builder for complex queries, relation loading (eager/lazy). \\
+\midrule
+\textbf{Our usage} & All 18 entities decorated with \texttt{@Entity}, relations (\texttt{@OneToMany}, \texttt{@ManyToOne}, \texttt{@OneToOne}), custom QueryBuilder for search, Haversine distance, and analytics aggregation. \\
+\midrule
+\textbf{Production tip} & Disable \texttt{synchronize: true}, use migrations only. Add database indexes on frequently queried columns (we have a migration for this). \\
+\bottomrule
+\end{longtable}
+
+% ── Redis ─────────────────────────────────────────────────────
+\subsection{Redis / Upstash (Cache \& Real-time)}
+
+\begin{longtable}{L{3.5cm} L{11.5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Detail} \\
+\midrule
+\endhead
+\textbf{What it is} & In-memory key-value store. Upstash provides serverless Redis with a REST API (no persistent TCP connections needed). \\
+\midrule
+\textbf{What it improves} & Sub-millisecond reads for cached data, offloads database for repeated queries, enables rate limiting without DB overhead, real-time presence tracking, pub/sub for WebSocket scaling. \\
+\midrule
+\textbf{Our usage} & 22+ key patterns: user/profile caching (5\,min), suggestion caching (5--10\,min), compatibility score precompute (1\,h), daily like counters (24\,h), OTP storage (30\,s), rate limiting, online presence (SET), shadow ban status, email blacklist (24\,h), analytics counters (90\,d), subscription plan caching (1\,h). \\
+\midrule
+\textbf{Production tip} & Use Upstash Pro for higher throughput. Enable Redis persistence (AOF) if self-hosting. Monitor memory usage and set maxmemory policy to \texttt{allkeys-lru}. \\
+\bottomrule
+\end{longtable}
+
+% ── Socket.IO ─────────────────────────────────────────────────
+\subsection{Socket.IO v4.7 (Real-time WebSockets)}
+
+\begin{longtable}{L{3.5cm} L{11.5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Detail} \\
+\midrule
+\endhead
+\textbf{What it is} & Library for real-time bidirectional event-based communication, built on WebSockets with fallback to HTTP long-polling. \\
+\midrule
+\textbf{What it improves} & Real-time chat messaging, typing indicators, read/delivered receipts, online/offline presence detection --- all without polling the REST API. \\
+\midrule
+\textbf{Our usage} & \texttt{/chat} namespace: 8 client-to-server events, 7 server-to-client events. Conversation rooms, message delivery with content moderation, presence via Redis. \\
+\midrule
+\textbf{Production tip} & Use Redis adapter (\texttt{@socket.io/redis-adapter}) to scale across multiple server instances. Enable sticky sessions on load balancer. \\
+\bottomrule
+\end{longtable}
+
+% ── Cloudinary ────────────────────────────────────────────────
+\subsection{Cloudinary (Image Storage \& CDN)}
+
+\begin{longtable}{L{3.5cm} L{11.5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Detail} \\
+\midrule
+\endhead
+\textbf{What it is} & Cloud-based image and video management service with a global CDN. \\
+\midrule
+\textbf{What it improves} & No need to manage file storage servers. Automatic image optimization (WebP/AVIF), resizing (800$\times$800 limit), quality compression, and global CDN delivery. \\
+\midrule
+\textbf{Our usage} & Photo upload (max 6 per user, 5\,MB, JPEG/PNG/WebP), selfie verification upload, main photo management, automatic cleanup on photo deletion. Streaming upload from memory buffer (no temp files). \\
+\midrule
+\textbf{Production tip} & Enable upload presets for consistent transformations. Use signed uploads for security. Monitor bandwidth usage on free tier (25 GB/month). \\
+\bottomrule
+\end{longtable}
+
+% ── JWT + Passport ────────────────────────────────────────────
+\subsection{JWT + Passport (Authentication)}
+
+\begin{longtable}{L{3.5cm} L{11.5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Detail} \\
+\midrule
+\endhead
+\textbf{What it is} & JSON Web Tokens for stateless authentication. Passport.js provides strategy-based auth middleware. \\
+\midrule
+\textbf{What it improves} & Stateless auth (no session storage), short-lived access tokens (15\,min) + long-lived refresh tokens (7\,d), automatic token rotation on refresh, bcrypt-hashed refresh tokens in DB. \\
+\midrule
+\textbf{Our usage} & JwtAuthGuard applied globally (opt-out with \texttt{@Public()}). Role-based access with \texttt{@Roles()} decorator and RolesGuard. Three roles: USER, ADMIN, MODERATOR. \\
+\midrule
+\textbf{Production tip} & Use strong secrets (256-bit+). Store JWT\_SECRET in vault/secrets manager, never in code. Consider RS256 (asymmetric) for microservice environments. \\
+\bottomrule
+\end{longtable}
+
+% ── Nodemailer ────────────────────────────────────────────────
+\subsection{Nodemailer (Email)}
+
+\begin{longtable}{L{3.5cm} L{11.5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Detail} \\
+\midrule
+\endhead
+\textbf{What it is} & Node.js module for sending emails via SMTP. \\
+\midrule
+\textbf{What it improves} & Sends OTP verification emails, password reset emails with branded HTML templates. \\
+\midrule
+\textbf{Our usage} & Gmail SMTP transport, HTML email templates with inline styling, ``Wafaa - Halal Matchmaking Platform'' branding. \\
+\midrule
+\textbf{Production tip} & Switch from Gmail SMTP to a transactional email provider (SendGrid, Mailgun, AWS SES) for higher deliverability, no sending limits, and domain authentication (SPF/DKIM/DMARC). \\
+\bottomrule
+\end{longtable}
+
+% ── Firebase ──────────────────────────────────────────────────
+\subsection{Firebase Cloud Messaging (Push Notifications)}
+
+\begin{longtable}{L{3.5cm} L{11.5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Detail} \\
+\midrule
+\endhead
+\textbf{What it is} & Google's cross-platform push notification service for iOS, Android, and Web. \\
+\midrule
+\textbf{What it improves} & Sends real-time push notifications for new matches, messages, likes, and system alerts even when the app is closed. \\
+\midrule
+\textbf{Our usage} & Currently a stub --- FCM token storage and notification entity are ready. Needs \texttt{firebase-admin} SDK integration for actual push delivery. \\
+\midrule
+\textbf{Production tip} & Implement \texttt{firebase-admin} SDK. Handle token refresh and invalid token cleanup. Use notification channels/topics for batch sends. \\
+\bottomrule
+\end{longtable}
+
+% ── Helmet ────────────────────────────────────────────────────
+\subsection{Helmet (HTTP Security Headers)}
+
+\begin{longtable}{L{3.5cm} L{11.5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Detail} \\
+\midrule
+\endhead
+\textbf{What it is} & Express middleware that sets various HTTP security headers. \\
+\midrule
+\textbf{What it improves} & Protects against XSS, clickjacking, MIME sniffing, and other common web vulnerabilities by setting headers: \texttt{X-Content-Type-Options}, \texttt{X-Frame-Options}, \texttt{Strict-Transport-Security}, \texttt{Content-Security-Policy}, etc. \\
+\midrule
+\textbf{Our usage} & Applied globally as the first middleware in \texttt{main.ts}. \\
+\bottomrule
+\end{longtable}
+
+% ── Swagger ───────────────────────────────────────────────────
+\subsection{Swagger / OpenAPI (API Documentation)}
+
+\begin{longtable}{L{3.5cm} L{11.5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Detail} \\
+\midrule
+\endhead
+\textbf{What it is} & Auto-generated interactive API documentation from NestJS decorators. \\
+\midrule
+\textbf{What it improves} & Frontend/mobile developers can explore and test all 80+ endpoints without reading backend code. Shows request/response schemas, auth requirements, and example payloads. \\
+\midrule
+\textbf{Our usage} & Available at \texttt{/api/docs}. Bearer auth configured. All modules tagged. \\
+\midrule
+\textbf{Production tip} & Disable or password-protect Swagger in production to avoid exposing API internals. \\
+\bottomrule
+\end{longtable}
+
+% ── class-validator ───────────────────────────────────────────
+\subsection{class-validator + class-transformer (Input Validation)}
+
+\begin{longtable}{L{3.5cm} L{11.5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Detail} \\
+\midrule
+\endhead
+\textbf{What it is} & Decorator-based validation and transformation for incoming request data. \\
+\midrule
+\textbf{What it improves} & Prevents injection attacks and malformed data at the controller level. Automatically strips unknown properties (\texttt{whitelist: true}), rejects extra fields (\texttt{forbidNonWhitelisted: true}), and transforms types. \\
+\midrule
+\textbf{Our usage} & Applied globally as a ValidationPipe. All DTOs decorated with validation rules (\texttt{@IsEmail}, \texttt{@IsString}, \texttt{@MinLength}, \texttt{@IsEnum}, etc.). \\
+\bottomrule
+\end{longtable}
+
+% ── @nestjs/throttler ─────────────────────────────────────────
+\subsection{@nestjs/throttler (Global Rate Limiting)}
+
+\begin{longtable}{L{3.5cm} L{11.5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Detail} \\
+\midrule
+\endhead
+\textbf{What it is} & NestJS built-in rate limiting module. \\
+\midrule
+\textbf{What it improves} & Prevents API abuse and DDoS by limiting requests per IP per time window. \\
+\midrule
+\textbf{Our usage} & Global: 100 requests per 60 seconds. Additional Redis-based per-IP, per-endpoint limiting in the SecurityModule (configurable). OTP cooldown: 60\,s. Login throttling: 100/hour. \\
+\bottomrule
+\end{longtable}
+
+% ── @nestjs/schedule ──────────────────────────────────────────
+\subsection{@nestjs/schedule (Cron Jobs)}
+
+\begin{longtable}{L{3.5cm} L{11.5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Detail} \\
+\midrule
+\endhead
+\textbf{What it is} & Cron-based task scheduling for NestJS. \\
+\midrule
+\textbf{What it improves} & Automates recurring maintenance: expired boost cleanup, compatibility precompute, behavior stats update, old data purge. \\
+\midrule
+\textbf{Our usage} & 4 jobs: deactivate expired boosts (5\,min), precompute compatibility (1\,h), update behavior stats (6\,h), cleanup old analytics (daily midnight). \\
+\midrule
+\textbf{Production tip} & In multi-instance deployments, use a distributed lock (Redis-based) to prevent duplicate job execution across instances. \\
+\bottomrule
+\end{longtable}
+
+% ══════════════════════════════════════════════════════════════
+% PART II — SECURITY ARCHITECTURE
+% ══════════════════════════════════════════════════════════════
+
+\newpage
+\section{Security Architecture}
+
+\begin{center}
+\begin{tikzpicture}[
+    node distance=0.5cm,
+    layer/.style={draw, rounded corners, minimum width=14cm, minimum height=1cm, font=\small, align=center},
+]
+\node[layer, fill=red!15]     (l1) {\textbf{Layer 1: Network} --- HTTPS/TLS, CORS, Helmet headers, Firewall rules};
+\node[layer, fill=orange!12, below=of l1] (l2) {\textbf{Layer 2: Rate Limiting} --- Global throttler (100/min), Redis per-IP limits, OTP cooldown};
+\node[layer, fill=yellow!12, below=of l2] (l3) {\textbf{Layer 3: Authentication} --- JWT (access 15m + refresh 7d), bcrypt, OTP email verification};
+\node[layer, fill=green!10, below=of l3]  (l4) {\textbf{Layer 4: Authorization} --- Role-based guards (USER/ADMIN/MODERATOR), resource ownership};
+\node[layer, fill=blue!10, below=of l4]   (l5) {\textbf{Layer 5: Input Validation} --- class-validator whitelist, DTO enforcement, SQL injection prevention};
+\node[layer, fill=purple!10, below=of l5] (l6) {\textbf{Layer 6: Trust \& Safety} --- Bad words filter, fake detection, shadow ban, trust score, content flags};
+\node[layer, fill=gray!10, below=of l6]   (l7) {\textbf{Layer 7: Device \& Login Security} --- Device tracking (max 5), suspicious login detection, IP monitoring};
+\end{tikzpicture}
+\end{center}
+
+\subsection{Authentication Security}
+
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Password Hashing:} bcrypt with auto-generated salt (cost factor 10). Passwords never stored in plain text.
+    \item \textbf{JWT Access Tokens:} Short-lived (15 minutes). Contain \texttt{userId}, \texttt{email}, \texttt{role}. Verified on every request via JwtAuthGuard.
+    \item \textbf{JWT Refresh Tokens:} Long-lived (7 days). Bcrypt-hashed before storage in DB. Rotated on each refresh --- old token invalidated immediately.
+    \item \textbf{OTP Email Verification:} 6-digit code, 30\,s expiry, max 5 attempts, 60\,s cooldown between resends. Stored in Redis (not DB) for automatic expiry.
+    \item \textbf{Password Reset:} OTP-based flow (forgot $\to$ verify OTP $\to$ reset). Same cooldown and attempt limits as registration OTP.
+    \item \textbf{Logout:} Clears refresh token from DB, invalidating all future refresh attempts.
+\end{itemize}
+
+\subsection{Authorization \& Access Control}
+
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Global Guard:} \texttt{JwtAuthGuard} applied to all routes by default. Public routes opt out via \texttt{@Public()} decorator.
+    \item \textbf{Role-Based Access:} \texttt{@Roles(UserRole.ADMIN)} decorator + \texttt{RolesGuard}. Admin endpoints (analytics, user management, moderation, blacklist) are restricted.
+    \item \textbf{Resource Ownership:} Services verify that the requesting user owns the resource (e.g., only conversation participants can read messages).
+    \item \textbf{Shadow Banned Users:} Silently excluded from other users' search results and suggestions. Still see their own data normally.
+\end{itemize}
+
+\subsection{Rate Limiting \& Abuse Prevention}
+
+\begin{longtable}{L{5cm} L{3cm} L{7cm}}
+\toprule
+\textbf{Protection} & \textbf{Limit} & \textbf{Mechanism} \\
+\midrule
+\endhead
+Global API throttle & 100 req/60\,s & @nestjs/throttler (per IP) \\
+IP-based endpoint limit & Configurable & Redis counters (SecurityService) \\
+OTP resend cooldown & 1 per 60\,s & Redis key with TTL \\
+Login attempts & 100/hour & Redis counter per email \\
+Daily likes (FREE) & 25/day & Redis counter with 24\,h TTL \\
+Daily super-likes (FREE) & 1/day & Redis counter with 24\,h TTL \\
+Max swipes (trust check) & 200/day & Trust \& Safety detection threshold \\
+Max devices per user & 5 & DB count + enforcement \\
+\bottomrule
+\end{longtable}
+
+\subsection{Suspicious Login Detection}
+
+The system evaluates 4 heuristics on every login. If 2 or more trigger, the login is flagged as \textbf{SUSPICIOUS}:
+
+\begin{enumerate}[leftmargin=1.5em]
+    \item \textbf{Multiple IPs:} More than 5 unique IPs in the last hour.
+    \item \textbf{IP Range Change:} First two octets of IP differ from last known IP.
+    \item \textbf{Failed Attempts:} 3+ failed login attempts in the last hour.
+    \item \textbf{New Device:} Device fingerprint not previously registered.
+\end{enumerate}
+
+\subsection{Trust \& Safety System}
+
+\begin{longtable}{L{4.5cm} L{10.5cm}}
+\toprule
+\textbf{Feature} & \textbf{How It Works} \\
+\midrule
+\endhead
+Trust Score & Integer 0--100 (default 100). $-2$ for bad words, $-5$ for offensive profile, $-5$ per suspicious reason, $+10$ for selfie verification. \\
+\midrule
+Auto Shadow Ban & Triggered when trust score drops below 20. User is silently hidden from all discovery/search results. \\
+\midrule
+Bad Words Filter & 22-word regex dictionary. Auto-replaces with asterisks. Applied to chat messages and profile text. \\
+\midrule
+Fake Account Detection & 5 heuristics: no profile after 24\,h, $>$200 swipes/day, no messages despite activity, multiple countries in 24\,h, $>$70\% repetitive messages. Triggers at 2+ indicators. \\
+\midrule
+Content Flags & Auto-detected or user-reported. Stored with confidence score, entity reference, admin review workflow. \\
+\midrule
+Selfie Verification & Face comparison (mock AI, ready for AWS Rekognition). Adds +10 trust score on success. \\
+\midrule
+Email Blacklist & Domain-level blacklist (Redis-cached 24\,h). Blocks registration from disposable email providers. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Data Security}
+
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{SSL/TLS:} Database connections use SSL. All API traffic should be HTTPS (enforced at load balancer).
+    \item \textbf{Data Sanitization:} Passwords and refresh tokens stripped from all API responses via entity \texttt{select: false} or manual exclusion.
+    \item \textbf{Soft Deletes:} User accounts are soft-deleted (\texttt{deletedAt} column), preserving data for compliance while hiding from queries.
+    \item \textbf{Input Whitelist:} \texttt{forbidNonWhitelisted: true} rejects any unexpected fields in requests, preventing mass assignment attacks.
+    \item \textbf{Error Handling:} GlobalExceptionFilter returns standardized error responses without leaking stack traces or internal details.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════
+% PART III — LOAD BALANCING & SCALING
+% ══════════════════════════════════════════════════════════════
+
+\newpage
+\section{Load Balancing \& Scaling Strategy}
+
+\subsection{Current Architecture (Single Instance)}
+
+\begin{center}
+\begin{tikzpicture}[
+    box/.style={draw, rounded corners, minimum width=3.5cm, minimum height=1cm, font=\small, align=center},
+    node distance=1cm,
+]
+\node[box, fill=blue!10]   (client) {Mobile App / Web};
+\node[box, fill=green!10, below=of client]  (api) {NestJS API\\(single instance)};
+\node[box, fill=yellow!10, below left=1cm and 0.5cm of api] (redis) {Redis\\(Upstash)};
+\node[box, fill=purple!10, below right=1cm and 0.5cm of api] (pg) {PostgreSQL};
+\node[box, fill=orange!10, right=1.5cm of api] (cloud) {Cloudinary\\CDN};
+
+\draw[-{Stealth}, thick] (client) -- (api);
+\draw[{Stealth}-{Stealth}, thick] (api) -- (redis);
+\draw[{Stealth}-{Stealth}, thick] (api) -- (pg);
+\draw[-{Stealth}, thick] (api) -- (cloud);
+\end{tikzpicture}
+\end{center}
+
+\textbf{Handles:} Up to $\sim$5,000--10,000 concurrent users on a single 2-vCPU instance with Redis caching.
+
+\subsection{Scaled Architecture (Production)}
+
+\begin{center}
+\begin{tikzpicture}[
+    box/.style={draw, rounded corners, minimum width=3cm, minimum height=0.9cm, font=\scriptsize, align=center},
+    node distance=0.7cm,
+]
+\node[box, fill=blue!10]   (client) {Mobile / Web Clients};
+\node[box, fill=red!10, below=of client]  (lb) {Load Balancer\\(Nginx / ALB)\\+ SSL Termination};
+
+\node[box, fill=green!10, below left=1cm and 1cm of lb] (api1) {NestJS\\Instance 1};
+\node[box, fill=green!10, below=of lb] (api2) {NestJS\\Instance 2};
+\node[box, fill=green!10, below right=1cm and 1cm of lb] (api3) {NestJS\\Instance N};
+
+\node[box, fill=yellow!10, below=2.5cm of api1] (redis) {Redis Cluster\\(Upstash Pro)};
+\node[box, fill=purple!10, below=2.5cm of api2] (pg) {PostgreSQL\\Primary + Read Replicas};
+\node[box, fill=orange!10, below=2.5cm of api3] (ext) {Cloudinary + Firebase\\+ SMTP + GeoIP};
+
+\draw[-{Stealth}, thick] (client) -- (lb);
+\draw[-{Stealth}, thick] (lb) -- (api1);
+\draw[-{Stealth}, thick] (lb) -- (api2);
+\draw[-{Stealth}, thick] (lb) -- (api3);
+\draw[{Stealth}-{Stealth}] (api1) -- (redis);
+\draw[{Stealth}-{Stealth}] (api2) -- (redis);
+\draw[{Stealth}-{Stealth}] (api2) -- (pg);
+\draw[{Stealth}-{Stealth}] (api1) -- (pg);
+\draw[-{Stealth}] (api3) -- (ext);
+\draw[{Stealth}-{Stealth}] (api3) -- (pg);
+\draw[{Stealth}-{Stealth}] (api3) -- (redis);
+\end{tikzpicture}
+\end{center}
+
+\subsection{Scaling Recommendations}
+
+\begin{longtable}{L{4cm} L{11cm}}
+\toprule
+\textbf{Component} & \textbf{Scaling Strategy} \\
+\midrule
+\endhead
+\textbf{Load Balancer} & Use Nginx, AWS ALB, or Cloudflare. SSL/TLS termination at this layer. Round-robin or least-connections algorithm. Sticky sessions for WebSocket connections. \\
+\midrule
+\textbf{NestJS Instances} & Horizontal scaling --- run 2--N instances behind load balancer. Stateless design (no in-memory sessions). Use PM2 cluster mode or Docker containers. Auto-scale based on CPU/memory. \\
+\midrule
+\textbf{WebSocket Scaling} & Add \texttt{@socket.io/redis-adapter} so all instances share the same Socket.IO room state via Redis pub/sub. Sticky sessions required at LB. \\
+\midrule
+\textbf{PostgreSQL} & Vertical scaling first (bigger instance). Then: read replicas for analytics/search queries. Connection pooling with PgBouncer. Consider managed services (Neon, Supabase, RDS). \\
+\midrule
+\textbf{Redis} & Upstash Pro for higher throughput. Or self-hosted Redis Cluster with sentinel for HA. \\
+\midrule
+\textbf{Cron Jobs} & In multi-instance setup, use Redis distributed lock (\texttt{redlock}) to ensure only one instance runs each cron job. \\
+\midrule
+\textbf{File Uploads} & Already CDN-backed via Cloudinary. No scaling needed --- Cloudinary handles global distribution. \\
+\midrule
+\textbf{Email} & Switch to SendGrid/Mailgun/AWS SES for production volumes. Queue emails via Redis/Bull for async delivery. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Performance Optimizations Already In Place}
+
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Redis Caching:} All expensive queries cached with TTLs (5\,min--24\,h). Reduces DB load by 70--90\%.
+    \item \textbf{Precomputed Compatibility:} Hourly batch job computes compatibility scores for 500 users $\times$ 50 candidates. Served from Redis in $<$1\,ms.
+    \item \textbf{Database Indexes:} Migration adds indexes on location (lat/lng), likes (likerId, likedId), messages (conversationId), analytics (eventDate), content flags, boosts, trust fields, login history.
+    \item \textbf{Pagination:} All list endpoints support \texttt{page} + \texttt{limit} query parameters.
+    \item \textbf{Selective Loading:} Entities use \texttt{select: false} for sensitive fields. Relations loaded only when needed.
+    \item \textbf{Streaming Uploads:} Photos uploaded via memory stream (no temp files on disk).
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════
+% PART IV — CLIENT REQUIREMENTS
+% ══════════════════════════════════════════════════════════════
+
+\newpage
+\section{What You Need from the Client (Hosting, APIs, Services)}
+
+\begin{warnbox}[IMPORTANT: All items below must be set up before production deployment]
+Without these services and credentials, the backend cannot function in production. Each item is mapped to the corresponding environment variable(s).
+\end{warnbox}
+
+\subsection{1. Server Hosting (Required)}
+
+\begin{clientbox}[Server / VPS / PaaS]
+\textbf{What you need:} A server to run the NestJS application.
+
+\textbf{Options (recommended first):}
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Railway} (\$5--20/mo) --- Easiest. Push to GitHub, auto-deploys. Free tier available.
+    \item \textbf{Render} (\$7--25/mo) --- Similar to Railway. Auto-deploy from Git.
+    \item \textbf{DigitalOcean Droplet} (\$6--24/mo) --- More control. Use PM2 + Nginx.
+    \item \textbf{AWS EC2 / Lightsail} (\$5--40/mo) --- Most flexible. t3.small minimum.
+    \item \textbf{Vercel} (free tier) --- Serverless. Already has \texttt{@vercel/node} + \texttt{serverless-http} configured. Limited for WebSockets.
+\end{itemize}
+
+\textbf{Minimum specs:} 1 vCPU, 1\,GB RAM (dev). 2 vCPU, 2--4\,GB RAM (production).
+
+\textbf{Env vars:}
+\begin{lstlisting}
+NODE_ENV=production
+PORT=3000
+API_PREFIX=api/v1
+\end{lstlisting}
+\end{clientbox}
+
+\subsection{2. Domain Name + SSL (Required)}
+
+\begin{clientbox}[Domain \& SSL Certificate]
+\textbf{What you need:} A domain name (e.g.\ \texttt{api.wafaa.app}) with HTTPS.
+
+\textbf{Options:}
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Namecheap / GoDaddy / Google Domains} --- Purchase domain (\$10--15/year).
+    \item \textbf{Cloudflare} (free) --- DNS management + free SSL + DDoS protection + CDN.
+    \item \textbf{Let's Encrypt} (free) --- Auto-renewing SSL certificates via Certbot.
+\end{itemize}
+
+\textbf{Setup:} Point \texttt{api.wafaa.app} A record to your server IP. Configure Nginx reverse proxy with SSL termination.
+
+\textbf{Env vars:}
+\begin{lstlisting}
+CORS_ORIGIN=https://app.wafaa.app
+\end{lstlisting}
+\end{clientbox}
+
+\subsection{3. PostgreSQL Database (Required)}
+
+\begin{clientbox}[PostgreSQL Hosting]
+\textbf{What you need:} A PostgreSQL database instance.
+
+\textbf{Options:}
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Neon} (free tier: 0.5\,GB) --- Serverless PostgreSQL. Best for starting.
+    \item \textbf{Supabase} (free tier: 500\,MB) --- PostgreSQL + extras.
+    \item \textbf{Railway} (\$5/mo) --- Easy add-on alongside the server.
+    \item \textbf{AWS RDS} (\$15--50/mo) --- Production-grade with backups.
+    \item \textbf{Self-hosted on VPS} (free) --- Install PostgreSQL on same/different server.
+\end{itemize}
+
+\textbf{Env vars:}
+\begin{lstlisting}
+DB_HOST=your-db-host.neon.tech
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=strong_password_here
+DB_NAME=wafaa_production
+DB_SSL=true
+\end{lstlisting}
+\end{clientbox}
+
+\subsection{4. Redis Cache (Required)}
+
+\begin{clientbox}[Redis Hosting]
+\textbf{What you need:} A Redis instance for caching, rate limiting, and real-time features.
+
+\textbf{Options:}
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Upstash} (free tier: 10K commands/day) --- Serverless Redis with REST API. \textbf{Already configured in the codebase.}
+    \item \textbf{Redis Cloud} (free tier: 30\,MB) --- Traditional Redis hosting.
+    \item \textbf{Railway Redis} (\$5/mo) --- Easy add-on.
+    \item \textbf{Self-hosted} (free) --- Install Redis on VPS.
+\end{itemize}
+
+\textbf{Note:} The codebase uses Upstash REST API (\texttt{REDIS\_URL} + \texttt{REDIS\_TOKEN}). If switching to traditional Redis, the \texttt{RedisService} needs to be updated from REST calls to \texttt{ioredis} client.
+
+\textbf{Env vars:}
+\begin{lstlisting}
+REDIS_URL=https://your-redis.upstash.io
+REDIS_TOKEN=your_upstash_token
+\end{lstlisting}
+\end{clientbox}
+
+\subsection{5. Cloudinary Account (Required)}
+
+\begin{clientbox}[Image Storage \& CDN]
+\textbf{What you need:} A Cloudinary account for photo upload and delivery.
+
+\textbf{Plan:} Free tier includes 25 credits/month ($\approx$ 25\,GB bandwidth or 25K transformations). Sufficient for early stage.
+
+\textbf{Setup:}
+\begin{enumerate}[leftmargin=1.5em]
+    \item Sign up at \url{https://cloudinary.com}
+    \item Go to Dashboard $\to$ copy Cloud Name, API Key, API Secret
+\end{enumerate}
+
+\textbf{Env vars:}
+\begin{lstlisting}
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+\end{lstlisting}
+\end{clientbox}
+
+\subsection{6. Email SMTP (Required)}
+
+\begin{clientbox}[Email Sending]
+\textbf{What you need:} SMTP credentials for sending OTP and password reset emails.
+
+\textbf{Options:}
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Gmail SMTP} (free, 500/day limit) --- Quick start. Use App Password (not regular password).
+    \item \textbf{SendGrid} (free tier: 100 emails/day) --- Better deliverability. Recommended for production.
+    \item \textbf{Mailgun} (free tier: 5K/month for 3 months) --- Good API.
+    \item \textbf{AWS SES} (\$0.10 per 1K emails) --- Cheapest at scale.
+\end{itemize}
+
+\textbf{For Gmail:} Enable 2FA on Google account $\to$ Generate App Password $\to$ Use as \texttt{MAIL\_PASS}.
+
+\textbf{Env vars:}
+\begin{lstlisting}
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USER=your_email@gmail.com
+MAIL_PASS=your_app_password
+MAIL_FROM=noreply@wafaa.app
+\end{lstlisting}
+\end{clientbox}
+
+\subsection{7. Firebase Project (Required for Push Notifications)}
+
+\begin{clientbox}[Push Notifications]
+\textbf{What you need:} A Firebase project for sending push notifications to mobile apps.
+
+\textbf{Setup:}
+\begin{enumerate}[leftmargin=1.5em]
+    \item Go to \url{https://console.firebase.google.com}
+    \item Create new project ``Wafaa''
+    \item Go to Project Settings $\to$ Service Accounts $\to$ Generate private key (JSON)
+    \item Extract \texttt{project\_id}, \texttt{client\_email}, and \texttt{private\_key} from the JSON
+\end{enumerate}
+
+\textbf{Note:} Push notifications are currently a stub. Needs \texttt{firebase-admin} SDK integration.
+
+\textbf{Env vars:}
+\begin{lstlisting}
+FIREBASE_PROJECT_ID=wafaa-12345
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk@wafaa.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+\end{lstlisting}
+\end{clientbox}
+
+\subsection{8. JWT Secrets (Required)}
+
+\begin{clientbox}[Authentication Secrets]
+\textbf{What you need:} Two strong random secrets for JWT signing.
+
+\textbf{Generate:} Run in terminal:
+\begin{lstlisting}
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+\end{lstlisting}
+
+Run twice --- one for access, one for refresh.
+
+\textbf{Env vars:}
+\begin{lstlisting}
+JWT_SECRET=<64-byte-hex-string>
+JWT_EXPIRATION=15m
+JWT_REFRESH_SECRET=<different-64-byte-hex-string>
+JWT_REFRESH_EXPIRATION=7d
+\end{lstlisting}
+\end{clientbox}
+
+% ── SUMMARY TABLE ─────────────────────────────────────────────
+
+\subsection{Complete Requirements Summary}
+
+\begin{longtable}{C{0.5cm} L{3.5cm} L{3cm} L{3cm} L{4.5cm}}
+\toprule
+\textbf{\#} & \textbf{Service} & \textbf{Free Option} & \textbf{Paid Option} & \textbf{Env Vars} \\
+\midrule
+\endhead
+1 & Server Hosting & Vercel / Render free & Railway \$7/mo & \texttt{NODE\_ENV, PORT} \\
+\midrule
+2 & Domain + SSL & Cloudflare (free SSL) & \$10--15/year & \texttt{CORS\_ORIGIN} \\
+\midrule
+3 & PostgreSQL & Neon / Supabase free & Railway \$5/mo & \texttt{DB\_HOST, DB\_PASSWORD, ...} \\
+\midrule
+4 & Redis & Upstash free & Upstash Pro \$10/mo & \texttt{REDIS\_URL, REDIS\_TOKEN} \\
+\midrule
+5 & Image CDN & Cloudinary free & \$89/mo (Plus) & \texttt{CLOUDINARY\_*} \\
+\midrule
+6 & Email SMTP & Gmail / SendGrid free & SES \$0.10/1K & \texttt{MAIL\_*} \\
+\midrule
+7 & Push Notifications & Firebase (free) & --- & \texttt{FIREBASE\_*} \\
+\midrule
+8 & JWT Secrets & Self-generated & --- & \texttt{JWT\_SECRET, JWT\_REFRESH\_SECRET} \\
+\bottomrule
+\end{longtable}
+
+\begin{notebox}[Estimated Monthly Cost]
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Free tier (MVP/testing):} \$0--10/month (Neon + Upstash + Cloudinary + Firebase free tiers)
+    \item \textbf{Early production (1K--5K users):} \$20--50/month (Railway + Upstash Pro + Cloudinary free)
+    \item \textbf{Growth (10K--50K users):} \$100--300/month (2--3 server instances + managed DB + Redis Pro)
+    \item \textbf{Scale (50K+ users):} \$500--2000/month (auto-scaling, read replicas, CDN, monitoring)
+\end{itemize}
+\end{notebox}
+
+% ══════════════════════════════════════════════════════════════
+% PART V — DEPLOYMENT CHECKLIST
+% ══════════════════════════════════════════════════════════════
+
+\newpage
+\section{Production Deployment Checklist}
+
+\subsection{Before Going Live}
+
+\begin{enumerate}[leftmargin=1.5em]
+    \item[$\square$] Set \texttt{NODE\_ENV=production}
+    \item[$\square$] Generate strong JWT secrets (64+ bytes)
+    \item[$\square$] Set up PostgreSQL with SSL enabled
+    \item[$\square$] Run database migrations (\texttt{npm run migration:run})
+    \item[$\square$] Set up Upstash Redis and configure URL + token
+    \item[$\square$] Create Cloudinary account and configure credentials
+    \item[$\square$] Set up email SMTP (Gmail App Password or SendGrid)
+    \item[$\square$] Create Firebase project for push notifications
+    \item[$\square$] Configure \texttt{CORS\_ORIGIN} to your app domain (not \texttt{*})
+    \item[$\square$] Disable or password-protect Swagger (\texttt{/api/docs})
+    \item[$\square$] Set up domain with SSL (Let's Encrypt or Cloudflare)
+    \item[$\square$] Configure Nginx reverse proxy with rate limiting
+    \item[$\square$] Set up server monitoring (PM2, Datadog, or UptimeRobot)
+    \item[$\square$] Configure automated database backups
+    \item[$\square$] Test all critical flows: register $\to$ verify $\to$ login $\to$ create profile $\to$ swipe $\to$ match $\to$ chat
+\end{enumerate}
+
+\subsection{Recommended Nginx Configuration}
+
+\begin{lstlisting}[language={}]
+server {
+    listen 443 ssl http2;
+    server_name api.wafaa.app;
+
+    ssl_certificate     /etc/letsencrypt/live/api.wafaa.app/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.wafaa.app/privkey.pem;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Strict-Transport-Security "max-age=63072000" always;
+
+    # Rate limiting zone
+    limit_req_zone $binary_remote_addr zone=api:10m rate=30r/s;
+
+    # API proxy
+    location /api/ {
+        limit_req zone=api burst=50 nodelay;
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # WebSocket proxy
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 86400;
+    }
+}
+
+# Redirect HTTP to HTTPS
+server {
+    listen 80;
+    server_name api.wafaa.app;
+    return 301 https://$server_name$request_uri;
+}
+\end{lstlisting}
+
+\subsection{PM2 Process Manager (Recommended)}
+
+\begin{lstlisting}[language={}]
+# Install PM2
+npm install -g pm2
+
+# Build the project
+npm run build
+
+# Start with PM2 (cluster mode for multi-core)
+pm2 start dist/main.js --name wafaa-api -i max
+
+# Save and auto-start on reboot
+pm2 save
+pm2 startup
+\end{lstlisting}
+
+% ══════════════════════════════════════════════════════════════
+% PART VI — IMPROVEMENTS NEEDED
+% ══════════════════════════════════════════════════════════════
+
+\section{Improvements Needed Before Production}
+
+\begin{longtable}{C{0.5cm} L{3.5cm} L{2cm} L{8.5cm}}
+\toprule
+\textbf{\#} & \textbf{Item} & \textbf{Priority} & \textbf{Description} \\
+\midrule
+\endhead
+1 & WebSocket JWT Auth & \textcolor{red}{\textbf{HIGH}} & Currently uses \texttt{userId} from query params. Must validate JWT token in WebSocket handshake to prevent impersonation. \\
+\midrule
+2 & Firebase Push & \textcolor{red}{\textbf{HIGH}} & Currently a stub. Integrate \texttt{firebase-admin} SDK for real push notification delivery. \\
+\midrule
+3 & Payment Gateway & \textcolor{red}{\textbf{HIGH}} & No payment processing. Integrate Stripe, RevenueCat, or Google/Apple IAP for subscription purchases. \\
+\midrule
+4 & Selfie Verification & \textcolor{orange}{\textbf{MED}} & Mock AI. Integrate AWS Rekognition or Azure Face API for real face comparison. \\
+\midrule
+5 & GeoIP Service & \textcolor{orange}{\textbf{MED}} & Uses IP prefix comparison. Integrate MaxMind GeoLite2 for accurate country/city detection. \\
+\midrule
+6 & Email Provider & \textcolor{orange}{\textbf{MED}} & Gmail SMTP has sending limits. Switch to SendGrid/Mailgun/AWS SES for production. \\
+\midrule
+7 & Health Check & \textcolor{orange}{\textbf{MED}} & No \texttt{/health} endpoint. Add \texttt{@nestjs/terminus} for Kubernetes/Docker readiness probes. \\
+\midrule
+8 & Structured Logging & \textcolor{blue}{\textbf{LOW}} & NestJS Logger only. Add Winston/Pino for structured JSON logging + external aggregation (ELK, Datadog). \\
+\midrule
+9 & Redis Adapter & \textcolor{blue}{\textbf{LOW}} & Socket.IO works single-instance. Add \texttt{@socket.io/redis-adapter} for multi-instance WebSocket support. \\
+\midrule
+10 & Distributed Cron Lock & \textcolor{blue}{\textbf{LOW}} & Cron jobs run on all instances. Add Redis-based distributed lock (\texttt{redlock}) for single execution. \\
+\midrule
+11 & DB SSL Certificate & \textcolor{blue}{\textbf{LOW}} & Uses \texttt{rejectUnauthorized: false}. Add proper CA certificates for production. \\
+\bottomrule
+\end{longtable}
+
+% ══════════════════════════════════════════════════════════════
+% END
+% ══════════════════════════════════════════════════════════════
+
+\vfill
+\begin{center}
+\textcolor{darkgray}{\rule{0.5\textwidth}{0.4pt}}\\[0.5em]
+\textit{Wafaa Backend --- Architecture \& Technology Stack Document\\Generated from source code analysis.}
+\end{center}
+
+\end{document}

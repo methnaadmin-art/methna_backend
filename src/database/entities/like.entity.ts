@@ -10,6 +10,13 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 
+export enum LikeType {
+    LIKE = 'like',
+    SUPER_LIKE = 'super_like',
+    COMPLIMENT = 'compliment',
+    PASS = 'pass',
+}
+
 @Entity('likes')
 @Unique(['likerId', 'likedId'])
 @Index(['likerId', 'likedId'])
@@ -33,8 +40,14 @@ export class Like {
     @JoinColumn({ name: 'likedId' })
     liked: User;
 
+    @Column({ type: 'enum', enum: LikeType, default: LikeType.LIKE })
+    type: LikeType;
+
     @Column({ default: true })
-    isLike: boolean; // true = like, false = pass
+    isLike: boolean; // true = like/super_like/compliment, false = pass
+
+    @Column({ nullable: true, length: 500 })
+    complimentMessage: string;
 
     @CreateDateColumn()
     createdAt: Date;

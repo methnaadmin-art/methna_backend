@@ -16,6 +16,13 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { SearchModule } from './modules/search/search.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { MailModule } from './modules/mail/mail.module';
+import { TrustSafetyModule } from './modules/trust-safety/trust-safety.module';
+import { MatchingModule } from './modules/matching/matching.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { MonetizationModule } from './modules/monetization/monetization.module';
+import { SecurityModule } from './modules/security/security.module';
+import { JobsModule } from './modules/jobs/jobs.module';
 import configuration from './config/configuration';
 
 @Module({
@@ -38,6 +45,9 @@ import configuration from './config/configuration';
         // Redis
         RedisModule,
 
+        // Global modules
+        MailModule,
+
         // Feature modules
         AuthModule,
         UsersModule,
@@ -51,6 +61,14 @@ import configuration from './config/configuration';
         SearchModule,
         ReportsModule,
         AdminModule,
+
+        // Advanced feature modules
+        TrustSafetyModule,
+        MatchingModule,
+        AnalyticsModule,
+        MonetizationModule,
+        SecurityModule,
+        JobsModule,
     ],
 })
 export class AppModule { }

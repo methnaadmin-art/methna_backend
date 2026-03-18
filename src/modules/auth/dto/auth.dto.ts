@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, MaxLength, IsOptional } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, IsOptional, Length, Matches } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RegisterDto {
@@ -10,6 +10,9 @@ export class RegisterDto {
     @IsString()
     @MinLength(8)
     @MaxLength(128)
+    @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
+        message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number',
+    })
     password: string;
 
     @ApiProperty({ example: 'Ahmed' })
@@ -24,10 +27,35 @@ export class RegisterDto {
     @MaxLength(50)
     lastName: string;
 
+    @ApiPropertyOptional({ example: 'ahmed_rashid' })
+    @IsOptional()
+    @IsString()
+    @MinLength(3)
+    @MaxLength(30)
+    @Matches(/^[a-zA-Z0-9_]+$/, { message: 'Username can only contain letters, numbers and underscores' })
+    username?: string;
+
     @ApiPropertyOptional({ example: '+966501234567' })
     @IsOptional()
     @IsString()
     phone?: string;
+}
+
+export class VerifyOtpDto {
+    @ApiProperty({ example: 'user@example.com' })
+    @IsEmail()
+    email: string;
+
+    @ApiProperty({ example: '123456', description: '6-digit OTP code' })
+    @IsString()
+    @Length(6, 6)
+    otp: string;
+}
+
+export class ResendOtpDto {
+    @ApiProperty({ example: 'user@example.com' })
+    @IsEmail()
+    email: string;
 }
 
 export class LoginDto {
@@ -44,4 +72,47 @@ export class RefreshTokenDto {
     @ApiProperty()
     @IsString()
     refreshToken: string;
+}
+
+export class ForgotPasswordDto {
+    @ApiProperty({ example: 'user@example.com' })
+    @IsEmail()
+    email: string;
+}
+
+export class VerifyResetOtpDto {
+    @ApiProperty({ example: 'user@example.com' })
+    @IsEmail()
+    email: string;
+
+    @ApiProperty({ example: '123456' })
+    @IsString()
+    @Length(6, 6)
+    otp: string;
+}
+
+export class ResetPasswordDto {
+    @ApiProperty({ example: 'user@example.com' })
+    @IsEmail()
+    email: string;
+
+    @ApiProperty({ example: '123456' })
+    @IsString()
+    @Length(6, 6)
+    otp: string;
+
+    @ApiProperty({ example: 'NewStr0ngP@ss' })
+    @IsString()
+    @MinLength(8)
+    @MaxLength(128)
+    @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
+        message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number',
+    })
+    newPassword: string;
+}
+
+export class UpdateFcmTokenDto {
+    @ApiProperty()
+    @IsString()
+    fcmToken: string;
 }
