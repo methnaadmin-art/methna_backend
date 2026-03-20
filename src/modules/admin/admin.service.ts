@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -19,7 +19,7 @@ import { BlockedUser } from '../../database/entities/blocked-user.entity';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @Injectable()
-export class AdminService {
+export class AdminService implements OnModuleInit {
     private readonly logger = new Logger(AdminService.name);
 
     constructor(
@@ -52,6 +52,45 @@ export class AdminService {
         @InjectRepository(BlockedUser)
         private readonly blockedUserRepository: Repository<BlockedUser>,
     ) { }
+
+    // ─── AUTO-SEED ADMIN ON STARTUP ──────────────────────────
+
+    async onModuleInit() {
+        try {
+            const adminExists = await this.userRepository.findOne({
+                where: { role: UserRole.ADMIN },
+            });
+
+            if (!adminExists) {
+                const email = process.env.ADMIN_EMAIL || 'admin@methna.app';
+                const password = process.env.ADMIN_PASSWORD || 'Admin@123456';
+
+                const salt = await bcrypt.genSalt(12);
+                const hashedPassword = await bcrypt.hash(password, salt);
+
+                const admin = this.userRepository.create({
+                    email,
+                    password: hashedPassword,
+                    firstName: 'Super',
+                    lastName: 'Admin',
+                    username: 'admin',
+                    role: UserRole.ADMIN,
+                    status: UserStatus.ACTIVE,
+                    emailVerified: true,
+                    trustScore: 100,
+                    notificationsEnabled: true,
+                    matchNotifications: true,
+                    messageNotifications: true,
+                    likeNotifications: true,
+                });
+
+                await this.userRepository.save(admin);
+                this.logger.warn(`🔑 Auto-seeded admin account: ${email}`);
+            }
+        } catch (error) {
+            this.logger.error('Failed to auto-seed admin:', error.message);
+        }
+    }
 
     // ─── USER MANAGEMENT ────────────────────────────────────
 
