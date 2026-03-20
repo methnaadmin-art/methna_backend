@@ -105,7 +105,7 @@ export class AdminService {
 
         user.documentVerified = approved;
         user.documentVerifiedAt = new Date();
-        user.documentRejectionReason = approved ? null : (rejectionReason || 'Document rejected by admin');
+        (user as any).documentRejectionReason = approved ? null : (rejectionReason || 'Document rejected by admin');
 
         if (approved && user.status === UserStatus.PENDING_VERIFICATION) {
             user.status = UserStatus.ACTIVE;

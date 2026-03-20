@@ -48,6 +48,37 @@ export class AuthService {
             where: { email },
         });
         if (existingUser) {
+            // Allow re-registration if user never verified their email
+            if (existingUser.status === UserStatus.PENDING_VERIFICATION && !existingUser.emailVerified) {
+                const salt = await bcrypt.genSalt(12);
+                const hashedPassword = await bcrypt.hash(password, salt);
+                const otp = this.generateOtp();
+                const otpExpiry = new Date(
+                    Date.now() + this.configService.get<number>('otp.expirySeconds', 30) * 1000,
+                );
+
+                existingUser.password = hashedPassword;
+                existingUser.firstName = firstName;
+                existingUser.lastName = lastName;
+                if (phone !== undefined) existingUser.phone = phone;
+                if (username !== undefined) existingUser.username = username;
+                existingUser.otpCode = otp;
+                existingUser.otpExpiresAt = otpExpiry;
+                existingUser.otpAttempts = 0;
+
+                await this.userRepository.save(existingUser);
+
+                this.mailService
+                    .sendOtpEmail(email, otp, firstName)
+                    .catch((err) => this.logger.error(`OTP email failed for ${email}`, err));
+
+                this.logger.log(`User re-registered (pending verification): ${email}`);
+
+                return {
+                    message: 'Registration successful. Please verify your email with the OTP sent.',
+                    email,
+                };
+            }
             throw new ConflictException('Email already registered');
         }
 
