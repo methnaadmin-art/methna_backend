@@ -92,6 +92,22 @@ export class User {
     @Column({ nullable: true })
     selfieUrl: string;
 
+    // Document verification (passport, national ID, etc.)
+    @Column({ nullable: true })
+    documentUrl: string;
+
+    @Column({ nullable: true })
+    documentType: string; // 'passport' | 'national_id' | 'driving_license' | 'other'
+
+    @Column({ default: false })
+    documentVerified: boolean;
+
+    @Column({ nullable: true })
+    documentVerifiedAt: Date;
+
+    @Column({ nullable: true })
+    documentRejectionReason: string;
+
     // FCM push token
     @Column({ nullable: true })
     fcmToken: string;

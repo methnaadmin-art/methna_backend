@@ -89,6 +89,50 @@ export class AdminService {
         return { user, profile, photos, subscription };
     }
 
+    // ─── DOCUMENT VERIFICATION ─────────────────────────────────
+
+    async getPendingDocuments() {
+        return this.userRepository.find({
+            where: { documentUrl: ILike('%'), documentVerified: false },
+            order: { createdAt: 'DESC' },
+        });
+    }
+
+    async verifyDocument(userId: string, approved: boolean, rejectionReason?: string) {
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+        if (!user) throw new NotFoundException('User not found');
+        if (!user.documentUrl) throw new BadRequestException('User has no document uploaded');
+
+        user.documentVerified = approved;
+        user.documentVerifiedAt = new Date();
+        user.documentRejectionReason = approved ? null : (rejectionReason || 'Document rejected by admin');
+
+        if (approved && user.status === UserStatus.PENDING_VERIFICATION) {
+            user.status = UserStatus.ACTIVE;
+        }
+
+        this.logger.log(`Admin ${approved ? 'approved' : 'rejected'} document for user ${userId}`);
+        return this.userRepository.save(user);
+    }
+
+    async autoApproveDocuments() {
+        const pending = await this.userRepository.find({
+            where: { documentUrl: ILike('%'), documentVerified: false },
+        });
+        let count = 0;
+        for (const user of pending) {
+            user.documentVerified = true;
+            user.documentVerifiedAt = new Date();
+            if (user.status === UserStatus.PENDING_VERIFICATION) {
+                user.status = UserStatus.ACTIVE;
+            }
+            await this.userRepository.save(user);
+            count++;
+        }
+        this.logger.log(`Auto-approved ${count} pending documents`);
+        return { approved: count };
+    }
+
     // ─── CREATE USER ──────────────────────────────────────────
 
     async createUser(dto: {

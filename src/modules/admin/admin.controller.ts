@@ -144,6 +144,41 @@ export class AdminController {
         return this.adminService.updateUserStatus(userId, dto.status);
     }
 
+    // ─── DOCUMENT VERIFICATION ────────────────────────────────
+
+    @Get('documents/pending')
+    @ApiOperation({ summary: 'Get all users with pending document verification' })
+    async getPendingDocuments() {
+        return this.adminService.getPendingDocuments();
+    }
+
+    @Patch('documents/:userId/verify')
+    @ApiOperation({ summary: 'Approve or reject a user document' })
+    async verifyDocument(
+        @CurrentUser('sub') adminId: string,
+        @Param('userId') userId: string,
+        @Body() dto: { approved: boolean; rejectionReason?: string },
+    ) {
+        this.redisService.appendAuditLog({
+            type: 'admin',
+            adminId,
+            action: dto.approved ? 'approve_document' : 'reject_document',
+            targetUserId: userId,
+        }).catch(() => {});
+        return this.adminService.verifyDocument(userId, dto.approved, dto.rejectionReason);
+    }
+
+    @Post('documents/auto-approve')
+    @ApiOperation({ summary: 'Auto-approve all pending documents' })
+    async autoApproveDocuments(@CurrentUser('sub') adminId: string) {
+        this.redisService.appendAuditLog({
+            type: 'admin',
+            adminId,
+            action: 'auto_approve_documents',
+        }).catch(() => {});
+        return this.adminService.autoApproveDocuments();
+    }
+
     @Delete('users/:id')
     @HttpCode(HttpStatus.NO_CONTENT)
     @ApiOperation({ summary: 'Soft-delete a user account' })
