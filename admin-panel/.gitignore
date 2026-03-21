@@ -2,8 +2,5 @@ node_modules/
 dist/
 .env
 *.js.map
-*.d.ts
 coverage/
 .DS_Store
-admin-panel/node_modules/
-admin-panel/dist/
