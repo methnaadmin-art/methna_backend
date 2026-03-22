@@ -8,17 +8,30 @@ export class MailService {
     private transporter: nodemailer.Transporter;
 
     constructor(private readonly configService: ConfigService) {
+        const host = this.configService.get<string>('mail.host') || 'smtp.gmail.com';
         const port = this.configService.get<number>('mail.port') || 587;
+        const user = this.configService.get<string>('mail.user');
+        const pass = this.configService.get<string>('mail.pass');
+
+        if (!user || !pass) {
+            this.logger.warn('⚠️  MAIL_USER or MAIL_PASS not set — OTP emails will fail!');
+        }
+
         this.transporter = nodemailer.createTransport({
-            host: this.configService.get<string>('mail.host') || 'smtp.gmail.com',
+            host,
             port,
             secure: port === 465,
-            auth: {
-                user: this.configService.get<string>('mail.user'),
-                pass: this.configService.get<string>('mail.pass'),
-            },
+            auth: { user, pass },
         });
-        this.logger.log('Mail service initialized');
+
+        this.logger.log(`Mail service initialized (host=${host}, port=${port}, user=${user ? '✓' : '✗'})`);
+
+        // Verify SMTP connection on startup (non-blocking)
+        this.transporter.verify().then(() => {
+            this.logger.log('✅ SMTP connection verified successfully');
+        }).catch((err) => {
+            this.logger.error('❌ SMTP connection verification failed — check MAIL_HOST/MAIL_USER/MAIL_PASS', err?.message);
+        });
     }
 
     async sendOtpEmail(to: string, otp: string, name: string): Promise<void> {

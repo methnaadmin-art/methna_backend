@@ -10,6 +10,7 @@ import { Profile } from '../../database/entities/profile.entity';
 import { UserPreference } from '../../database/entities/user-preference.entity';
 import { User } from '../../database/entities/user.entity';
 import { RedisService } from '../redis/redis.service';
+import { CategoriesService } from '../categories/categories.service';
 import {
     CreateProfileDto,
     UpdateProfileDto,
@@ -26,6 +27,7 @@ export class ProfilesService {
         @InjectRepository(UserPreference)
         private readonly preferenceRepository: Repository<UserPreference>,
         private readonly redisService: RedisService,
+        private readonly categoriesService: CategoriesService,
     ) { }
 
     async getProfile(userId: string): Promise<Profile> {
@@ -65,6 +67,9 @@ export class ProfilesService {
 
         // Invalidate cache
         await this.redisService.del(`profile:${userId}`);
+
+        // Re-evaluate dynamic categories (non-blocking)
+        this.categoriesService.evaluateUserCategories(userId).catch(() => {});
 
         return saved;
     }

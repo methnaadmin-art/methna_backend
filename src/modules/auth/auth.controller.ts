@@ -7,6 +7,9 @@ import {
     UseGuards,
     Patch,
     Req,
+    Headers,
+    Query,
+    Get,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
@@ -146,5 +149,19 @@ export class AuthController {
         @Body() dto: UpdateFcmTokenDto,
     ) {
         return this.authService.updateFcmToken(userId, dto.fcmToken);
+    }
+
+    // ─── QA Test Mode ──────────────────────────────────────
+
+    @Public()
+    @Get('test-otp')
+    @ApiOperation({ summary: 'Fetch OTP for testing (requires TEST_SECRET header)' })
+    @ApiResponse({ status: 200, description: 'OTP returned' })
+    @ApiResponse({ status: 401, description: 'Invalid test secret' })
+    async getTestOtp(
+        @Query('email') email: string,
+        @Headers('x-test-secret') testSecret: string,
+    ) {
+        return this.authService.getTestOtp(email, testSecret);
     }
 }

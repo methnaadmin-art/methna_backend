@@ -17,3 +17,5 @@ export * from './analytics-event.entity';
 export * from './content-flag.entity';
 export * from './email-blacklist.entity';
 export * from './boost.entity';
+export * from './category.entity';
+export * from './support-ticket.entity';

@@ -154,6 +154,14 @@ export class SearchService {
             });
         }
 
+        // Name search (firstName or lastName)
+        if (filters.name) {
+            query.andWhere(
+                '(LOWER(user.firstName) LIKE LOWER(:nameSearch) OR LOWER(user.lastName) LIKE LOWER(:nameSearch))',
+                { nameSearch: `%${filters.name}%` },
+            );
+        }
+
         query.orderBy('profile.activityScore', 'DESC');
         query.skip(((filters.page ?? 1) - 1) * (filters.limit ?? 20));
         query.take(filters.limit ?? 20);

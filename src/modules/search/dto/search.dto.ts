@@ -87,6 +87,11 @@ export class SearchFiltersDto {
     @IsString()
     q?: string;
 
+    @ApiPropertyOptional({ description: 'Search by name (first or last)' })
+    @IsOptional()
+    @IsString()
+    name?: string;
+
     @ApiPropertyOptional({ default: 1 })
     @IsOptional()
     @Type(() => Number)

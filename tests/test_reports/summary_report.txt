@@ -1,0 +1,42 @@
+========================================================================
+  METHNA QA TEST — SUMMARY REPORT
+  Generated: 2026-03-22T12:04:05.591884+00:00
+  Total Duration: 37.2s
+========================================================================
+
+── USER FLOW RESULTS ──────────────────────────────────────
+  Total Users Simulated:  3
+  Successful Flows:       0
+  Failed Flows:           3
+  Success Rate:           0.0%
+  Users That Retried:     3
+
+── API PERFORMANCE ────────────────────────────────────────
+  Total API Requests:     12
+  Failed API Requests:    9
+  API Failure Rate:       75.0%
+  Avg Latency:            901.9ms
+  Min Latency:            262.2ms
+  Max Latency:            3097.5ms
+  P50 Latency:            345.5ms
+  P95 Latency:            3097.5ms
+  P99 Latency:            3097.5ms
+  Avg Flow Time:          7732ms
+
+── PER-ENDPOINT BREAKDOWN ─────────────────────────────────
+  Endpoint                      Total     OK   Fail    Rate      Avg      P95
+  ──────────────────────────── ────── ────── ────── ─────── ──────── ────────
+  fetch_otp                         3      0      3    0.0%       0ms       0ms
+  resend_otp                        3      0      3    0.0%     292ms     348ms
+  login_after_otp_fail              3      0      3    0.0%     291ms     346ms
+  register                          3      3      0  100.0%    2123ms    3098ms
+
+── DIAGNOSTICS & ROOT CAUSE HINTS ─────────────────────────
+  [HIGH] OTP_FAILURE (×6)
+    OTP verification failed. Possible causes:
+      - SMTP credentials (MAIL_USER/MAIL_PASS) not configured
+      - OTP test codes (123456) not accepted in production
+      - OTP already expired (5-minute window)
+      - Rate limiting on OTP verification endpoint
+
+========================================================================

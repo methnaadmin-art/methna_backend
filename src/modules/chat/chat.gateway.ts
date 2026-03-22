@@ -16,6 +16,7 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import { ChatService } from './chat.service';
 import { RedisService } from '../redis/redis.service';
 import { TrustSafetyService } from '../trust-safety/trust-safety.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { MessageType } from '../../database/entities/message.entity';
 
 @WebSocketGateway({
@@ -37,6 +38,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly redisService: RedisService,
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
+        private readonly notificationsService: NotificationsService,
         @Optional() @Inject(TrustSafetyService)
         private readonly trustSafetyService?: TrustSafetyService,
     ) { }
@@ -230,9 +232,45 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
                 flagged,
             });
 
+            // Send notification to the other participant if they are offline
+            this.sendMessageNotification(senderId, conversationId, message.content).catch(() => {});
+
             return { success: true, messageId: message.id, flagged };
         } catch (error) {
             return { success: false, error: (error as Error).message };
+        }
+    }
+
+    /**
+     * Check if the recipient is in the conversation room; if not, send a DB notification.
+     */
+    private async sendMessageNotification(senderId: string, conversationId: string, content: string): Promise<void> {
+        try {
+            // Get sockets in the conversation room
+            const room = this.server.in(`conversation:${conversationId}`);
+            const sockets = await room.fetchSockets();
+            const connectedUserIds = sockets.map(s => s.data?.userId).filter(Boolean);
+
+            // Find the other participant(s) not currently in the room
+            // We need to look up the conversation to find the other user
+            const conversation = await this.chatService.getConversationParticipants(conversationId);
+            if (!conversation) return;
+
+            const recipientIds = conversation.filter(id => id !== senderId && !connectedUserIds.includes(id));
+
+            for (const recipientId of recipientIds) {
+                // Check if user is online at all (connected to the main namespace)
+                const isOnline = await this.redisService.isUserOnline(recipientId);
+                // Always store notification for offline users or users not in the conversation room
+                this.notificationsService.createNotification(recipientId, {
+                    type: 'message',
+                    title: 'New message',
+                    body: content.length > 80 ? content.substring(0, 80) + '...' : content,
+                    data: { conversationId, senderId },
+                }).catch(() => {});
+            }
+        } catch (error) {
+            this.logger.error(`Failed to send message notification: ${(error as Error).message}`);
         }
     }
 

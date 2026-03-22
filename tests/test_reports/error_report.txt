@@ -1,0 +1,43 @@
+========================================================================
+  METHNA QA TEST — ERROR REPORT
+========================================================================
+
+  Total Failed Flows: 3
+
+  ── User #2 (methna.test.e86d7a03.2@yopmail.com) ──
+     Retries: 2
+     Flow Time: 8513ms
+     Error: OTP verification failed, login also failed
+     Failed Steps:
+       - fetch_otp: HTTP 0 | 0ms | OTP_NOT_FETCHABLE
+       - resend_otp: HTTP 400 | 263ms | {'success': False, 'statusCode': 400, 'message': 'Please wait 35 seconds before requesting a new OTP', 'errors': None, '
+       - login_after_otp_fail: HTTP 401 | 264ms | {'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03
+
+  ── User #1 (methna.test.80fff7a5.1@yopmail.com) ──
+     Retries: 2
+     Flow Time: 7453ms
+     Error: OTP verification failed, login also failed
+     Failed Steps:
+       - fetch_otp: HTTP 0 | 0ms | OTP_NOT_FETCHABLE
+       - resend_otp: HTTP 400 | 265ms | {'success': False, 'statusCode': 400, 'message': 'Please wait 35 seconds before requesting a new OTP', 'errors': None, '
+       - login_after_otp_fail: HTTP 401 | 262ms | {'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03
+
+  ── User #0 (methna.test.d40ca935.0@yopmail.com) ──
+     Retries: 2
+     Flow Time: 7230ms
+     Error: OTP verification failed, login also failed
+     Failed Steps:
+       - fetch_otp: HTTP 0 | 0ms | OTP_NOT_FETCHABLE
+       - resend_otp: HTTP 400 | 348ms | {'success': False, 'statusCode': 400, 'message': 'Please wait 35 seconds before requesting a new OTP', 'errors': None, '
+       - login_after_otp_fail: HTTP 401 | 346ms | {'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03
+
+
+── ROOT CAUSE ANALYSIS ────────────────────────────────────
+  [HIGH] OTP_FAILURE
+    OTP verification failed. Possible causes:
+      - SMTP credentials (MAIL_USER/MAIL_PASS) not configured
+      - OTP test codes (123456) not accepted in production
+      - OTP already expired (5-minute window)
+      - Rate limiting on OTP verification endpoint
+
+========================================================================

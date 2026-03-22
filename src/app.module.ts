@@ -26,6 +26,8 @@ import { JobsModule } from './modules/jobs/jobs.module';
 import { ProfileViewsModule } from './modules/profile-views/profile-views.module';
 import { SuccessStoriesModule } from './modules/success-stories/success-stories.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { SupportModule } from './modules/support/support.module';
 import configuration from './config/configuration';
 
 @Module({
@@ -75,6 +77,8 @@ import configuration from './config/configuration';
         ProfileViewsModule,
         SuccessStoriesModule,
         PaymentsModule,
+        CategoriesModule,
+        SupportModule,
     ],
 })
 export class AppModule { }

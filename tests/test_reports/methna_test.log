@@ -1,0 +1,1000 @@
+13:03:28 | INFO    | methna.load | Generating 3 fake users...
+13:03:28 | INFO    | methna.load | Starting load test: 3 users, 3 concurrent
+13:03:28 | DEBUG   | httpx | load_ssl_context verify=True cert=None trust_env=True http2=False
+13:03:28 | DEBUG   | httpx | load_verify_locations cafile='C:\\Users\\PC SOFT\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\certifi\\cacert.pem'
+13:03:29 | DEBUG   | httpx | load_ssl_context verify=True cert=None trust_env=True http2=False
+13:03:29 | DEBUG   | httpx | load_verify_locations cafile='C:\\Users\\PC SOFT\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\certifi\\cacert.pem'
+13:03:31 | DEBUG   | httpx | load_ssl_context verify=True cert=None trust_env=True http2=False
+13:03:31 | DEBUG   | httpx | load_verify_locations cafile='C:\\Users\\PC SOFT\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\certifi\\cacert.pem'
+13:03:32 | DEBUG   | httpcore.connection | connect_tcp.started host='jordan-backend-production.up.railway.app' port=443 local_address=None timeout=30.0 socket_options=None
+13:03:32 | DEBUG   | httpcore.connection | connect_tcp.started host='jordan-backend-production.up.railway.app' port=443 local_address=None timeout=30.0 socket_options=None
+13:03:32 | DEBUG   | httpcore.connection | connect_tcp.started host='jordan-backend-production.up.railway.app' port=443 local_address=None timeout=30.0 socket_options=None
+13:03:32 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A53F770>
+13:03:32 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x0000014F6A4BF530> server_hostname='jordan-backend-production.up.railway.app' timeout=30.0
+13:03:32 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A5B9810>
+13:03:32 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x0000014F6A4BD640> server_hostname='jordan-backend-production.up.railway.app' timeout=30.0
+13:03:32 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A5B9E50>
+13:03:32 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x0000014F6A4BDC70> server_hostname='jordan-backend-production.up.railway.app' timeout=30.0
+13:03:32 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A4D69E0>
+13:03:32 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:32 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:32 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:32 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A4D7490>
+13:03:32 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A5BCA70>
+13:03:32 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:32 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:32 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:32 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:32 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:32 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:32 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:32 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:32 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:32 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:32 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:32 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:33 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 201, b'Created', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'190'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:33 GMT'), (b'Etag', b'W/"be-4Q8gSToEf4H9g3Llz+f9Yoqri7c"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'k4XuDKd-R3Cac0Xvw9P4nw'), (b'X-Xss-Protection', b'0')])
+13:03:33 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/register "HTTP/1.1 201 Created"
+13:03:33 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:33 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:33 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:33 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:33 | DEBUG   | methna.api | [user-0002] <APIResponse OK 201 https://jordan-backend-production.up.railway.app/api/v1/auth/register 1410ms> → 
+13:03:33 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 201, b'Created', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'190'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:33 GMT'), (b'Etag', b'W/"be-25f6MPxyH6NYQsUgCiU5J9qWTsw"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'CHGS8ru-SLSZLmOoALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:33 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/register "HTTP/1.1 201 Created"
+13:03:33 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:33 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:33 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:33 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:33 | DEBUG   | methna.api | [user-0000] <APIResponse OK 201 https://jordan-backend-production.up.railway.app/api/v1/auth/register 4162ms> → 
+13:03:33 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 201, b'Created', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'190'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:33 GMT'), (b'Etag', b'W/"be-m4lgKOlokQbM8bYR3ssAT9QeoYI"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'sivzMl7VRmKAHD5ejUJq2g'), (b'X-Xss-Protection', b'0')])
+13:03:33 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/register "HTTP/1.1 201 Created"
+13:03:33 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:33 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:33 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:33 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:33 | DEBUG   | methna.api | [user-0001] <APIResponse OK 201 https://jordan-backend-production.up.railway.app/api/v1/auth/register 2711ms> → 
+13:03:34 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:03:34 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:03:34 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:34 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:03:34 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:34 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:03:34 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:34 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:03:34 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:34 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:03:34 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:03:34 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:34 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:03:34 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:34 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:34 GMT'), (b'Etag', b'W/"f5-+uZW1H+o4bdG3ykTJwabsYfdGkU"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'eOvAqgU4RtO3boNlALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:35 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.d40ca935.0@yopmail.com "HTTP/1.1 404 Not Found"
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:35 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:35 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:34 GMT'), (b'Etag', b'W/"f5-uMuzW4eh0/1gEoSIyk6UCSxue98"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'sfdSVKidTfi9bgzJw9P4nw'), (b'X-Xss-Protection', b'0')])
+13:03:35 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.e86d7a03.2@yopmail.com "HTTP/1.1 404 Not Found"
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:35 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:35 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:35 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:35 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:35 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:35 GMT'), (b'Etag', b'W/"f5-tNVgrNiJRb0GsInQr2/IWBM1IKE"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'9hFxGzUGQ_ic0bAqjUJq2g'), (b'X-Xss-Protection', b'0')])
+13:03:35 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.80fff7a5.1@yopmail.com "HTTP/1.1 404 Not Found"
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:35 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:35 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:35 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:35 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:35 GMT'), (b'Etag', b'W/"95-7PGIZKoAVG1dWB5SqBUxD+H8U1k"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'oC2xAhFdR4qB4vTtw9P4nw'), (b'X-Xss-Protection', b'0')])
+13:03:35 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:35 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:35 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:35 | WARNING | methna.api | [user-0002] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 342ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:35.3
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:35 GMT'), (b'Etag', b'W/"95-VCFF0xiXqgLT8zAPN3WC2KnCluI"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'ok3s5sOQSbyyglIJALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:35 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:35 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:35 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:35 | WARNING | methna.api | [user-0000] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 350ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:35.3
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:35 GMT'), (b'Etag', b'W/"95-CnZH7m7bE6byfOubKQeAtr4fdqM"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'JP9uzA6bTJOWtE36jUJq2g'), (b'X-Xss-Protection', b'0')])
+13:03:35 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:35 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:35 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:35 | WARNING | methna.api | [user-0001] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 327ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:35.3
+13:03:35 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:35 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:35 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:35 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:35 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:35 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:35 GMT'), (b'Etag', b'W/"95-bwD0QWk/oSmo1d8aXNr8GK8TBIc"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'X2R_KX9mSRq6jQ75ALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:36 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:36 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:36 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:36 | WARNING | methna.api | [user-0000] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 321ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:35.9
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:35 GMT'), (b'Etag', b'W/"95-tmFqetM1zpp1J/Lp8ywHC9jIJBc"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'87KzJM14Ru--hOZ2jUJq2g'), (b'X-Xss-Protection', b'0')])
+13:03:36 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:36 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:35 GMT'), (b'Etag', b'W/"95-fLOJNu8Rtiqd+NaP/u6jBl2K8+U"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'EsthqGADT3WJfCVBw9P4nw'), (b'X-Xss-Protection', b'0')])
+13:03:36 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:36 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:36 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:36 | WARNING | methna.api | [user-0001] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 326ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:35.9
+13:03:36 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:36 | WARNING | methna.api | [user-0002] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 328ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:35.9
+13:03:36 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:36 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:36 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:36 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:36 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:36 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:36 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:36 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:36 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:36 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:36 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:36 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'103'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:36 GMT'), (b'Etag', b'W/"67-bV5csaG6CtP7CiozcoiAYA705pU"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'gR-iCxUORwKqF7dgw9P4nw'), (b'X-Xss-Protection', b'0')])
+13:03:36 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp "HTTP/1.1 200 OK"
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:36 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:36 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:36 | DEBUG   | methna.api | [user-0002] <APIResponse OK 200 https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp 325ms> → 
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'103'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:36 GMT'), (b'Etag', b'W/"67-thki5HBwGlP8y2xULocqBE+hfI0"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'QkCfC967RjS9ztFqjUJq2g'), (b'X-Xss-Protection', b'0')])
+13:03:36 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp "HTTP/1.1 200 OK"
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:36 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'103'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:36 GMT'), (b'Etag', b'W/"67-cm1hogfMvriS4gvNZpGJJvD0OTY"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'4kHQ5b-ASdmsTOD6ALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:36 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp "HTTP/1.1 200 OK"
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:36 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:36 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:36 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:36 | DEBUG   | methna.api | [user-0001] <APIResponse OK 200 https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp 330ms> → 
+13:03:36 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:36 | DEBUG   | methna.api | [user-0000] <APIResponse OK 200 https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp 331ms> → 
+13:03:38 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:03:38 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:03:38 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:03:38 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:38 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:03:38 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:38 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:03:38 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:38 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:03:38 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:38 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:03:38 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:38 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:03:38 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:38 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:03:38 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:38 GMT'), (b'Etag', b'W/"f5-ZYlOb6NrtZ1NfbXa3rghIRfbiSE"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'JKamS0-OQ2uJ_J3Bw9P4nw'), (b'X-Xss-Protection', b'0')])
+13:03:38 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.e86d7a03.2@yopmail.com "HTTP/1.1 404 Not Found"
+13:03:38 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:03:38 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:38 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:38 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:38 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:38 GMT'), (b'Etag', b'W/"f5-tR7uSHGFBNGafDHDf+yM40rD4tg"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'cYz0PggjQsywZZ2vALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:38 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.d40ca935.0@yopmail.com "HTTP/1.1 404 Not Found"
+13:03:38 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:03:38 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:38 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:38 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:38 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:38 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:38 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:38 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:38 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:38 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:38 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:38 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:38 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:38 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:38 GMT'), (b'Etag', b'W/"f5-Egc8Cw4Imfsp+PO69C0defaFi+I"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'dNQf6sJjS_-2MnD-jUJq2g'), (b'X-Xss-Protection', b'0')])
+13:03:39 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.80fff7a5.1@yopmail.com "HTTP/1.1 404 Not Found"
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:39 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:39 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:39 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:39 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:39 GMT'), (b'Etag', b'W/"95-kWfbs5RiGDcyb91wA0k6dcz3Agw"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'4s_GwHfCQgqKKgTcw9P4nw'), (b'X-Xss-Protection', b'0')])
+13:03:39 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:39 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:39 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:39 | WARNING | methna.api | [user-0002] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 324ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:39.1
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:39 GMT'), (b'Etag', b'W/"95-XTTJi1ZwfJ/3edIgRzJB5rSyexE"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'm_IYiqvMSLehVfU1ALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:39 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:39 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:39 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:39 | WARNING | methna.api | [user-0000] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 324ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:39.1
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:39 GMT'), (b'Etag', b'W/"95-SBrStvLNsEQHaMPRDNO/0hvpC7Y"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'kH2BUHf4Qt6FQBt6jUJq2g'), (b'X-Xss-Protection', b'0')])
+13:03:39 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:39 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:39 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:39 | WARNING | methna.api | [user-0001] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 330ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:39.4
+13:03:39 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:39 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:39 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:39 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:39 GMT'), (b'Etag', b'W/"95-+ULYnlyV0Y1boo2ifSMy3dWB+L8"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'lWYyJq9rQeGVA3R6w9P4nw'), (b'X-Xss-Protection', b'0')])
+13:03:39 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:39 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:39 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:39 | WARNING | methna.api | [user-0002] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 329ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:39.7
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:39 GMT'), (b'Etag', b'W/"95-LahM1pn23XoksTXnIukCqmV0LQQ"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'HZ0YZYsbRVCfsa64ALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:39 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:39 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:39 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:39 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:39 | WARNING | methna.api | [user-0000] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 360ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:39.8
+13:03:40 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:40 GMT'), (b'Etag', b'W/"95-upljXcD2MuihgWv15qqzDwT0vfI"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'GStvACCLS8CN5NghjUJq2g'), (b'X-Xss-Protection', b'0')])
+13:03:40 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:40 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:40 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:40 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:40 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:40 | WARNING | methna.api | [user-0001] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 325ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:40.0
+13:03:40 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:40 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:40 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:40 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:40 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:40 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:40 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:40 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:40 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:40 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:40 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 401, b'Unauthorized', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'158'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:40 GMT'), (b'Etag', b'W/"9e-nwDR6FhJUmHPkCRdkHy86TixL14"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'fheK5KR8QjOygZwCw9P4nw'), (b'X-Xss-Protection', b'0')])
+13:03:40 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+13:03:40 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:40 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:40 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:40 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:40 | WARNING | methna.api | [user-0002] <APIResponse FAIL 401 https://jordan-backend-production.up.railway.app/api/v1/auth/login 258ms> → {'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03
+13:03:40 | DEBUG   | httpcore.connection | close.started
+13:03:40 | DEBUG   | httpcore.connection | close.complete
+13:03:40 | WARNING | methna.flow | [user-0002] Attempt 1 failed, retrying...
+13:03:40 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:40 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:40 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:40 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:40 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:40 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 401, b'Unauthorized', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'158'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:40 GMT'), (b'Etag', b'W/"9e-VkgyCvJzPxSZT6ytjWoQTNhAidY"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'uOu93egaQX-TyTc1ALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:40 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+13:03:40 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:40 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:40 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:40 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:40 | WARNING | methna.api | [user-0000] <APIResponse FAIL 401 https://jordan-backend-production.up.railway.app/api/v1/auth/login 263ms> → {'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03
+13:03:40 | DEBUG   | httpcore.connection | close.started
+13:03:40 | DEBUG   | httpcore.connection | close.complete
+13:03:40 | WARNING | methna.flow | [user-0000] Attempt 1 failed, retrying...
+13:03:40 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 401, b'Unauthorized', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'158'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:40 GMT'), (b'Etag', b'W/"9e-0uM5MYKW4MUIX4jMKuSDuFAR57Y"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'Aq1Wq5R2SBCtWOBwjUJq2g'), (b'X-Xss-Protection', b'0')])
+13:03:40 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+13:03:40 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:40 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:40 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:40 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:40 | WARNING | methna.api | [user-0001] <APIResponse FAIL 401 https://jordan-backend-production.up.railway.app/api/v1/auth/login 265ms> → {'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03
+13:03:40 | DEBUG   | httpcore.connection | close.started
+13:03:40 | DEBUG   | httpcore.connection | close.complete
+13:03:40 | WARNING | methna.flow | [user-0001] Attempt 1 failed, retrying...
+13:03:41 | DEBUG   | httpx | load_ssl_context verify=True cert=None trust_env=True http2=False
+13:03:41 | DEBUG   | httpx | load_verify_locations cafile='C:\\Users\\PC SOFT\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\certifi\\cacert.pem'
+13:03:42 | DEBUG   | httpcore.connection | connect_tcp.started host='jordan-backend-production.up.railway.app' port=443 local_address=None timeout=30.0 socket_options=None
+13:03:42 | DEBUG   | httpx | load_ssl_context verify=True cert=None trust_env=True http2=False
+13:03:42 | DEBUG   | httpx | load_verify_locations cafile='C:\\Users\\PC SOFT\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\certifi\\cacert.pem'
+13:03:43 | DEBUG   | httpx | load_ssl_context verify=True cert=None trust_env=True http2=False
+13:03:43 | DEBUG   | httpx | load_verify_locations cafile='C:\\Users\\PC SOFT\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\certifi\\cacert.pem'
+13:03:44 | DEBUG   | httpcore.connection | connect_tcp.started host='jordan-backend-production.up.railway.app' port=443 local_address=None timeout=30.0 socket_options=None
+13:03:44 | DEBUG   | httpcore.connection | connect_tcp.started host='jordan-backend-production.up.railway.app' port=443 local_address=None timeout=30.0 socket_options=None
+13:03:44 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A442AD0>
+13:03:44 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x0000014F6A4BE210> server_hostname='jordan-backend-production.up.railway.app' timeout=30.0
+13:03:44 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A4429C0>
+13:03:44 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x0000014F6A4BF4A0> server_hostname='jordan-backend-production.up.railway.app' timeout=30.0
+13:03:44 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A4A0B50>
+13:03:44 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:44 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:44 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:44 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A4A1D50>
+13:03:44 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:44 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:44 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:44 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:44 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:44 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:44 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:44 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A5C7890>
+13:03:44 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x0000014F6A4BFD10> server_hostname='jordan-backend-production.up.railway.app' timeout=30.0
+13:03:44 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A5C4AA0>
+13:03:44 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:44 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:44 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:44 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:44 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:45 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 201, b'Created', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'190'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:45 GMT'), (b'Etag', b'W/"be-5HxrackCHc39kJHUZZFNcQQrdYg"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'9ggatlNvSGajRG9h5nX1uw'), (b'X-Xss-Protection', b'0')])
+13:03:45 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/register "HTTP/1.1 201 Created"
+13:03:45 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:45 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:45 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:45 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:45 | DEBUG   | methna.api | [user-0001] <APIResponse OK 201 https://jordan-backend-production.up.railway.app/api/v1/auth/register 1015ms> → 
+13:03:45 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 201, b'Created', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'190'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:45 GMT'), (b'Etag', b'W/"be-plJ/w/l1PKVgUmt6yaHPqDLFwA4"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'GReOrbvZR1uakWm0ALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:45 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/register "HTTP/1.1 201 Created"
+13:03:45 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:45 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:45 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:45 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:45 | DEBUG   | methna.api | [user-0002] <APIResponse OK 201 https://jordan-backend-production.up.railway.app/api/v1/auth/register 3170ms> → 
+13:03:45 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 201, b'Created', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'190'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:45 GMT'), (b'Etag', b'W/"be-SxplhI8hJdkfJ53XrWth3dt+uwo"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'y_YsNEolS-6YVpsT21mRUA'), (b'X-Xss-Protection', b'0')])
+13:03:45 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/register "HTTP/1.1 201 Created"
+13:03:45 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:45 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:45 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:45 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:45 | DEBUG   | methna.api | [user-0000] <APIResponse OK 201 https://jordan-backend-production.up.railway.app/api/v1/auth/register 2307ms> → 
+13:03:46 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:03:46 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:46 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:03:46 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:46 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:03:46 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:03:46 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:46 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:03:46 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:46 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:03:46 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:46 GMT'), (b'Etag', b'W/"f5-WDQurrF7cHbmPzY17IUewHKinTo"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'UKdWyix6Rza8vd5AALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:46 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.e86d7a03.2@yopmail.com "HTTP/1.1 404 Not Found"
+13:03:46 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:03:46 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:46 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:46 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:46 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:46 GMT'), (b'Etag', b'W/"f5-un6QkDFeqk9utJ0uVvUyzRSJ3+k"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'd6B73zIHTG6QXDMh5nX1uw'), (b'X-Xss-Protection', b'0')])
+13:03:46 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.80fff7a5.1@yopmail.com "HTTP/1.1 404 Not Found"
+13:03:46 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:03:46 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:46 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:46 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:46 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:46 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:46 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:46 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:46 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:46 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:46 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:46 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:46 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:46 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:46 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:03:46 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:46 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:03:46 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:46 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:47 GMT'), (b'Etag', b'W/"f5-6TF77NWWTAVUlOz26IP2ny8XILU"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'3CfgWCG8TjijiHAp21mRUA'), (b'X-Xss-Protection', b'0')])
+13:03:47 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.d40ca935.0@yopmail.com "HTTP/1.1 404 Not Found"
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:47 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:47 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:47 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:47 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:47 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:47 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:47 GMT'), (b'Etag', b'W/"95-KHwcn2pYUS6irbNgu1isz6K5Zmk"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'gEsKyAN9R3WW_-3M5nX1uw'), (b'X-Xss-Protection', b'0')])
+13:03:47 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:47 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:47 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:47 | WARNING | methna.api | [user-0001] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 322ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:47.1
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:47 GMT'), (b'Etag', b'W/"95-3nnsfbJYI7ohEvPv5RR/OvrahZs"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'v3_JnL8eRF-P7Xd8ALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:47 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:47 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:47 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:47 | WARNING | methna.api | [user-0002] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 329ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:47.1
+13:03:47 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:47 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:47 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:47 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:47 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:47 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:47 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:47 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:47 GMT'), (b'Etag', b'W/"95-FGpR2FVDiM2VE4S0mRY9bwRRaqM"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'9n0v6QJEQKaAAD3O21mRUA'), (b'X-Xss-Protection', b'0')])
+13:03:47 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:47 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:47 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:47 | WARNING | methna.api | [user-0000] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 413ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:47.4
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:47 GMT'), (b'Etag', b'W/"95-myO4rZlbvtHV6mI8B7a0+fhhHeA"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'Y09H-blUSguNrH6x5nX1uw'), (b'X-Xss-Protection', b'0')])
+13:03:47 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:47 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:47 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:47 | WARNING | methna.api | [user-0001] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 326ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:47.7
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:47 GMT'), (b'Etag', b'W/"95-mkriKeuHC1VLFm4KDq1QAdTqaJU"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'91t1kKoWSkarea39ALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:47 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:47 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:47 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:47 | WARNING | methna.api | [user-0002] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 329ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:47.7
+13:03:47 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:47 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:47 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:47 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:47 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:48 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:48 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:48 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:48 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:48 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:48 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:48 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:48 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:48 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:48 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:48 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:48 GMT'), (b'Etag', b'W/"95-YhVEy7WQ641XueYOrTdQoECORps"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'FRPHH_LjQBW7ITz921mRUA'), (b'X-Xss-Protection', b'0')])
+13:03:48 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:48 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:48 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:48 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:48 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:48 | WARNING | methna.api | [user-0000] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 416ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:48.1
+13:03:48 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'183'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:48 GMT'), (b'Etag', b'W/"b7-QLX4D68dEKXmYnNVGiHNZbGsgRw"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'jAo-vFJZQzWLqNmVALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:48 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp "HTTP/1.1 400 Bad Request"
+13:03:48 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:48 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:48 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:48 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:48 | WARNING | methna.api | [user-0002] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp 264ms> → {'success': False, 'statusCode': 400, 'message': 'Please wait 49 seconds before requesting a new OTP', 'errors': None, '
+13:03:48 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'183'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:48 GMT'), (b'Etag', b'W/"b7-QZu/iRxC+CABBQhLKWbg/4TNfKE"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'VFD0EsvVTs63JAh-5nX1uw'), (b'X-Xss-Protection', b'0')])
+13:03:48 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp "HTTP/1.1 400 Bad Request"
+13:03:48 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:48 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:48 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:48 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:48 | WARNING | methna.api | [user-0001] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp 268ms> → {'success': False, 'statusCode': 400, 'message': 'Please wait 49 seconds before requesting a new OTP', 'errors': None, '
+13:03:48 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:48 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:48 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:48 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:48 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:48 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'183'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:48 GMT'), (b'Etag', b'W/"b7-mKYGuw2LNjoQawYlVZ/do3BCpXs"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'fYzDS3DZQESNqUwH21mRUA'), (b'X-Xss-Protection', b'0')])
+13:03:48 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp "HTTP/1.1 400 Bad Request"
+13:03:48 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:48 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:48 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:48 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:48 | WARNING | methna.api | [user-0000] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp 339ms> → {'success': False, 'statusCode': 400, 'message': 'Please wait 48 seconds before requesting a new OTP', 'errors': None, '
+13:03:50 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:03:50 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:03:50 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:50 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:03:50 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:03:50 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:50 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:03:50 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:50 GMT'), (b'Etag', b'W/"f5-vsiirybX8mSYXiDTrxK53UCdm20"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'CbPjuJ16SpKBxvf65nX1uw'), (b'X-Xss-Protection', b'0')])
+13:03:50 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.80fff7a5.1@yopmail.com "HTTP/1.1 404 Not Found"
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:50 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:50 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:50 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:50 GMT'), (b'Etag', b'W/"f5-JXFW17G+An2bso5cKfMCCPoJLwc"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b's9qZfkTfSu-_5M2pALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:50 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.e86d7a03.2@yopmail.com "HTTP/1.1 404 Not Found"
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:50 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:50 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:50 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:50 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:50 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:50 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:50 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:50 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:50 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:50 GMT'), (b'Etag', b'W/"95-/eg3ACyOhv+PdVsVg6ztfnAbDTE"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'24K78NjYRVqL_UI0ALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:50 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:50 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:50 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:50 | WARNING | methna.api | [user-0002] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 320ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:50.8
+13:03:50 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:50 GMT'), (b'Etag', b'W/"95-P6m/g7K8dNI8+1ZxOYnaBZIXUGY"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'0ZpzuhfURdymHs995nX1uw'), (b'X-Xss-Protection', b'0')])
+13:03:50 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:50 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:50 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:50 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:03:50 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:50 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:03:50 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:50 | WARNING | methna.api | [user-0001] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 331ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:50.8
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:51 GMT'), (b'Etag', b'W/"f5-XnX2BUkzhQJr5eFOZGo82rdhVnk"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'gZiDWrjDTlOAsKjv21mRUA'), (b'X-Xss-Protection', b'0')])
+13:03:51 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.d40ca935.0@yopmail.com "HTTP/1.1 404 Not Found"
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:51 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:51 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:51 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:51 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:51 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:51 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:51 GMT'), (b'Etag', b'W/"95-JcYhpHfMFg+0tSuCZvRqycyYiZM"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'fLlSK7fTSCWgzKZz5nX1uw'), (b'X-Xss-Protection', b'0')])
+13:03:51 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:51 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:51 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:51 | WARNING | methna.api | [user-0001] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 321ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:51.4
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:51 GMT'), (b'Etag', b'W/"95-qTgCDyV+hRuUIB6S60ao8FyrdsQ"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'AGB35w9ISX2Gkz06ALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:51 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:51 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:51 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:51 | WARNING | methna.api | [user-0002] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 328ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:51.4
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:51 GMT'), (b'Etag', b'W/"95-3RgzK+Q7Kq6owblnJDIUMMcWbr0"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'oF1IpwOnR3W_yjwO21mRUA'), (b'X-Xss-Protection', b'0')])
+13:03:51 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:51 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:51 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:51 | WARNING | methna.api | [user-0000] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 401ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:51.4
+13:03:51 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:51 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:51 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:51 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:51 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:51 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:52 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 401, b'Unauthorized', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'158'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:52 GMT'), (b'Etag', b'W/"9e-+Z2s26vJa8YPuO3LS/FpdTTeY1o"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'nZ9EcjgNRAqkqtZ9ALIuDA'), (b'X-Xss-Protection', b'0')])
+13:03:52 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+13:03:52 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:52 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:52 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:52 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:52 | WARNING | methna.api | [user-0002] <APIResponse FAIL 401 https://jordan-backend-production.up.railway.app/api/v1/auth/login 259ms> → {'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03
+13:03:52 | DEBUG   | httpcore.connection | close.started
+13:03:52 | DEBUG   | httpcore.connection | close.complete
+13:03:52 | WARNING | methna.flow | [user-0002] Attempt 2 failed, retrying...
+13:03:52 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 401, b'Unauthorized', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'158'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:52 GMT'), (b'Etag', b'W/"9e-+LXmSfG+YPP/1r3idVs1gu/qAhY"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'5KXZOTWXSpiMlIYY5nX1uw'), (b'X-Xss-Protection', b'0')])
+13:03:52 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+13:03:52 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:52 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:52 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:52 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:52 | WARNING | methna.api | [user-0001] <APIResponse FAIL 401 https://jordan-backend-production.up.railway.app/api/v1/auth/login 264ms> → {'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03
+13:03:52 | DEBUG   | httpcore.connection | close.started
+13:03:52 | DEBUG   | httpcore.connection | close.complete
+13:03:52 | WARNING | methna.flow | [user-0001] Attempt 2 failed, retrying...
+13:03:52 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:52 GMT'), (b'Etag', b'W/"95-ufRaQTI43IKxkuIEqxOmLUGJL1U"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'o2JyO8RVSxGJRMfO21mRUA'), (b'X-Xss-Protection', b'0')])
+13:03:52 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:03:52 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:52 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:52 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:52 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:52 | WARNING | methna.api | [user-0000] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 398ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:03:52.1
+13:03:52 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:52 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:52 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:52 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:52 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:53 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 401, b'Unauthorized', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'158'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:52 GMT'), (b'Etag', b'W/"9e-UJwAUaonmveQ/HdAq+DwX47vBPQ"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'OoDYlMUVSzukLVV221mRUA'), (b'X-Xss-Protection', b'0')])
+13:03:53 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+13:03:53 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:53 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:53 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:53 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:53 | WARNING | methna.api | [user-0000] <APIResponse FAIL 401 https://jordan-backend-production.up.railway.app/api/v1/auth/login 346ms> → {'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03
+13:03:53 | DEBUG   | httpcore.connection | close.started
+13:03:53 | DEBUG   | httpcore.connection | close.complete
+13:03:53 | WARNING | methna.flow | [user-0000] Attempt 2 failed, retrying...
+13:03:55 | DEBUG   | httpx | load_ssl_context verify=True cert=None trust_env=True http2=False
+13:03:55 | DEBUG   | httpx | load_verify_locations cafile='C:\\Users\\PC SOFT\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\certifi\\cacert.pem'
+13:03:56 | DEBUG   | httpx | load_ssl_context verify=True cert=None trust_env=True http2=False
+13:03:56 | DEBUG   | httpx | load_verify_locations cafile='C:\\Users\\PC SOFT\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\certifi\\cacert.pem'
+13:03:57 | DEBUG   | httpcore.connection | connect_tcp.started host='jordan-backend-production.up.railway.app' port=443 local_address=None timeout=30.0 socket_options=None
+13:03:57 | DEBUG   | httpcore.connection | connect_tcp.started host='jordan-backend-production.up.railway.app' port=443 local_address=None timeout=30.0 socket_options=None
+13:03:57 | DEBUG   | httpx | load_ssl_context verify=True cert=None trust_env=True http2=False
+13:03:57 | DEBUG   | httpx | load_verify_locations cafile='C:\\Users\\PC SOFT\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\certifi\\cacert.pem'
+13:03:58 | DEBUG   | httpcore.connection | connect_tcp.started host='jordan-backend-production.up.railway.app' port=443 local_address=None timeout=30.0 socket_options=None
+13:03:58 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A52D0F0>
+13:03:58 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x0000014F6A4BFAD0> server_hostname='jordan-backend-production.up.railway.app' timeout=30.0
+13:03:58 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A5A97F0>
+13:03:58 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x0000014F6A4BE180> server_hostname='jordan-backend-production.up.railway.app' timeout=30.0
+13:03:58 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A536D00>
+13:03:58 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:58 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:58 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:58 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:58 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:58 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A46DC10>
+13:03:58 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:58 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:58 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:58 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:58 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:58 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A46EC90>
+13:03:58 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x0000014F6A4BFC80> server_hostname='jordan-backend-production.up.railway.app' timeout=30.0
+13:03:58 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x0000014F6A4735F0>
+13:03:58 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:03:58 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:03:58 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:03:58 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:03:58 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:03:59 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 201, b'Created', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'190'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:59 GMT'), (b'Etag', b'W/"be-ZDdrBnkJLY9mLsfr1G/TpRSphMo"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'-7tmQKgjQHu6MDCPw9P4nw'), (b'X-Xss-Protection', b'0')])
+13:03:59 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/register "HTTP/1.1 201 Created"
+13:03:59 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:59 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:59 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:59 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:59 | DEBUG   | methna.api | [user-0002] <APIResponse OK 201 https://jordan-backend-production.up.railway.app/api/v1/auth/register 3097ms> → 
+13:03:59 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 201, b'Created', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'190'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:59 GMT'), (b'Etag', b'W/"be-FOqtGLspH/75/BvDzd7b5DiSMd0"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'BB1M5nA0T8W_c840jUJq2g'), (b'X-Xss-Protection', b'0')])
+13:03:59 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/register "HTTP/1.1 201 Created"
+13:03:59 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:59 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:59 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:59 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:59 | DEBUG   | methna.api | [user-0001] <APIResponse OK 201 https://jordan-backend-production.up.railway.app/api/v1/auth/register 2034ms> → 
+13:03:59 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 201, b'Created', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'190'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:03:59 GMT'), (b'Etag', b'W/"be-P0D0DQOBY5yYQEp727Er1lqPY08"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'gvp5ah3sQLKvUjLnYqdHTg'), (b'X-Xss-Protection', b'0')])
+13:03:59 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/register "HTTP/1.1 201 Created"
+13:03:59 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:03:59 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:03:59 | DEBUG   | httpcore.http11 | response_closed.started
+13:03:59 | DEBUG   | httpcore.http11 | response_closed.complete
+13:03:59 | DEBUG   | methna.api | [user-0000] <APIResponse OK 201 https://jordan-backend-production.up.railway.app/api/v1/auth/register 1238ms> → 
+13:04:00 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:04:00 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:00 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:04:00 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:04:00 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:04:00 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:00 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:04:00 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:00 GMT'), (b'Etag', b'W/"f5-gkEoNMDhRmlhGfufaXLFwNe88us"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'xThNSQ_BRd2o391Jw9P4nw'), (b'X-Xss-Protection', b'0')])
+13:04:00 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.e86d7a03.2@yopmail.com "HTTP/1.1 404 Not Found"
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:00 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:00 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:00 GMT'), (b'Etag', b'W/"f5-zVbKkxZVNOh6oZWwaud98AgOUrE"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'Ptyf-10MTGuWkCq0jUJq2g'), (b'X-Xss-Protection', b'0')])
+13:04:00 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.80fff7a5.1@yopmail.com "HTTP/1.1 404 Not Found"
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:00 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:00 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:04:00 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:00 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:00 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:04:00 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:04:00 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:04:00 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:00 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:04:00 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:04:00 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:04:00 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:00 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:04:00 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:00 GMT'), (b'Etag', b'W/"95-HTJC9Rqy9W2knJZ4zBw5WvdFBS4"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'heCwSa5DSFqG_hnkw9P4nw'), (b'X-Xss-Protection', b'0')])
+13:04:00 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:00 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:00 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:00 | WARNING | methna.api | [user-0002] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 329ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:04:00.7
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:00 GMT'), (b'Etag', b'W/"95-0Dr1uQZ+mseDKEo1fas7Oh/ieRk"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'JaFNXI0MRVar5ghUjUJq2g'), (b'X-Xss-Protection', b'0')])
+13:04:00 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:00 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:00 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:00 | WARNING | methna.api | [user-0001] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 328ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:04:00.7
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:00 GMT'), (b'Etag', b'W/"f5-zLKDA4pHa0fNj98ECMx+uSZyR10"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'JYaVBOxGQpeZQFAlYqdHTg'), (b'X-Xss-Protection', b'0')])
+13:04:00 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.d40ca935.0@yopmail.com "HTTP/1.1 404 Not Found"
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:00 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:00 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:00 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:04:00 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:00 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:04:00 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:00 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:01 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:01 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:01 GMT'), (b'Etag', b'W/"95-MpF512JXgDC8WqZVilLZWr3fJyk"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'OEj8AJrbRdWCiJspYqdHTg'), (b'X-Xss-Protection', b'0')])
+13:04:01 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:01 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:01 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:01 | WARNING | methna.api | [user-0000] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 407ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:04:01.1
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:01 GMT'), (b'Etag', b'W/"95-6P1Jdl5enG8x+PKB1nBjhZHyzdM"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'2z39f29tQImDAB_Ow9P4nw'), (b'X-Xss-Protection', b'0')])
+13:04:01 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:01 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:01 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:01 | WARNING | methna.api | [user-0002] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 328ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:04:01.4
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:01 GMT'), (b'Etag', b'W/"95-eCY2gpoYEUiSe9wWUAdkOesUkiM"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'ybwagPM2S9WQ1qLljUJq2g'), (b'X-Xss-Protection', b'0')])
+13:04:01 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:01 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:01 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:01 | WARNING | methna.api | [user-0001] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 331ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:04:01.4
+13:04:01 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:01 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:01 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:01 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'149'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:01 GMT'), (b'Etag', b'W/"95-fqJWlxVcVen7NvnwkEQG2CgqyRQ"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'tMa83WmdQty7kJ29YqdHTg'), (b'X-Xss-Protection', b'0')])
+13:04:01 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 400 Bad Request"
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:04:01 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:01 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:01 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:01 | WARNING | methna.api | [user-0000] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 406ms> → {'success': False, 'statusCode': 400, 'message': 'Invalid OTP code', 'errors': None, 'timestamp': '2026-03-22T12:04:01.8
+13:04:02 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'183'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:01 GMT'), (b'Etag', b'W/"b7-0HrEabFUbJvPRyYEleekQ46aSWI"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'ufRz00LXSy6kf31kw9P4nw'), (b'X-Xss-Protection', b'0')])
+13:04:02 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp "HTTP/1.1 400 Bad Request"
+13:04:02 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:04:02 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:02 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:02 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:02 | WARNING | methna.api | [user-0002] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp 263ms> → {'success': False, 'statusCode': 400, 'message': 'Please wait 35 seconds before requesting a new OTP', 'errors': None, '
+13:04:02 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'183'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:01 GMT'), (b'Etag', b'W/"b7-cgWMttMniImgz2InQdTqs5EJ0bk"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'UU5lk2JuQ12jbBIBjUJq2g'), (b'X-Xss-Protection', b'0')])
+13:04:02 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp "HTTP/1.1 400 Bad Request"
+13:04:02 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:04:02 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:02 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:02 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:02 | WARNING | methna.api | [user-0001] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp 265ms> → {'success': False, 'statusCode': 400, 'message': 'Please wait 35 seconds before requesting a new OTP', 'errors': None, '
+13:04:02 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:04:02 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:02 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:04:02 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:02 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:04:02 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 400, b'Bad Request', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'183'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:02 GMT'), (b'Etag', b'W/"b7-2Kpnr13a07MD827fJT12SepAxd4"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'd3Zfo_UxQbq9onisYqdHTg'), (b'X-Xss-Protection', b'0')])
+13:04:02 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp "HTTP/1.1 400 Bad Request"
+13:04:02 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:04:02 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:02 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:02 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:02 | WARNING | methna.api | [user-0000] <APIResponse FAIL 400 https://jordan-backend-production.up.railway.app/api/v1/auth/resend-otp 348ms> → {'success': False, 'statusCode': 400, 'message': 'Please wait 35 seconds before requesting a new OTP', 'errors': None, '
+13:04:04 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:04 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:04 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:04 GMT'), (b'Etag', b'W/"f5-PzoiESqHxMxV3oxWbqL1oXaNirU"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'37SLzWDVSJWyRv01w9P4nw'), (b'X-Xss-Protection', b'0')])
+13:04:04 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.e86d7a03.2@yopmail.com "HTTP/1.1 404 Not Found"
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:04 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:04 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:04 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:04 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:04 GMT'), (b'Etag', b'W/"f5-guhQWZ2wPPtGu88JFb8+RiWVWNo"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'0TuRpQ70SNKkTM1njUJq2g'), (b'X-Xss-Protection', b'0')])
+13:04:04 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.80fff7a5.1@yopmail.com "HTTP/1.1 404 Not Found"
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:04 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:04 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:04 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:04 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 429, b'Too Many Requests', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'185'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:04 GMT'), (b'Etag', b'W/"b9-j82UuTXxXqz8wLJcQ+D9fjAnK9g"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'MJsf6cEKRKKdE4stw9P4nw'), (b'X-Xss-Protection', b'0')])
+13:04:04 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 429 Too Many Requests"
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:04 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:04 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:04 | WARNING | methna.api | [user-0002] <APIResponse FAIL 429 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 204ms> → {'success': False, 'statusCode': 429, 'message': 'Too many OTP verification attempts. Try again later.', 'errors': None,
+13:04:04 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:04 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 429, b'Too Many Requests', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'185'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:04 GMT'), (b'Etag', b'W/"b9-jI0NJeiT/+7jmcye80ATdK6uCLs"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'gJJS91OqQv-EWW63jUJq2g'), (b'X-Xss-Protection', b'0')])
+13:04:04 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 429 Too Many Requests"
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:04 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:04 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:04 | WARNING | methna.api | [user-0001] <APIResponse FAIL 429 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 204ms> → {'success': False, 'statusCode': 429, 'message': 'Too many OTP verification attempts. Try again later.', 'errors': None,
+13:04:04 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:04 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:04 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 401, b'Unauthorized', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'158'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:04 GMT'), (b'Etag', b'W/"9e-o2aKSomI7SZc/l58cIWRKS7Kj7Y"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'S9sYiCsaTZOsx61kw9P4nw'), (b'X-Xss-Protection', b'0')])
+13:04:04 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:04 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:04 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:04 | WARNING | methna.api | [user-0002] <APIResponse FAIL 401 https://jordan-backend-production.up.railway.app/api/v1/auth/login 264ms> → {'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03
+13:04:04 | DEBUG   | httpcore.connection | close.started
+13:04:04 | DEBUG   | httpcore.connection | close.complete
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 401, b'Unauthorized', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'158'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:04 GMT'), (b'Etag', b'W/"9e-3UwxJlISaDZd9In0yaeyi73pn0g"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'GHDkLLBZRSqv5vHvjUJq2g'), (b'X-Xss-Protection', b'0')])
+13:04:04 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:04 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:04 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:04 | WARNING | methna.api | [user-0001] <APIResponse FAIL 401 https://jordan-backend-production.up.railway.app/api/v1/auth/login 262ms> → {'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03
+13:04:04 | DEBUG   | httpcore.connection | close.started
+13:04:04 | DEBUG   | httpcore.connection | close.complete
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 404, b'Not Found', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'245'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:04 GMT'), (b'Etag', b'W/"f5-mpuhI5+MCVRB4HVgW4bTlxf7AWw"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'MEDx5lePQTe39AI5YqdHTg'), (b'X-Xss-Protection', b'0')])
+13:04:04 | INFO    | httpx | HTTP Request: GET https://jordan-backend-production.up.railway.app/api/v1/auth/test-otp?email=methna.test.d40ca935.0@yopmail.com "HTTP/1.1 404 Not Found"
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:04 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:04 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:04 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:04 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:04:04 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:04 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:04:05 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 429, b'Too Many Requests', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'185'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:05 GMT'), (b'Etag', b'W/"b9-R+fGTPaFYJN2NN/Zs1t/3czvJf4"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'3I6desUxTC-3xOAGYqdHTg'), (b'X-Xss-Protection', b'0')])
+13:04:05 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp "HTTP/1.1 429 Too Many Requests"
+13:04:05 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:04:05 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:05 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:05 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:05 | WARNING | methna.api | [user-0000] <APIResponse FAIL 429 https://jordan-backend-production.up.railway.app/api/v1/auth/verify-otp 282ms> → {'success': False, 'statusCode': 429, 'message': 'Too many OTP verification attempts. Try again later.', 'errors': None,
+13:04:05 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+13:04:05 | DEBUG   | httpcore.http11 | send_request_headers.complete
+13:04:05 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+13:04:05 | DEBUG   | httpcore.http11 | send_request_body.complete
+13:04:05 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+13:04:05 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 401, b'Unauthorized', [(b'Access-Control-Allow-Credentials', b'true'), (b'Content-Length', b'158'), (b'Content-Security-Policy', b"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests"), (b'Content-Type', b'application/json; charset=utf-8'), (b'Cross-Origin-Opener-Policy', b'same-origin'), (b'Cross-Origin-Resource-Policy', b'same-origin'), (b'Date', b'Sun, 22 Mar 2026 12:04:05 GMT'), (b'Etag', b'W/"9e-L1CwwlfEMaHJ5s+HIHFj+dhytSM"'), (b'Origin-Agent-Cluster', b'?1'), (b'Referrer-Policy', b'no-referrer'), (b'Server', b'railway-edge'), (b'Strict-Transport-Security', b'max-age=15552000; includeSubDomains'), (b'Vary', b'Origin'), (b'X-Content-Type-Options', b'nosniff'), (b'X-Dns-Prefetch-Control', b'off'), (b'X-Download-Options', b'noopen'), (b'X-Frame-Options', b'SAMEORIGIN'), (b'X-Permitted-Cross-Domain-Policies', b'none'), (b'X-Railway-Edge', b'railway/europe-west4-drams3a'), (b'X-Railway-Request-Id', b'VHBWn6aiTKWWjQD8YqdHTg'), (b'X-Xss-Protection', b'0')])
+13:04:05 | INFO    | httpx | HTTP Request: POST https://jordan-backend-production.up.railway.app/api/v1/auth/login "HTTP/1.1 401 Unauthorized"
+13:04:05 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+13:04:05 | DEBUG   | httpcore.http11 | receive_response_body.complete
+13:04:05 | DEBUG   | httpcore.http11 | response_closed.started
+13:04:05 | DEBUG   | httpcore.http11 | response_closed.complete
+13:04:05 | WARNING | methna.api | [user-0000] <APIResponse FAIL 401 https://jordan-backend-production.up.railway.app/api/v1/auth/login 346ms> → {'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03
+13:04:05 | DEBUG   | httpcore.connection | close.started
+13:04:05 | DEBUG   | httpcore.connection | close.complete
+13:04:05 | INFO    | methna.load | Load test complete: 0/3 succeeded in 37.2s
+13:04:05 | INFO    | methna.main | Generating reports...

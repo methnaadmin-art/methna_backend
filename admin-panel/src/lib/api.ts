@@ -281,6 +281,21 @@ export const swipesApi = {
     api.get(`/swipes/compatibility/${targetUserId}`),
 }
 
+// ── Categories ─────────────────────────────────────────────
+
+export const categoriesApi = {
+  getAll: () => api.get('/categories'),
+  getAllAdmin: () => api.get('/categories/admin/all'),
+  getOne: (id: string) => api.get(`/categories/${id}`),
+  getUsers: (id: string, page = 1, limit = 20) =>
+    api.get(`/categories/${id}/users`, { params: { page, limit } }),
+  create: (data: Record<string, any>) => api.post('/categories', data),
+  update: (id: string, data: Record<string, any>) =>
+    api.patch(`/categories/${id}`, data),
+  remove: (id: string) => api.delete(`/categories/${id}`),
+  rebuild: (id: string) => api.post(`/categories/${id}/rebuild`),
+}
+
 // ── Reports (user-facing) ───────────────────────────────────
 
 export const userReportsApi = {

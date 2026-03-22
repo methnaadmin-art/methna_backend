@@ -35,6 +35,7 @@ import {
   FileCheck,
   ScrollText,
   BookOpen,
+  Layers,
   type LucideIcon,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
@@ -70,6 +71,7 @@ const navSections: NavSection[] = [
       { to: '/search', labelKey: 'nav.searchDiscovery', icon: Search },
       { to: '/verification', labelKey: 'nav.verification', icon: FileCheck },
       { to: '/photos', labelKey: 'nav.photoModeration', icon: ImageIcon },
+      { to: '/categories', labelKey: 'nav.categories', icon: Layers },
     ],
   },
   {

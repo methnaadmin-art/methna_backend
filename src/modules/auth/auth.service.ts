@@ -68,15 +68,22 @@ export class AuthService {
 
                 await this.userRepository.save(existingUser);
 
-                this.mailService
-                    .sendOtpEmail(email, otp, firstName)
-                    .catch((err) => this.logger.error(`OTP email failed for ${email}`, err));
+                let emailSent = false;
+                try {
+                    await this.mailService.sendOtpEmail(email, otp, firstName);
+                    emailSent = true;
+                } catch (err) {
+                    this.logger.error(`OTP email failed for ${email}`, err?.message || err);
+                }
 
-                this.logger.log(`User re-registered (pending verification): ${email}`);
+                this.logger.log(`User re-registered (pending verification): ${email}, emailSent=${emailSent}`);
 
                 return {
-                    message: 'Registration successful. Please verify your email with the OTP sent.',
+                    message: emailSent
+                        ? 'Registration successful. Please verify your email with the OTP sent.'
+                        : 'Account created but failed to send verification email. Please use resend OTP.',
                     email,
+                    emailSent,
                 };
             }
             throw new ConflictException('Email already registered');
@@ -114,16 +121,23 @@ export class AuthService {
 
         await this.userRepository.save(user);
 
-        // Send OTP email (fire-and-forget with logging)
-        this.mailService
-            .sendOtpEmail(email, otp, firstName)
-            .catch((err) => this.logger.error(`OTP email failed for ${email}`, err));
+        // Send OTP email — await so we can tell the client if it failed
+        let emailSent = false;
+        try {
+            await this.mailService.sendOtpEmail(email, otp, firstName);
+            emailSent = true;
+        } catch (err) {
+            this.logger.error(`OTP email failed for ${email}`, err?.message || err);
+        }
 
-        this.logger.log(`User registered (pending verification): ${email}`);
+        this.logger.log(`User registered (pending verification): ${email}, emailSent=${emailSent}`);
 
         return {
-            message: 'Registration successful. Please verify your email with the OTP sent.',
+            message: emailSent
+                ? 'Registration successful. Please verify your email with the OTP sent.'
+                : 'Account created but failed to send verification email. Please use resend OTP.',
             email,
+            emailSent,
         };
     }
 
@@ -242,11 +256,20 @@ export class AuthService {
             otpCooldownUntil: cooldownUntil,
         });
 
-        this.mailService
-            .sendOtpEmail(email, otp, user.firstName)
-            .catch((err) => this.logger.error(`Resend OTP email failed for ${email}`, err));
+        let emailSent = false;
+        try {
+            await this.mailService.sendOtpEmail(email, otp, user.firstName);
+            emailSent = true;
+        } catch (err) {
+            this.logger.error(`Resend OTP email failed for ${email}`, err?.message || err);
+        }
 
-        return { message: 'New OTP sent to your email' };
+        return {
+            message: emailSent
+                ? 'New OTP sent to your email'
+                : 'Failed to send OTP email. Please try again later.',
+            emailSent,
+        };
     }
 
     // ─── LOGIN ──────────────────────────────────────────────
@@ -588,6 +611,26 @@ export class AuthService {
     async updateFcmToken(userId: string, fcmToken: string) {
         await this.userRepository.update(userId, { fcmToken });
         return { message: 'FCM token updated' };
+    }
+
+    // ─── QA TEST MODE: Fetch OTP (guarded by TEST_SECRET) ───
+
+    async getTestOtp(email: string, testSecret: string) {
+        const expectedSecret = this.configService.get<string>('TEST_SECRET');
+        if (!expectedSecret || testSecret !== expectedSecret) {
+            throw new UnauthorizedException('Invalid test secret');
+        }
+
+        const user = await this.userRepository.findOne({
+            where: { email },
+            select: ['id', 'email', 'otpCode', 'otpExpiresAt'],
+        });
+
+        if (!user || !user.otpCode) {
+            throw new BadRequestException('No pending OTP for this email');
+        }
+
+        return { email, otp: user.otpCode, expiresAt: user.otpExpiresAt };
     }
 
     // ─── PRIVATE HELPERS ────────────────────────────────────

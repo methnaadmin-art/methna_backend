@@ -26,6 +26,7 @@ import SendNotificationsPage from '@/pages/send-notifications'
 import VerificationPage from '@/pages/verification'
 import AuditLogsPage from '@/pages/audit-logs'
 import GuidePage from '@/pages/guide'
+import CategoriesPage from '@/pages/categories'
 
 export default function App() {
   return (
@@ -57,6 +58,7 @@ export default function App() {
                 <Route path="/trust-safety" element={<TrustSafetyPage />} />
                 <Route path="/security" element={<SecurityPage />} />
                 <Route path="/audit-logs" element={<AuditLogsPage />} />
+                <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/guide" element={<GuidePage />} />
               </Route>
             </Routes>

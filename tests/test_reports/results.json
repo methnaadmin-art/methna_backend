@@ -1,0 +1,170 @@
+{
+  "stats": {
+    "timestamp": "2026-03-22T12:04:05.591884+00:00",
+    "total_users": 3,
+    "successful_users": 0,
+    "failed_users": 3,
+    "success_rate": "0.0%",
+    "retry_users": 3,
+    "total_api_requests": 12,
+    "failed_api_requests": 9,
+    "api_failure_rate": "75.0%",
+    "avg_latency_ms": 901.9,
+    "min_latency_ms": 262.2,
+    "max_latency_ms": 3097.5,
+    "p50_latency_ms": 345.5,
+    "p95_latency_ms": 3097.5,
+    "p99_latency_ms": 3097.5,
+    "avg_flow_time_ms": 7732.0,
+    "endpoints": {
+      "fetch_otp": {
+        "total": 3,
+        "success": 0,
+        "failed": 3,
+        "success_rate": "0.0%",
+        "avg_ms": 0,
+        "min_ms": 0,
+        "max_ms": 0,
+        "p95_ms": 0,
+        "unique_errors": [
+          "OTP_NOT_FETCHABLE"
+        ]
+      },
+      "resend_otp": {
+        "total": 3,
+        "success": 0,
+        "failed": 3,
+        "success_rate": "0.0%",
+        "avg_ms": 291.8,
+        "min_ms": 262.5,
+        "max_ms": 348.2,
+        "p95_ms": 348.2,
+        "unique_errors": [
+          "{'success': False, 'statusCode': 400, 'message': 'Please wait 35 seconds before requesting a new OTP', 'errors': None, 'timestamp': '2026-03-22T12:04:02.474Z', 'path': '/api/v1/auth/resend-otp'}",
+          "{'success': False, 'statusCode': 400, 'message': 'Please wait 35 seconds before requesting a new OTP', 'errors': None, 'timestamp': '2026-03-22T12:04:01.981Z', 'path': '/api/v1/auth/resend-otp'}",
+          "{'success': False, 'statusCode': 400, 'message': 'Please wait 35 seconds before requesting a new OTP', 'errors': None, 'timestamp': '2026-03-22T12:04:01.980Z', 'path': '/api/v1/auth/resend-otp'}"
+        ]
+      },
+      "login_after_otp_fail": {
+        "total": 3,
+        "success": 0,
+        "failed": 3,
+        "success_rate": "0.0%",
+        "avg_ms": 290.6,
+        "min_ms": 262.2,
+        "max_ms": 345.5,
+        "p95_ms": 345.5,
+        "unique_errors": [
+          "{'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03-22T12:04:05.411Z', 'path': '/api/v1/auth/login'}",
+          "{'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03-22T12:04:04.665Z', 'path': '/api/v1/auth/login'}",
+          "{'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03-22T12:04:04.660Z', 'path': '/api/v1/auth/login'}"
+        ]
+      },
+      "register": {
+        "total": 3,
+        "success": 3,
+        "failed": 0,
+        "success_rate": "100.0%",
+        "avg_ms": 2123.4,
+        "min_ms": 1238.5,
+        "max_ms": 3097.5,
+        "p95_ms": 3097.5,
+        "unique_errors": []
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "HIGH",
+      "category": "OTP_FAILURE",
+      "count": 6,
+      "hint": "OTP verification failed. Possible causes:\n  - SMTP credentials (MAIL_USER/MAIL_PASS) not configured\n  - OTP test codes (123456) not accepted in production\n  - OTP already expired (5-minute window)\n  - Rate limiting on OTP verification endpoint"
+    }
+  ],
+  "failed_users": [
+    {
+      "index": 2,
+      "email": "methna.test.e86d7a03.2@yopmail.com",
+      "success": false,
+      "retries": 2,
+      "total_time_ms": 8512.6,
+      "error": "OTP verification failed, login also failed",
+      "failed_steps": [
+        {
+          "step": "fetch_otp",
+          "status": 0,
+          "latency_ms": 0.0,
+          "error": "OTP_NOT_FETCHABLE"
+        },
+        {
+          "step": "resend_otp",
+          "status": 400,
+          "latency_ms": 262.5,
+          "error": "{'success': False, 'statusCode': 400, 'message': 'Please wait 35 seconds before requesting a new OTP', 'errors': None, 'timestamp': '2026-03-22T12:04:01.980Z', 'path': '/api/v1/auth/resend-otp'}"
+        },
+        {
+          "step": "login_after_otp_fail",
+          "status": 401,
+          "latency_ms": 263.9,
+          "error": "{'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03-22T12:04:04.660Z', 'path': '/api/v1/auth/login'}"
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "email": "methna.test.80fff7a5.1@yopmail.com",
+      "success": false,
+      "retries": 2,
+      "total_time_ms": 7453.2,
+      "error": "OTP verification failed, login also failed",
+      "failed_steps": [
+        {
+          "step": "fetch_otp",
+          "status": 0,
+          "latency_ms": 0.0,
+          "error": "OTP_NOT_FETCHABLE"
+        },
+        {
+          "step": "resend_otp",
+          "status": 400,
+          "latency_ms": 264.8,
+          "error": "{'success': False, 'statusCode': 400, 'message': 'Please wait 35 seconds before requesting a new OTP', 'errors': None, 'timestamp': '2026-03-22T12:04:01.981Z', 'path': '/api/v1/auth/resend-otp'}"
+        },
+        {
+          "step": "login_after_otp_fail",
+          "status": 401,
+          "latency_ms": 262.2,
+          "error": "{'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03-22T12:04:04.665Z', 'path': '/api/v1/auth/login'}"
+        }
+      ]
+    },
+    {
+      "index": 0,
+      "email": "methna.test.d40ca935.0@yopmail.com",
+      "success": false,
+      "retries": 2,
+      "total_time_ms": 7230.3,
+      "error": "OTP verification failed, login also failed",
+      "failed_steps": [
+        {
+          "step": "fetch_otp",
+          "status": 0,
+          "latency_ms": 0.0,
+          "error": "OTP_NOT_FETCHABLE"
+        },
+        {
+          "step": "resend_otp",
+          "status": 400,
+          "latency_ms": 348.2,
+          "error": "{'success': False, 'statusCode': 400, 'message': 'Please wait 35 seconds before requesting a new OTP', 'errors': None, 'timestamp': '2026-03-22T12:04:02.474Z', 'path': '/api/v1/auth/resend-otp'}"
+        },
+        {
+          "step": "login_after_otp_fail",
+          "status": 401,
+          "latency_ms": 345.5,
+          "error": "{'success': False, 'statusCode': 401, 'message': 'Please verify your email first', 'errors': None, 'timestamp': '2026-03-22T12:04:05.411Z', 'path': '/api/v1/auth/login'}"
+        }
+      ]
+    }
+  ]
+}

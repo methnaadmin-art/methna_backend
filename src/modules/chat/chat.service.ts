@@ -9,6 +9,7 @@ import { Message, MessageType, MessageStatus } from '../../database/entities/mes
 import { Match, MatchStatus } from '../../database/entities/match.entity';
 import { Conversation } from '../../database/entities/conversation.entity';
 import { Photo } from '../../database/entities/photo.entity';
+import { BlockedUser } from '../../database/entities/blocked-user.entity';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @Injectable()
@@ -22,6 +23,8 @@ export class ChatService {
         private readonly conversationRepository: Repository<Conversation>,
         @InjectRepository(Photo)
         private readonly photoRepository: Repository<Photo>,
+        @InjectRepository(BlockedUser)
+        private readonly blockedUserRepository: Repository<BlockedUser>,
     ) { }
 
     // ─── CONVERSATIONS LIST ─────────────────────────────────
@@ -105,6 +108,18 @@ export class ChatService {
         type: MessageType = MessageType.TEXT,
     ): Promise<Message> {
         const conversation = await this.verifyConversationParticipant(senderId, conversationId);
+
+        // Check if either user has blocked the other
+        const recipientId = conversation.user1Id === senderId ? conversation.user2Id : conversation.user1Id;
+        const isBlocked = await this.blockedUserRepository.findOne({
+            where: [
+                { blockerId: senderId, blockedId: recipientId },
+                { blockerId: recipientId, blockedId: senderId },
+            ],
+        });
+        if (isBlocked) {
+            throw new ForbiddenException('Cannot send messages to this user');
+        }
 
         const message = this.messageRepository.create({
             conversationId,
@@ -193,6 +208,17 @@ export class ChatService {
             .getRawOne();
 
         return parseInt(result?.total || '0', 10);
+    }
+
+    // ─── PUBLIC: Get conversation participant IDs ─────────
+
+    async getConversationParticipants(conversationId: string): Promise<string[] | null> {
+        const conversation = await this.conversationRepository.findOne({
+            where: { id: conversationId, isActive: true },
+            select: ['user1Id', 'user2Id'],
+        });
+        if (!conversation) return null;
+        return [conversation.user1Id, conversation.user2Id];
     }
 
     // ─── HELPERS ────────────────────────────────────────────
