@@ -121,30 +121,31 @@ export class SearchService {
             query.andWhere('user.selfieVerified = :verified', { verified: true });
         }
 
+        // Always fetch user's location for distance sorting
+        const userProfile = await this.profileRepository.findOne({
+            where: { userId },
+            select: ['latitude', 'longitude'],
+        });
+        const hasUserLocation = !!(userProfile?.latitude && userProfile?.longitude);
+
         // Distance filter (requires user's location)
-        if (filters.maxDistance) {
-            const userProfile = await this.profileRepository.findOne({
-                where: { userId },
-                select: ['latitude', 'longitude'],
+        if (filters.maxDistance && hasUserLocation) {
+            // Bounding box pre-filter (uses indexes, avoids full-table Haversine)
+            const latDelta = filters.maxDistance / 111;
+            const lngDelta = filters.maxDistance / (111 * Math.cos(Number(userProfile.latitude) * Math.PI / 180));
+            query.andWhere('profile.latitude BETWEEN :sMinLat AND :sMaxLat', {
+                sMinLat: Number(userProfile.latitude) - latDelta,
+                sMaxLat: Number(userProfile.latitude) + latDelta,
             });
-            if (userProfile?.latitude && userProfile?.longitude) {
-                // Bounding box pre-filter (uses indexes, avoids full-table Haversine)
-                const latDelta = filters.maxDistance / 111;
-                const lngDelta = filters.maxDistance / (111 * Math.cos(Number(userProfile.latitude) * Math.PI / 180));
-                query.andWhere('profile.latitude BETWEEN :sMinLat AND :sMaxLat', {
-                    sMinLat: Number(userProfile.latitude) - latDelta,
-                    sMaxLat: Number(userProfile.latitude) + latDelta,
-                });
-                query.andWhere('profile.longitude BETWEEN :sMinLng AND :sMaxLng', {
-                    sMinLng: Number(userProfile.longitude) - lngDelta,
-                    sMaxLng: Number(userProfile.longitude) + lngDelta,
-                });
-                // Precise Haversine filter
-                query.andWhere(
-                    `(6371 * acos(cos(radians(:userLat)) * cos(radians(profile.latitude)) * cos(radians(profile.longitude) - radians(:userLng)) + sin(radians(:userLat)) * sin(radians(profile.latitude)))) <= :maxDist`,
-                    { userLat: userProfile.latitude, userLng: userProfile.longitude, maxDist: filters.maxDistance },
-                );
-            }
+            query.andWhere('profile.longitude BETWEEN :sMinLng AND :sMaxLng', {
+                sMinLng: Number(userProfile.longitude) - lngDelta,
+                sMaxLng: Number(userProfile.longitude) + lngDelta,
+            });
+            // Precise Haversine filter
+            query.andWhere(
+                `(6371 * acos(cos(radians(:userLat)) * cos(radians(profile.latitude)) * cos(radians(profile.longitude) - radians(:userLng)) + sin(radians(:userLat)) * sin(radians(profile.latitude)))) <= :maxDist`,
+                { userLat: userProfile.latitude, userLng: userProfile.longitude, maxDist: filters.maxDistance },
+            );
         }
 
         // Full-text search on bio
@@ -162,7 +163,18 @@ export class SearchService {
             );
         }
 
-        query.orderBy('profile.activityScore', 'DESC');
+        // Sort by distance (nearest first) when user has location, else by activityScore
+        if (hasUserLocation) {
+            query.addSelect(
+                `(6371 * acos(LEAST(1.0, cos(radians(:orderLat)) * cos(radians(profile.latitude)) * cos(radians(profile.longitude) - radians(:orderLng)) + sin(radians(:orderLat)) * sin(radians(profile.latitude)))))`,
+                'distance',
+            );
+            query.setParameter('orderLat', userProfile.latitude);
+            query.setParameter('orderLng', userProfile.longitude);
+            query.orderBy('distance', 'ASC');
+        } else {
+            query.orderBy('profile.activityScore', 'DESC');
+        }
         query.skip(((filters.page ?? 1) - 1) * (filters.limit ?? 20));
         query.take(filters.limit ?? 20);
 
