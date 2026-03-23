@@ -28,6 +28,7 @@ import { SuccessStoriesModule } from './modules/success-stories/success-stories.
 import { PaymentsModule } from './modules/payments/payments.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { SupportModule } from './modules/support/support.module';
+import { DailyInsightsModule } from './modules/daily-insights/daily-insights.module';
 import configuration from './config/configuration';
 
 @Module({
@@ -79,6 +80,7 @@ import configuration from './config/configuration';
         PaymentsModule,
         CategoriesModule,
         SupportModule,
+        DailyInsightsModule,
     ],
 })
 export class AppModule { }

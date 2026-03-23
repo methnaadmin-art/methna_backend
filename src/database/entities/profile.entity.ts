@@ -76,6 +76,12 @@ export enum SecondWifePreference {
     PREFER_NOT_TO_SAY = 'prefer_not_to_say',
 }
 
+export enum IntentMode {
+    SERIOUS_MARRIAGE = 'serious_marriage',
+    EXPLORING = 'exploring',
+    FAMILY_INTRODUCTION = 'family_introduction',
+}
+
 export enum BloodType {
     A_POSITIVE = 'A+',
     A_NEGATIVE = 'A-',
@@ -231,6 +237,9 @@ export class Profile {
 
     @Column({ type: 'enum', enum: SecondWifePreference, nullable: true })
     secondWifePreference: SecondWifePreference;
+
+    @Column({ type: 'enum', enum: IntentMode, default: IntentMode.SERIOUS_MARRIAGE })
+    intentMode: IntentMode;
 
     // Health & Body
     @Column({ default: false })

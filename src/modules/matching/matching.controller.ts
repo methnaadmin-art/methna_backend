@@ -4,6 +4,7 @@ import {
     Post,
     Query,
     Param,
+    Body,
     UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -60,5 +61,32 @@ export class MatchingController {
         @Query('limit') limit?: number,
     ) {
         return this.matchingService.getCollaborativeRecommendations(userId, limit || 10);
+    }
+
+    @Get('baraka/:targetUserId')
+    @ApiOperation({ summary: 'Get Baraka Meter score with another user (prayer, intentions, lifestyle)' })
+    async getBaraka(
+        @CurrentUser('sub') userId: string,
+        @Param('targetUserId') targetUserId: string,
+    ) {
+        return this.matchingService.getBaraka(userId, targetUserId);
+    }
+
+    @Post('baraka/bulk')
+    @ApiOperation({ summary: 'Get Baraka Meter scores for multiple users at once' })
+    async getBulkBaraka(
+        @CurrentUser('sub') userId: string,
+        @Body() body: { targetUserIds: string[] },
+    ) {
+        return this.matchingService.getBulkBaraka(userId, body.targetUserIds);
+    }
+
+    @Get('ice-breakers/:targetUserId')
+    @ApiOperation({ summary: 'Get smart ice breaker suggestions based on shared interests' })
+    async getIceBreakers(
+        @CurrentUser('sub') userId: string,
+        @Param('targetUserId') targetUserId: string,
+    ) {
+        return this.matchingService.getIceBreakers(userId, targetUserId);
     }
 }

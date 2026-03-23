@@ -36,6 +36,7 @@ import {
   ScrollText,
   BookOpen,
   Layers,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
@@ -91,6 +92,7 @@ const navSections: NavSection[] = [
       { to: '/notifications', labelKey: 'nav.notifications', icon: Bell },
       { to: '/send-notifications', labelKey: 'nav.sendPush', icon: Send },
       { to: '/support', labelKey: 'nav.supportTickets', icon: Headphones },
+      { to: '/daily-insights', labelKey: 'nav.dailyInsights', icon: Sparkles },
     ],
   },
   {

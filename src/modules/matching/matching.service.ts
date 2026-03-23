@@ -618,6 +618,191 @@ export class MatchingService {
         return result;
     }
 
+    // ─── BARAKA METER ──────────────────────────────────────
+
+    async getBaraka(userId: string, targetUserId: string): Promise<any> {
+        const [myProfile, targetProfile] = await Promise.all([
+            this.profileRepository.findOne({ where: { userId }, relations: ['user'] }),
+            this.profileRepository.findOne({ where: { userId: targetUserId }, relations: ['user'] }),
+        ]);
+        if (!myProfile || !targetProfile) return { score: 0, level: 'low', breakdown: null };
+
+        const breakdown = this.computeBarakaBreakdown(myProfile, targetProfile);
+        const score = breakdown.total;
+        const level = score >= 75 ? 'high' : score >= 45 ? 'medium' : 'low';
+
+        return { score, level, breakdown };
+    }
+
+    async getBulkBaraka(userId: string, targetUserIds: string[]): Promise<Record<string, { score: number; level: string }>> {
+        if (targetUserIds.length === 0) return {};
+
+        const myProfile = await this.profileRepository.findOne({ where: { userId } });
+        if (!myProfile) return {};
+
+        const targets = await this.profileRepository
+            .createQueryBuilder('profile')
+            .where('profile.userId IN (:...ids)', { ids: targetUserIds })
+            .getMany();
+
+        const result: Record<string, { score: number; level: string }> = {};
+        for (const target of targets) {
+            const breakdown = this.computeBarakaBreakdown(myProfile, target);
+            const score = breakdown.total;
+            result[target.userId] = {
+                score,
+                level: score >= 75 ? 'high' : score >= 45 ? 'medium' : 'low',
+            };
+        }
+        return result;
+    }
+
+    /**
+     * Baraka Meter Breakdown (0-100):
+     *   Prayer & Faith:    30 pts (prayerFrequency, religiousLevel, sect)
+     *   Intentions:        25 pts (marriageIntention, intentMode alignment)
+     *   Lifestyle:         20 pts (dietary, alcohol, hijab, living)
+     *   Family Values:     15 pts (familyPlans, wantsChildren, familyValues)
+     *   Shared Interests:  10 pts
+     */
+    private computeBarakaBreakdown(a: Profile, b: Profile): {
+        prayer: number; intentions: number; lifestyle: number;
+        family: number; interests: number; total: number;
+    } {
+        let prayer = 0;
+        let intentions = 0;
+        let lifestyle = 0;
+        let family = 0;
+        let interests = 0;
+
+        // ── Prayer & Faith (30 pts) ──
+        // Religious level match (15 pts)
+        if (a.religiousLevel && b.religiousLevel) {
+            if (a.religiousLevel === b.religiousLevel) prayer += 15;
+            else {
+                const levels = ['liberal', 'moderate', 'practicing', 'very_practicing'];
+                const diff = Math.abs(levels.indexOf(a.religiousLevel) - levels.indexOf(b.religiousLevel));
+                if (diff === 1) prayer += 10;
+                else if (diff === 2) prayer += 5;
+            }
+        }
+        // Prayer frequency match (10 pts)
+        if (a.prayerFrequency && b.prayerFrequency) {
+            if (a.prayerFrequency === b.prayerFrequency) prayer += 10;
+            else prayer += 4;
+        }
+        // Sect compatibility (5 pts)
+        if (a.sect && b.sect) {
+            if (a.sect === b.sect) prayer += 5;
+            else prayer += 2;
+        }
+
+        // ── Intentions (25 pts) ──
+        // Marriage intention match (15 pts)
+        if (a.marriageIntention && b.marriageIntention) {
+            if (a.marriageIntention === b.marriageIntention) intentions += 15;
+            else {
+                const serious = ['within_months', 'within_year'];
+                const aBoth = serious.includes(a.marriageIntention);
+                const bBoth = serious.includes(b.marriageIntention);
+                if (aBoth && bBoth) intentions += 12;
+                else if (aBoth || bBoth) intentions += 6;
+                else intentions += 3;
+            }
+        }
+        // Intent mode alignment (10 pts)
+        if ((a as any).intentMode && (b as any).intentMode) {
+            if ((a as any).intentMode === (b as any).intentMode) intentions += 10;
+            else intentions += 3;
+        }
+
+        // ── Lifestyle (20 pts) ──
+        let lifestyleMatches = 0;
+        let lifestyleChecked = 0;
+        if (a.dietary && b.dietary) { lifestyleChecked++; if (a.dietary === b.dietary) lifestyleMatches++; }
+        if (a.alcohol && b.alcohol) { lifestyleChecked++; if (a.alcohol === b.alcohol) lifestyleMatches++; }
+        if (a.hijabStatus && b.hijabStatus) { lifestyleChecked++; if (a.hijabStatus === b.hijabStatus) lifestyleMatches++; }
+        if (a.livingSituation && b.livingSituation) { lifestyleChecked++; if (a.livingSituation === b.livingSituation) lifestyleMatches++; }
+        if (a.sleepSchedule && b.sleepSchedule) { lifestyleChecked++; if (a.sleepSchedule === b.sleepSchedule) lifestyleMatches++; }
+        if (lifestyleChecked > 0) {
+            lifestyle = Math.round((lifestyleMatches / lifestyleChecked) * 20);
+        } else {
+            lifestyle = 10; // neutral if no data
+        }
+
+        // ── Family Values (15 pts) ──
+        if (a.familyPlans && b.familyPlans) {
+            if (a.familyPlans === b.familyPlans) family += 8;
+            else family += 3;
+        }
+        if (a.wantsChildren === b.wantsChildren) family += 4;
+        if (a.familyValues?.length && b.familyValues?.length) {
+            const overlap = a.familyValues.filter(v => b.familyValues.includes(v));
+            family += Math.min(Math.round((overlap.length / Math.max(a.familyValues.length, b.familyValues.length)) * 3), 3);
+        }
+
+        // ── Shared Interests (10 pts) ──
+        if (a.interests?.length && b.interests?.length) {
+            const overlap = a.interests.filter(i => b.interests.includes(i));
+            interests = Math.min(Math.round((overlap.length / Math.max(a.interests.length, b.interests.length)) * 10), 10);
+        }
+
+        const total = Math.min(prayer + intentions + lifestyle + family + interests, 100);
+        return { prayer, intentions, lifestyle, family, interests, total };
+    }
+
+    // ─── ICE BREAKERS ────────────────────────────────────────
+
+    async getIceBreakers(userId: string, targetUserId: string): Promise<string[]> {
+        const [myProfile, targetProfile] = await Promise.all([
+            this.profileRepository.findOne({ where: { userId } }),
+            this.profileRepository.findOne({ where: { userId: targetUserId }, relations: ['user'] }),
+        ]);
+        if (!myProfile || !targetProfile) return this.getDefaultIceBreakers();
+
+        const breakers: string[] = [];
+        const targetName = targetProfile.user?.firstName || 'them';
+
+        // Interest-based breakers
+        if (myProfile.interests?.length && targetProfile.interests?.length) {
+            const shared = myProfile.interests.filter(i => targetProfile.interests.includes(i));
+            if (shared.length > 0) {
+                breakers.push(`I noticed we both enjoy ${shared[0]}! What got you into it?`);
+                if (shared.length > 1) {
+                    breakers.push(`We share a love for ${shared[0]} and ${shared[1]} — that's a great foundation!`);
+                }
+            }
+        }
+
+        // Location-based
+        if (myProfile.city && targetProfile.city && myProfile.city.toLowerCase() === targetProfile.city.toLowerCase()) {
+            breakers.push(`Salam! I see we're both in ${myProfile.city}. What's your favorite spot here?`);
+        }
+
+        // Education-based
+        if (myProfile.education && targetProfile.education && myProfile.education === targetProfile.education) {
+            breakers.push(`We both have a background in ${myProfile.education.replace('_', ' ')} — what did you study?`);
+        }
+
+        // Faith-based (always respectful)
+        breakers.push(`Assalamu Alaikum! I'd love to know more about your journey and values.`);
+        breakers.push(`Salam! What does a fulfilling day look like for you?`);
+        breakers.push(`What's one quality you value most in a life partner?`);
+
+        // Ensure at least 3, max 5
+        return breakers.slice(0, 5);
+    }
+
+    private getDefaultIceBreakers(): string[] {
+        return [
+            'Assalamu Alaikum! I would love to get to know you better.',
+            'Salam! What does a perfect day look like for you?',
+            'What values matter most to you in a partner?',
+            'What are you most passionate about in life?',
+            'How would your closest friends describe you?',
+        ];
+    }
+
     // ─── HELPERS ────────────────────────────────────────────
 
     private async getExcludeIds(userId: string): Promise<string[]> {
