@@ -11,6 +11,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     // In-memory rate limit fallback when Redis is down
     private readonly memRateLimit = new Map<string, { count: number; expiresAt: number }>();
 
+    // Cache hit/miss counters for monitoring
+    private cacheHits = 0;
+    private cacheMisses = 0;
+    private cleanupInterval: NodeJS.Timeout | null = null;
+
     constructor(private configService: ConfigService) {}
 
     async onModuleInit() {
@@ -43,9 +48,13 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         this.client.on('reconnecting', () => {
             this.logger.log('Redis reconnecting...');
         });
+
+        // Periodic cleanup of in-memory rate limit map (every 60s)
+        this.cleanupInterval = setInterval(() => this.cleanupMemRateLimit(), 60_000);
     }
 
     async onModuleDestroy() {
+        if (this.cleanupInterval) clearInterval(this.cleanupInterval);
         if (this.client) {
             await this.client.quit();
             this.logger.log('Redis connection closed gracefully');
@@ -106,8 +115,12 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
     async getJson<T>(key: string): Promise<T | null> {
         const value = await this.get(key);
-        if (!value) return null;
+        if (!value) {
+            this.cacheMisses++;
+            return null;
+        }
         try {
+            this.cacheHits++;
             return JSON.parse(value) as T;
         } catch {
             return null;
@@ -279,6 +292,23 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         } catch {
             return [];
         }
+    }
+
+    // ─── Stats (for monitoring endpoint) ──────────────────────
+
+    getCacheStats(): { hits: number; misses: number; hitRate: string; connected: boolean } {
+        const total = this.cacheHits + this.cacheMisses;
+        return {
+            hits: this.cacheHits,
+            misses: this.cacheMisses,
+            hitRate: total > 0 ? `${((this.cacheHits / total) * 100).toFixed(1)}%` : '0%',
+            connected: this.isConnected,
+        };
+    }
+
+    resetCacheStats(): void {
+        this.cacheHits = 0;
+        this.cacheMisses = 0;
     }
 
     // ─── Periodic cleanup for in-memory rate limit map ───────

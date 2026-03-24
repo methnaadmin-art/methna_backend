@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { Report } from '../../database/entities/report.entity';
 import { BlockedUser } from '../../database/entities/blocked-user.entity';
 import { CreateReportDto } from './dto/report.dto';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class ReportsService {
@@ -16,6 +17,7 @@ export class ReportsService {
         private readonly reportRepository: Repository<Report>,
         @InjectRepository(BlockedUser)
         private readonly blockedUserRepository: Repository<BlockedUser>,
+        private readonly redisService: RedisService,
     ) { }
 
     async createReport(userId: string, dto: CreateReportDto): Promise<Report> {
@@ -58,6 +60,12 @@ export class ReportsService {
             blockedId,
         });
         await this.blockedUserRepository.save(block);
+
+        // Invalidate blocked-user caches for both users (used by search)
+        await Promise.all([
+            this.redisService.del(`blocked_ids:${userId}`),
+            this.redisService.del(`blocked_ids:${blockedId}`),
+        ]);
     }
 
     async unblockUser(userId: string, blockedId: string): Promise<void> {
@@ -66,6 +74,12 @@ export class ReportsService {
         });
         if (!block) throw new NotFoundException('User is not blocked');
         await this.blockedUserRepository.remove(block);
+
+        // Invalidate blocked-user caches for both users
+        await Promise.all([
+            this.redisService.del(`blocked_ids:${userId}`),
+            this.redisService.del(`blocked_ids:${blockedId}`),
+        ]);
     }
 
     async getBlockedUsers(userId: string) {

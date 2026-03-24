@@ -10,12 +10,14 @@ import {
     SubscriptionPlan,
     SubscriptionStatus,
 } from '../../database/entities/subscription.entity';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class SubscriptionsService {
     constructor(
         @InjectRepository(Subscription)
         private readonly subscriptionRepository: Repository<Subscription>,
+        private readonly redisService: RedisService,
     ) { }
 
     async getMySubscription(userId: string): Promise<Subscription> {
@@ -66,7 +68,12 @@ export class SubscriptionsService {
             paymentReference,
         });
 
-        return this.subscriptionRepository.save(subscription);
+        const saved = await this.subscriptionRepository.save(subscription);
+
+        // Invalidate premium cache so swipe limits update immediately
+        await this.redisService.del(`premium:${userId}`);
+
+        return saved;
     }
 
     async cancelSubscription(userId: string): Promise<void> {
@@ -77,6 +84,9 @@ export class SubscriptionsService {
 
         sub.status = SubscriptionStatus.CANCELLED;
         await this.subscriptionRepository.save(sub);
+
+        // Invalidate premium cache
+        await this.redisService.del(`premium:${userId}`);
     }
 
     async isPremium(userId: string): Promise<boolean> {

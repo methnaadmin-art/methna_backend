@@ -395,6 +395,26 @@ export class AdminController {
         return this.adminService.getDashboardStats();
     }
 
+    // ─── SYSTEM HEALTH / PERFORMANCE ─────────────────────────
+
+    @Get('system/health')
+    @ApiOperation({ summary: 'System health: cache stats, uptime, memory' })
+    async getSystemHealth() {
+        const cacheStats = this.redisService.getCacheStats();
+        const memUsage = process.memoryUsage();
+        return {
+            status: 'ok',
+            uptime: Math.round(process.uptime()),
+            redis: cacheStats,
+            memory: {
+                rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`,
+                heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+                heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`,
+            },
+            timestamp: new Date().toISOString(),
+        };
+    }
+
     // ─── AUDIT LOGS ──────────────────────────────────────────
 
     @Get('audit-logs/:type')

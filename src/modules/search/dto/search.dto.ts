@@ -11,7 +11,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Gender, MaritalStatus, ReligiousLevel, EducationLevel } from '../../../database/entities/profile.entity';
+import { Gender, MaritalStatus, ReligiousLevel, EducationLevel, PrayerFrequency, MarriageIntention, LivingSituation } from '../../../database/entities/profile.entity';
 
 export class SearchFiltersDto {
     @ApiPropertyOptional({ minimum: 18 })
@@ -62,6 +62,21 @@ export class SearchFiltersDto {
     @IsOptional()
     @IsEnum(EducationLevel)
     education?: EducationLevel;
+
+    @ApiPropertyOptional({ enum: PrayerFrequency })
+    @IsOptional()
+    @IsEnum(PrayerFrequency)
+    prayerFrequency?: PrayerFrequency;
+
+    @ApiPropertyOptional({ enum: MarriageIntention })
+    @IsOptional()
+    @IsEnum(MarriageIntention)
+    marriageIntention?: MarriageIntention;
+
+    @ApiPropertyOptional({ enum: LivingSituation })
+    @IsOptional()
+    @IsEnum(LivingSituation)
+    livingSituation?: LivingSituation;
 
     @ApiPropertyOptional({ type: [String], description: 'Filter by interests' })
     @IsOptional()

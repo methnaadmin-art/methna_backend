@@ -5,10 +5,15 @@ import { Category, CategoryStatus, RuleCondition } from '../../database/entities
 import { Profile } from '../../database/entities/profile.entity';
 import { User } from '../../database/entities/user.entity';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class CategoriesService {
     private readonly logger = new Logger(CategoriesService.name);
+
+    private static readonly CACHE_KEY_ALL = 'categories:all';
+    private static readonly CACHE_KEY_ACTIVE = 'categories:active';
+    private static readonly CACHE_TTL = 600; // 10 minutes
 
     constructor(
         @InjectRepository(Category)
@@ -17,6 +22,7 @@ export class CategoriesService {
         private readonly profileRepo: Repository<Profile>,
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
+        private readonly redisService: RedisService,
     ) {}
 
     // ─── CRUD ────────────────────────────────────────────────
@@ -25,15 +31,23 @@ export class CategoriesService {
         const category = this.categoryRepo.create(dto);
         const saved = await this.categoryRepo.save(category);
         this.logger.log(`Category created: ${saved.name} (${saved.id})`);
+        await this.invalidateCache();
         return saved;
     }
 
     async findAll(includeInactive = false): Promise<Category[]> {
+        const cacheKey = includeInactive ? CategoriesService.CACHE_KEY_ALL : CategoriesService.CACHE_KEY_ACTIVE;
+        const cached = await this.redisService.getJson<Category[]>(cacheKey);
+        if (cached) return cached;
+
         const where = includeInactive ? {} : { status: CategoryStatus.ACTIVE };
-        return this.categoryRepo.find({
+        const categories = await this.categoryRepo.find({
             where,
             order: { sortOrder: 'ASC', createdAt: 'DESC' },
         });
+
+        await this.redisService.setJson(cacheKey, categories, CategoriesService.CACHE_TTL);
+        return categories;
     }
 
     async findOne(id: string): Promise<Category> {
@@ -47,6 +61,7 @@ export class CategoriesService {
         Object.assign(category, dto);
         const saved = await this.categoryRepo.save(category);
         this.logger.log(`Category updated: ${saved.name} (${saved.id})`);
+        await this.invalidateCache();
         return saved;
     }
 
@@ -54,6 +69,7 @@ export class CategoriesService {
         const category = await this.findOne(id);
         await this.categoryRepo.remove(category);
         this.logger.log(`Category deleted: ${id}`);
+        await this.invalidateCache();
     }
 
     // ─── Users in Category (paginated) ──────────────────────
@@ -275,5 +291,11 @@ export class CategoriesService {
                     `(SELECT COUNT(*) FROM user_categories uc WHERE uc."categoryId" = "Category"."id")`,
             })
             .execute();
+        await this.invalidateCache();
+    }
+
+    private async invalidateCache(): Promise<void> {
+        await this.redisService.del(CategoriesService.CACHE_KEY_ALL);
+        await this.redisService.del(CategoriesService.CACHE_KEY_ACTIVE);
     }
 }

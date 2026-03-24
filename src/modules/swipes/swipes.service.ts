@@ -344,10 +344,16 @@ export class SwipesService {
     }
 
     private async isPremiumUser(userId: string): Promise<boolean> {
+        const cacheKey = `premium:${userId}`;
+        const cached = await this.redisService.get(cacheKey);
+        if (cached !== null) return cached === '1';
+
         const subscription = await this.subscriptionRepository.findOne({
             where: { userId, status: 'active' as any },
         });
-        return !!subscription && subscription.plan !== SubscriptionPlan.FREE;
+        const isPremium = !!subscription && subscription.plan !== SubscriptionPlan.FREE;
+        await this.redisService.set(cacheKey, isPremium ? '1' : '0', 300); // 5 min TTL
+        return isPremium;
     }
 
     // ─── REMATCH / SECOND CHANCE (premium feature) ────────

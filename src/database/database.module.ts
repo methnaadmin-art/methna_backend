@@ -30,24 +30,28 @@ const dbLogger = new Logger('DatabaseModule');
                 }
 
                 const isProduction = process.env.NODE_ENV === 'production';
+                const isNeon = databaseUrl?.includes('neon.tech') ?? false;
 
                 return {
                     type: 'postgres',
                     ...connectionConfig,
                     ssl: { rejectUnauthorized: false },
                     autoLoadEntities: true,
-                    synchronize: true, // Safe now that duplicate enum values are fixed
-                    logging: !isProduction,
+                    synchronize: !isProduction, // Disable in production — use migrations instead
+                    logging: !isProduction ? ['error', 'warn', 'query'] : ['error'],
                     entities: [__dirname + '/entities/**/*.entity{.ts,.js}'],
                     retryAttempts: 5,
                     retryDelay: 3000,
-                    // Connection pool tuning for scale (1000-10000 users)
+                    // Connection pool tuning — optimized for Neon serverless
+                    // Neon has its own connection pooler (PgBouncer), so keep app-side pool small
                     extra: {
-                        max: isProduction ? 100 : 20,             // Max pool connections (scaled for 10k users)
-                        min: isProduction ? 10 : 2,               // Min idle connections
-                        idleTimeoutMillis: 30000,                 // Close idle connections after 30s
-                        connectionTimeoutMillis: 10000,           // Fail fast if can't connect in 10s
-                        statement_timeout: 30000,                 // Kill queries longer than 30s
+                        max: isNeon ? 20 : (isProduction ? 50 : 10),
+                        min: isNeon ? 2 : (isProduction ? 5 : 2),
+                        idleTimeoutMillis: isNeon ? 10000 : 30000,  // Neon: release fast to avoid idle charges
+                        connectionTimeoutMillis: 10000,
+                        statement_timeout: 30000,
+                        keepAlive: true,                            // Prevent Neon cold-start disconnects
+                        keepAliveInitialDelayMillis: 10000,
                     },
                 };
             },

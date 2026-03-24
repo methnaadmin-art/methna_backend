@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Profile } from '../../database/entities/profile.entity';
@@ -6,9 +6,12 @@ import { Photo } from '../../database/entities/photo.entity';
 import { BlockedUser } from '../../database/entities/blocked-user.entity';
 import { SearchFiltersDto } from './dto/search.dto';
 import { RedisService } from '../redis/redis.service';
+import { CloudinaryService } from '../photos/cloudinary.service';
 
 @Injectable()
 export class SearchService {
+    private readonly logger = new Logger(SearchService.name);
+
     constructor(
         @InjectRepository(Profile)
         private readonly profileRepository: Repository<Profile>,
@@ -25,13 +28,8 @@ export class SearchService {
         const cached = await this.redisService.getJson<any>(cacheKey);
         if (cached) return cached;
 
-        // Get blocked users
-        const blockedUsers = await this.blockedUserRepository.find({
-            where: [{ blockerId: userId }, { blockedId: userId }],
-        });
-        const blockedIds = blockedUsers.map((b) =>
-            b.blockerId === userId ? b.blockedId : b.blockerId,
-        );
+        // Get blocked users (cached 2 min)
+        const blockedIds = await this.getCachedBlockedIds(userId);
         const excludeIds = [userId, ...blockedIds];
 
         // Build query
@@ -41,9 +39,20 @@ export class SearchService {
             .where('profile.userId NOT IN (:...excludeIds)', { excludeIds })
             .andWhere('user.status = :status', { status: 'active' });
 
-        // Apply filters
+        // Fetch logged-in user's profile once (used for gender logic + distance sorting)
+        const myProfile = await this.profileRepository.findOne({
+            where: { userId },
+            select: ['gender', 'latitude', 'longitude'],
+        });
+
+        // ── Gender logic: auto-show opposite gender ──
+        // If explicit gender filter is passed, use it.
+        // Otherwise, auto-detect from logged-in user's profile and show opposite.
         if (filters.gender) {
             query.andWhere('profile.gender = :gender', { gender: filters.gender });
+        } else if (myProfile?.gender) {
+            const oppositeGender = myProfile.gender === 'male' ? 'female' : 'male';
+            query.andWhere('profile.gender = :gender', { gender: oppositeGender });
         }
 
         if (filters.city) {
@@ -104,6 +113,27 @@ export class SearchService {
             });
         }
 
+        // Prayer frequency filter
+        if (filters.prayerFrequency) {
+            query.andWhere('profile.prayerFrequency = :prayerFrequency', {
+                prayerFrequency: filters.prayerFrequency,
+            });
+        }
+
+        // Marriage intention filter
+        if (filters.marriageIntention) {
+            query.andWhere('profile.marriageIntention = :marriageIntention', {
+                marriageIntention: filters.marriageIntention,
+            });
+        }
+
+        // Living situation filter
+        if (filters.livingSituation) {
+            query.andWhere('profile.livingSituation = :livingSituation', {
+                livingSituation: filters.livingSituation,
+            });
+        }
+
         // Interests filter
         if (filters.interests && filters.interests.length > 0) {
             // Match profiles that have at least one of the specified interests
@@ -120,30 +150,26 @@ export class SearchService {
             query.andWhere('user.selfieVerified = :verified', { verified: true });
         }
 
-        // Always fetch user's location for distance sorting
-        const userProfile = await this.profileRepository.findOne({
-            where: { userId },
-            select: ['latitude', 'longitude'],
-        });
-        const hasUserLocation = !!(userProfile?.latitude && userProfile?.longitude);
+        // Reuse myProfile (fetched earlier) for distance sorting
+        const hasUserLocation = !!(myProfile?.latitude && myProfile?.longitude);
 
         // Distance filter (requires user's location)
         if (filters.maxDistance && hasUserLocation) {
             // Bounding box pre-filter (uses indexes, avoids full-table Haversine)
             const latDelta = filters.maxDistance / 111;
-            const lngDelta = filters.maxDistance / (111 * Math.cos(Number(userProfile.latitude) * Math.PI / 180));
+            const lngDelta = filters.maxDistance / (111 * Math.cos(Number(myProfile.latitude) * Math.PI / 180));
             query.andWhere('profile.latitude BETWEEN :sMinLat AND :sMaxLat', {
-                sMinLat: Number(userProfile.latitude) - latDelta,
-                sMaxLat: Number(userProfile.latitude) + latDelta,
+                sMinLat: Number(myProfile.latitude) - latDelta,
+                sMaxLat: Number(myProfile.latitude) + latDelta,
             });
             query.andWhere('profile.longitude BETWEEN :sMinLng AND :sMaxLng', {
-                sMinLng: Number(userProfile.longitude) - lngDelta,
-                sMaxLng: Number(userProfile.longitude) + lngDelta,
+                sMinLng: Number(myProfile.longitude) - lngDelta,
+                sMaxLng: Number(myProfile.longitude) + lngDelta,
             });
             // Precise Haversine filter
             query.andWhere(
                 `(6371 * acos(cos(radians(:userLat)) * cos(radians(profile.latitude)) * cos(radians(profile.longitude) - radians(:userLng)) + sin(radians(:userLat)) * sin(radians(profile.latitude)))) <= :maxDist`,
-                { userLat: userProfile.latitude, userLng: userProfile.longitude, maxDist: filters.maxDistance },
+                { userLat: myProfile.latitude, userLng: myProfile.longitude, maxDist: filters.maxDistance },
             );
         }
 
@@ -168,8 +194,8 @@ export class SearchService {
                 `(6371 * acos(LEAST(1.0, cos(radians(:orderLat)) * cos(radians(profile.latitude)) * cos(radians(profile.longitude) - radians(:orderLng)) + sin(radians(:orderLat)) * sin(radians(profile.latitude)))))`,
                 'distance',
             );
-            query.setParameter('orderLat', userProfile.latitude);
-            query.setParameter('orderLng', userProfile.longitude);
+            query.setParameter('orderLat', myProfile.latitude);
+            query.setParameter('orderLng', myProfile.longitude);
             query.orderBy('distance', 'ASC');
         } else {
             query.orderBy('profile.activityScore', 'DESC');
@@ -196,6 +222,8 @@ export class SearchService {
             photosMap.get(photo.userId)!.push({
                 id: photo.id,
                 url: photo.url,
+                thumbnailUrl: CloudinaryService.thumbnailUrl(photo.url),
+                mediumUrl: CloudinaryService.mediumUrl(photo.url),
                 publicId: photo.publicId,
                 isMain: photo.isMain,
                 isSelfieVerification: photo.isSelfieVerification,
@@ -209,24 +237,24 @@ export class SearchService {
         // Return enriched user objects matching Flutter UserModel.fromJson format
         const users = profiles.map((p) => ({
             id: p.userId,
-            username: p.user?.username || null,
-            email: p.user?.email || '',
-            firstName: p.user?.firstName || null,
-            lastName: p.user?.lastName || null,
-            phone: p.user?.phone || null,
-            role: p.user?.role || 'user',
-            status: p.user?.status || 'active',
-            emailVerified: p.user?.emailVerified || false,
-            selfieVerified: p.user?.selfieVerified || false,
-            isShadowBanned: p.user?.isShadowBanned || false,
-            trustScore: p.user?.trustScore || 100,
-            flagCount: p.user?.flagCount || 0,
-            deviceCount: p.user?.deviceCount || 0,
-            notificationsEnabled: p.user?.notificationsEnabled || true,
-            lastLoginAt: p.user?.lastLoginAt || null,
-            createdAt: p.user?.createdAt || new Date(),
-            updatedAt: p.user?.updatedAt || new Date(),
-            photos: photosMap.get(p.userId) || [],
+            username: p.user?.username ?? null,
+            email: p.user?.email ?? '',
+            firstName: p.user?.firstName ?? null,
+            lastName: p.user?.lastName ?? null,
+            phone: p.user?.phone ?? null,
+            role: p.user?.role ?? 'user',
+            status: p.user?.status ?? 'active',
+            emailVerified: p.user?.emailVerified ?? false,
+            selfieVerified: p.user?.selfieVerified ?? false,
+            isShadowBanned: p.user?.isShadowBanned ?? false,
+            trustScore: p.user?.trustScore ?? 100,
+            flagCount: p.user?.flagCount ?? 0,
+            deviceCount: p.user?.deviceCount ?? 0,
+            notificationsEnabled: p.user?.notificationsEnabled ?? true,
+            lastLoginAt: p.user?.lastLoginAt ?? null,
+            createdAt: p.user?.createdAt ?? new Date(),
+            updatedAt: p.user?.updatedAt ?? new Date(),
+            photos: photosMap.get(p.userId) ?? [],
             profile: {
                 id: p.id,
                 gender: p.gender,
@@ -250,9 +278,11 @@ export class SearchService {
                 weight: p.weight,
                 interests: p.interests,
                 languages: p.languages,
-                profileCompletionPercentage: p.profileCompletionPercentage || 0,
-                activityScore: p.activityScore || 0,
-                isComplete: p.isComplete || false,
+                intentMode: p.intentMode ?? null,
+                secondWifePreference: p.secondWifePreference ?? null,
+                profileCompletionPercentage: p.profileCompletionPercentage ?? 0,
+                activityScore: p.activityScore ?? 0,
+                isComplete: p.isComplete ?? false,
             },
         }));
 
@@ -263,10 +293,27 @@ export class SearchService {
             limit: filters.limit ?? 20,
         };
 
-        // Cache for 5 minutes
-        await this.redisService.setJson(cacheKey, response, 300);
+        // Cache for 3 minutes (shorter = fresher results for active users)
+        await this.redisService.setJson(cacheKey, response, 180);
 
         return response;
+    }
+
+    /** Cache blocked user IDs per user — avoids DB hit on every search */
+    private async getCachedBlockedIds(userId: string): Promise<string[]> {
+        const cacheKey = `blocked_ids:${userId}`;
+        const cached = await this.redisService.getJson<string[]>(cacheKey);
+        if (cached) return cached;
+
+        const blockedUsers = await this.blockedUserRepository.find({
+            where: [{ blockerId: userId }, { blockedId: userId }],
+            select: ['blockerId', 'blockedId'],
+        });
+        const ids = blockedUsers.map((b) =>
+            b.blockerId === userId ? b.blockedId : b.blockerId,
+        );
+        await this.redisService.setJson(cacheKey, ids, 120); // 2 min TTL
+        return ids;
     }
 
     private calculateAge(dateOfBirth: Date): number {

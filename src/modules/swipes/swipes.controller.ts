@@ -7,6 +7,7 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { SwipesService } from './swipes.service';
 import { CreateSwipeDto } from './dto/swipe.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -20,6 +21,7 @@ export class SwipesController {
     constructor(private readonly swipesService: SwipesService) { }
 
     @Post()
+    @Throttle({ default: { ttl: 60000, limit: 30 } })
     @ApiOperation({ summary: 'Swipe on a user (like, super_like, compliment, pass)' })
     async swipe(
         @CurrentUser('sub') userId: string,
@@ -29,6 +31,7 @@ export class SwipesController {
     }
 
     @Post('rewind')
+    @Throttle({ default: { ttl: 60000, limit: 5 } })
     @ApiOperation({ summary: 'Undo last swipe (limited for free, unlimited for premium)' })
     async rewind(@CurrentUser('sub') userId: string) {
         return this.swipesService.rewind(userId);

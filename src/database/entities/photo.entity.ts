@@ -17,6 +17,7 @@ export enum PhotoModerationStatus {
 }
 
 @Entity('photos')
+@Index(['userId', 'isMain'])
 export class Photo {
     @PrimaryGeneratedColumn('uuid')
     id: string;

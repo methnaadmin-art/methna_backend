@@ -14,6 +14,7 @@ import { BlockedUser } from '../../database/entities/blocked-user.entity';
 import { Photo } from '../../database/entities/photo.entity';
 import { User } from '../../database/entities/user.entity';
 import { RedisService } from '../redis/redis.service';
+import { CloudinaryService } from '../photos/cloudinary.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @Injectable()
@@ -57,7 +58,7 @@ export class MatchesService {
                 .andWhere('photo.isMain = :isMain', { isMain: true })
                 .getMany()
             : [];
-        const photoMap = new Map(photos.map(p => [p.userId, p.url]));
+        const photoMap = new Map(photos.map(p => [p.userId, CloudinaryService.thumbnailUrl(p.url)]));
 
         // Batch check online status via Redis
         const onlineChecks = await Promise.all(

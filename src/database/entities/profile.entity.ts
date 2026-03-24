@@ -170,9 +170,11 @@ export class Profile {
     @Column({ type: 'date' })
     dateOfBirth: Date;
 
+    @Index()
     @Column({ type: 'enum', enum: MaritalStatus, default: MaritalStatus.NEVER_MARRIED })
     maritalStatus: MaritalStatus;
 
+    @Index()
     @Column({ type: 'enum', enum: ReligiousLevel, default: ReligiousLevel.PRACTICING })
     religiousLevel: ReligiousLevel;
 
@@ -214,12 +216,14 @@ export class Profile {
     @Column({ type: 'int', nullable: true })
     weight: number; // in kg
 
+    @Index()
     @Column({ type: 'enum', enum: LivingSituation, nullable: true })
     livingSituation: LivingSituation;
 
     @Column({ nullable: true })
     jobTitle: string;
 
+    @Index()
     @Column({ type: 'enum', enum: EducationLevel, nullable: true })
     education: EducationLevel;
 
@@ -232,6 +236,7 @@ export class Profile {
     @Column({ type: 'enum', enum: CommunicationStyle, nullable: true })
     communicationStyle: CommunicationStyle;
 
+    @Index()
     @Column({ type: 'enum', enum: MarriageIntention, nullable: true })
     marriageIntention: MarriageIntention;
 
@@ -304,12 +309,15 @@ export class Profile {
     @Column({ nullable: true })
     city: string;
 
+    @Index()
     @Column({ nullable: true })
     country: string;
 
+    @Index()
     @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
     latitude: number;
 
+    @Index()
     @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
     longitude: number;
 

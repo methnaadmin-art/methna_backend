@@ -5,9 +5,10 @@ import { CategoriesService } from './categories.service';
 import { Category } from '../../database/entities/category.entity';
 import { Profile } from '../../database/entities/profile.entity';
 import { User } from '../../database/entities/user.entity';
+import { RedisModule } from '../redis/redis.module';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([Category, Profile, User])],
+    imports: [TypeOrmModule.forFeature([Category, Profile, User]), RedisModule],
     controllers: [CategoriesController],
     providers: [CategoriesService],
     exports: [CategoriesService],

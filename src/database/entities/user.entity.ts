@@ -125,6 +125,30 @@ export class User {
     @Column({ default: true })
     likeNotifications: boolean;
 
+    @Column({ default: false })
+    profileVisitorNotifications: boolean;
+
+    @Column({ default: false })
+    eventsNotifications: boolean;
+
+    @Column({ default: true })
+    safetyAlertNotifications: boolean;
+
+    @Column({ default: false })
+    promotionsNotifications: boolean;
+
+    @Column({ default: false })
+    inAppRecommendationNotifications: boolean;
+
+    @Column({ default: false })
+    weeklySummaryNotifications: boolean;
+
+    @Column({ default: true })
+    connectionRequestNotifications: boolean;
+
+    @Column({ default: false })
+    surveyNotifications: boolean;
+
     // Location toggle
     @Column({ default: false })
     locationEnabled: boolean;

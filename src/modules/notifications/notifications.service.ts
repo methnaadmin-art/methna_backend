@@ -87,31 +87,53 @@ export class NotificationsService {
     async getNotificationSettings(userId: string) {
         const user = await this.userRepository.findOne({
             where: { id: userId },
-            select: ['id', 'notificationsEnabled', 'matchNotifications', 'messageNotifications', 'likeNotifications'],
+            select: [
+                'id', 'notificationsEnabled', 'matchNotifications', 'messageNotifications',
+                'likeNotifications', 'profileVisitorNotifications', 'eventsNotifications',
+                'safetyAlertNotifications', 'promotionsNotifications',
+                'inAppRecommendationNotifications', 'weeklySummaryNotifications',
+                'connectionRequestNotifications', 'surveyNotifications',
+            ],
         });
         return {
             notificationsEnabled: user?.notificationsEnabled ?? true,
             matchNotifications: user?.matchNotifications ?? true,
             messageNotifications: user?.messageNotifications ?? true,
             likeNotifications: user?.likeNotifications ?? true,
+            profileVisitorNotifications: user?.profileVisitorNotifications ?? false,
+            eventsNotifications: user?.eventsNotifications ?? false,
+            safetyAlertNotifications: user?.safetyAlertNotifications ?? true,
+            promotionsNotifications: user?.promotionsNotifications ?? false,
+            inAppRecommendationNotifications: user?.inAppRecommendationNotifications ?? false,
+            weeklySummaryNotifications: user?.weeklySummaryNotifications ?? false,
+            connectionRequestNotifications: user?.connectionRequestNotifications ?? true,
+            surveyNotifications: user?.surveyNotifications ?? false,
         };
     }
 
+    private static readonly ALLOWED_NOTIF_KEYS = [
+        'notificationsEnabled', 'matchNotifications', 'messageNotifications',
+        'likeNotifications', 'profileVisitorNotifications', 'eventsNotifications',
+        'safetyAlertNotifications', 'promotionsNotifications',
+        'inAppRecommendationNotifications', 'weeklySummaryNotifications',
+        'connectionRequestNotifications', 'surveyNotifications',
+    ];
+
     async updateNotificationSettings(
         userId: string,
-        settings: {
-            enabled?: boolean;
-            matchNotifications?: boolean;
-            messageNotifications?: boolean;
-            likeNotifications?: boolean;
-        },
+        settings: Record<string, boolean>,
     ): Promise<void> {
         const update: any = {};
+        for (const key of NotificationsService.ALLOWED_NOTIF_KEYS) {
+            if (settings[key] !== undefined) {
+                update[key] = settings[key];
+            }
+        }
+        // Legacy support: 'enabled' maps to 'notificationsEnabled'
         if (settings.enabled !== undefined) update.notificationsEnabled = settings.enabled;
-        if (settings.matchNotifications !== undefined) update.matchNotifications = settings.matchNotifications;
-        if (settings.messageNotifications !== undefined) update.messageNotifications = settings.messageNotifications;
-        if (settings.likeNotifications !== undefined) update.likeNotifications = settings.likeNotifications;
-        await this.userRepository.update(userId, update);
+        if (Object.keys(update).length > 0) {
+            await this.userRepository.update(userId, update);
+        }
     }
 
     // ─── CONVENIENCE: Send typed notifications ─────────────
