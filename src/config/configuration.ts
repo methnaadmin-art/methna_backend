@@ -42,7 +42,11 @@ export default () => {
         port: parseInt(process.env.MAIL_PORT || '587', 10),
         user: process.env.MAIL_USER || '',
         pass: process.env.MAIL_PASS || '',
-        from: process.env.MAIL_FROM || '',
+        from: process.env.MAIL_FROM || 'onboarding@resend.dev',
+    },
+
+    resend: {
+        apiKey: process.env.RESEND_API_KEY || '',
     },
 
     firebase: {
