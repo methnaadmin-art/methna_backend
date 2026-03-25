@@ -88,6 +88,12 @@ export class AuthService {
         } catch (error) {
             this.logger.error(`[REGISTER ERROR] ${error.message}`, error.stack);
             if (error instanceof ConflictException) throw error;
+            // Handle PostgreSQL unique constraint violation (e.g. duplicate email/username)
+            if (error?.code === '23505' || error?.driverError?.code === '23505') {
+                const detail = error?.driverError?.detail || error?.detail || '';
+                this.logger.warn(`[REGISTER] Duplicate key: ${detail}`);
+                throw new ConflictException('Email or username already registered');
+            }
             throw new InternalServerErrorException('Registration failed: ' + error.message);
         }
     }
