@@ -10,6 +10,7 @@ import {
     Headers,
     Query,
     Get,
+    Logger,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
@@ -31,6 +32,8 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
+    private readonly logger = new Logger(AuthController.name);
+
     constructor(private readonly authService: AuthService) { }
 
     // ─── Registration Flow ──────────────────────────────────
@@ -41,7 +44,15 @@ export class AuthController {
     @ApiResponse({ status: 201, description: 'User registered, OTP sent' })
     @ApiResponse({ status: 409, description: 'Email already registered' })
     async register(@Body() registerDto: RegisterDto) {
-        return this.authService.register(registerDto);
+        try {
+            this.logger.log(`[Register] Attempt for email=${registerDto.email}, username=${registerDto.username}`);
+            const result = await this.authService.register(registerDto);
+            this.logger.log(`[Register] Success for email=${registerDto.email}`);
+            return result;
+        } catch (error) {
+            this.logger.error(`[Register] FAILED for email=${registerDto.email}: ${error.message}`, error.stack);
+            throw error; // Re-throw to preserve ConflictException, BadRequestException, etc.
+        }
     }
 
     @Public()

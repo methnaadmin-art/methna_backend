@@ -23,13 +23,27 @@ export class SearchService {
     ) { }
 
     async search(userId: string, filters: SearchFiltersDto) {
+        this.logger.log(`[Search] Starting search for userId=${userId}, filters=${JSON.stringify(filters)}`);
+
         // Check cache
         const cacheKey = `search:${userId}:${JSON.stringify(filters)}`;
-        const cached = await this.redisService.getJson<any>(cacheKey);
-        if (cached) return cached;
+        try {
+            const cached = await this.redisService.getJson<any>(cacheKey);
+            if (cached) {
+                this.logger.log(`[Search] Cache hit for userId=${userId}`);
+                return cached;
+            }
+        } catch (err) {
+            this.logger.warn(`[Search] Redis cache read failed, continuing without cache: ${err?.message}`);
+        }
 
         // Get blocked users (cached 2 min)
-        const blockedIds = await this.getCachedBlockedIds(userId);
+        let blockedIds: string[] = [];
+        try {
+            blockedIds = await this.getCachedBlockedIds(userId);
+        } catch (err) {
+            this.logger.warn(`[Search] Failed to get blocked IDs, continuing: ${err?.message}`);
+        }
         const excludeIds = [userId, ...blockedIds];
 
         // Build query
@@ -40,10 +54,16 @@ export class SearchService {
             .andWhere('user.status = :status', { status: 'active' });
 
         // Fetch logged-in user's profile once (used for gender logic + distance sorting)
-        const myProfile = await this.profileRepository.findOne({
-            where: { userId },
-            select: ['gender', 'latitude', 'longitude'],
-        });
+        let myProfile: any = null;
+        try {
+            myProfile = await this.profileRepository.findOne({
+                where: { userId },
+                select: ['gender', 'latitude', 'longitude'],
+            });
+        } catch (err) {
+            this.logger.warn(`[Search] Failed to fetch user profile for gender filter: ${err?.message}`);
+        }
+        this.logger.log(`[Search] myProfile for userId=${userId}: gender=${myProfile?.gender}, lat=${myProfile?.latitude}, lng=${myProfile?.longitude}`);
 
         // ── Gender logic: auto-show opposite gender ──
         // If explicit gender filter is passed, use it.
@@ -53,6 +73,9 @@ export class SearchService {
         } else if (myProfile?.gender) {
             const oppositeGender = myProfile.gender === 'male' ? 'female' : 'male';
             query.andWhere('profile.gender = :gender', { gender: oppositeGender });
+            this.logger.log(`[Search] Auto-filtering to opposite gender: ${oppositeGender}`);
+        } else {
+            this.logger.warn(`[Search] No gender filter applied — user has no profile or no gender set`);
         }
 
         if (filters.city) {
@@ -294,8 +317,13 @@ export class SearchService {
         };
 
         // Cache for 3 minutes (shorter = fresher results for active users)
-        await this.redisService.setJson(cacheKey, response, 180);
+        try {
+            await this.redisService.setJson(cacheKey, response, 180);
+        } catch (err) {
+            this.logger.warn(`[Search] Redis cache write failed, continuing: ${err?.message}`);
+        }
 
+        this.logger.log(`[Search] Returning ${users.length} users for userId=${userId}`);
         return response;
     }
 

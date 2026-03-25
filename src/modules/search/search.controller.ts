@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards, Logger, InternalServerErrorException } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Logger, InternalServerErrorException, HttpException, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { SearchService } from './search.service';
@@ -29,7 +29,15 @@ export class SearchController {
             return result;
         } catch (error) {
             this.logger.error(`[Search] FAILED for userId=${userId}: ${error.message}`, error.stack);
-            throw new InternalServerErrorException('Search failed. Please try again.');
+            // Re-throw HttpExceptions as-is (e.g., validation errors)
+            if (error instanceof HttpException) {
+                throw error;
+            }
+            // In development, surface the real error message
+            const isDev = process.env.NODE_ENV !== 'production';
+            throw new InternalServerErrorException(
+                isDev ? `Search failed: ${error.message}` : 'Search failed. Please try again.',
+            );
         }
     }
 }

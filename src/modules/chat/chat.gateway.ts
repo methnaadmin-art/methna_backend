@@ -12,7 +12,7 @@ import { Logger, Inject, Optional } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { createAdapter } from '@socket.io/redis-adapter';
+
 import { ChatService } from './chat.service';
 import { RedisService } from '../redis/redis.service';
 import { TrustSafetyService } from '../trust-safety/trust-safety.service';
@@ -46,18 +46,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     // ─── REDIS ADAPTER FOR HORIZONTAL SCALING ────────────────
 
     afterInit(server: Server) {
-        if (this.redisService.connected) {
-            try {
-                const pubClient = this.redisService.getClient();
-                const subClient = this.redisService.createDuplicate();
-                server.adapter(createAdapter(pubClient, subClient) as any);
-                this.logger.log('Socket.IO Redis adapter attached — horizontal scaling enabled');
-            } catch (err) {
-                this.logger.error('Failed to attach Redis adapter, running single-instance', err);
-            }
-        } else {
-            this.logger.warn('Redis not connected — Socket.IO running single-instance (no horizontal scaling)');
-        }
+        this.logger.log('Socket.IO running in single-instance mode (in-memory)');
     }
 
     // ─── CONNECTION LIFECYCLE ───────────────────────────────

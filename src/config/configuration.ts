@@ -28,9 +28,8 @@ export default () => {
         ssl: process.env.DB_SSL === 'true',
     },
 
-    redis: {
-        url: process.env.REDIS_URL || '',
-    },
+
+
 
     cloudinary: {
         cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',

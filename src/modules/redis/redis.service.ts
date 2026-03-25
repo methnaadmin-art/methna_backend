@@ -1,112 +1,77 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 
+/**
+ * In-Memory replacement for Redis.
+ * Keeps the exact same public API so all 23+ consumer files need ZERO changes.
+ * All data lives in Maps — works without any external dependency.
+ */
 @Injectable()
-export class RedisService implements OnModuleInit, OnModuleDestroy {
+export class RedisService implements OnModuleDestroy {
     private readonly logger = new Logger(RedisService.name);
-    private client: Redis;
-    private isConnected = false;
 
-    // In-memory rate limit fallback when Redis is down
-    private readonly memRateLimit = new Map<string, { count: number; expiresAt: number }>();
+    // ─── Core KV store ───────────────────────────────────────
+    private readonly store = new Map<string, { value: string; expiresAt: number | null }>();
 
-    // Cache hit/miss counters for monitoring
+    // ─── Sets ────────────────────────────────────────────────
+    private readonly sets = new Map<string, Set<string>>();
+
+    // ─── Lists (for audit logs) ──────────────────────────────
+    private readonly lists = new Map<string, string[]>();
+
+    // ─── Rate limiting ───────────────────────────────────────
+    private readonly rateLimits = new Map<string, { count: number; expiresAt: number }>();
+
+    // ─── Stats ───────────────────────────────────────────────
     private cacheHits = 0;
     private cacheMisses = 0;
-    private cleanupInterval: NodeJS.Timeout | null = null;
+    private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
-    constructor(private configService: ConfigService) {}
-
-    async onModuleInit() {
-        const redisUrl = this.configService.get<string>('redis.url');
-        if (!redisUrl) {
-            this.logger.warn('REDIS_URL not set — using in-memory fallback only');
-            return;
-        }
-
-        this.client = new Redis(redisUrl, {
-            maxRetriesPerRequest: 3,
-            retryStrategy: (times) => Math.min(times * 200, 5000),
-            enableReadyCheck: true,
-            lazyConnect: false,
-            tls: redisUrl.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
-        });
-
-        this.client.on('connect', () => {
-            this.isConnected = true;
-            this.logger.log('Redis connected (ioredis TCP)');
-        });
-        this.client.on('error', (err) => {
-            this.isConnected = false;
-            this.logger.error(`Redis error: ${err.message}`);
-        });
-        this.client.on('close', () => {
-            this.isConnected = false;
-            this.logger.warn('Redis connection closed');
-        });
-        this.client.on('reconnecting', () => {
-            this.logger.log('Redis reconnecting...');
-        });
-
-        // Periodic cleanup of in-memory rate limit map (every 60s)
-        this.cleanupInterval = setInterval(() => this.cleanupMemRateLimit(), 60_000);
+    constructor() {
+        // Periodic cleanup of expired keys every 30s
+        this.cleanupInterval = setInterval(() => this.cleanup(), 30_000);
+        this.logger.log('In-memory cache initialized (Redis-free mode)');
     }
 
-    async onModuleDestroy() {
+    onModuleDestroy() {
         if (this.cleanupInterval) clearInterval(this.cleanupInterval);
-        if (this.client) {
-            await this.client.quit();
-            this.logger.log('Redis connection closed gracefully');
-        }
+        this.logger.log('In-memory cache destroyed');
     }
 
-    /** Expose the raw ioredis client (for socket.io adapter, etc.) */
-    getClient(): Redis {
-        return this.client;
+    /** No real Redis client — return null safely */
+    getClient(): any {
+        return null;
     }
 
-    /** Create a duplicate connection (for socket.io pub/sub which needs separate connections) */
-    createDuplicate(): Redis {
-        return this.client?.duplicate();
+    /** No real Redis client — return null safely */
+    createDuplicate(): any {
+        return null;
     }
 
     get connected(): boolean {
-        return this.isConnected;
+        return true; // In-memory is always "connected"
     }
 
     // ─── Core Commands ───────────────────────────────────────
 
     async get(key: string): Promise<string | null> {
-        if (!this.isConnected) return null;
-        try {
-            return await this.client.get(key);
-        } catch (err) {
-            this.logger.error(`GET ${key} failed`, err);
+        const entry = this.store.get(key);
+        if (!entry) return null;
+        if (entry.expiresAt && Date.now() > entry.expiresAt) {
+            this.store.delete(key);
             return null;
         }
+        return entry.value;
     }
 
     async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
-        if (!this.isConnected) return;
-        try {
-            if (ttlSeconds) {
-                await this.client.set(key, value, 'EX', ttlSeconds);
-            } else {
-                await this.client.set(key, value);
-            }
-        } catch (err) {
-            this.logger.error(`SET ${key} failed`, err);
-        }
+        this.store.set(key, {
+            value,
+            expiresAt: ttlSeconds && ttlSeconds > 0 ? Date.now() + ttlSeconds * 1000 : null,
+        });
     }
 
     async del(key: string): Promise<void> {
-        if (!this.isConnected) return;
-        try {
-            await this.client.del(key);
-        } catch (err) {
-            this.logger.error(`DEL ${key} failed`, err);
-        }
+        this.store.delete(key);
     }
 
     async setJson(key: string, value: any, ttlSeconds?: number): Promise<void> {
@@ -128,60 +93,54 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
 
     async exists(key: string): Promise<boolean> {
-        if (!this.isConnected) return false;
-        try {
-            return (await this.client.exists(key)) === 1;
-        } catch {
-            return false;
-        }
+        const val = await this.get(key);
+        return val !== null;
     }
 
     async expire(key: string, ttlSeconds: number): Promise<void> {
-        if (!this.isConnected) return;
-        try {
-            await this.client.expire(key, ttlSeconds);
-        } catch {}
+        const entry = this.store.get(key);
+        if (entry) {
+            entry.expiresAt = Date.now() + ttlSeconds * 1000;
+        }
     }
 
     async incr(key: string): Promise<number> {
-        if (!this.isConnected) return 1;
-        try {
-            return await this.client.incr(key);
-        } catch {
-            return 1;
+        const current = await this.get(key);
+        const newVal = (parseInt(current || '0', 10) || 0) + 1;
+        // Preserve existing TTL
+        const entry = this.store.get(key);
+        await this.set(key, newVal.toString());
+        if (entry?.expiresAt) {
+            const remaining = Math.max(0, Math.ceil((entry.expiresAt - Date.now()) / 1000));
+            if (remaining > 0) {
+                this.store.get(key)!.expiresAt = entry.expiresAt;
+            }
         }
+        return newVal;
     }
 
+    // ─── Sets ────────────────────────────────────────────────
+
     async sadd(key: string, ...members: string[]): Promise<void> {
-        if (!this.isConnected) return;
-        try {
-            await this.client.sadd(key, ...members);
-        } catch {}
+        if (!this.sets.has(key)) this.sets.set(key, new Set());
+        const set = this.sets.get(key)!;
+        for (const m of members) set.add(m);
     }
 
     async srem(key: string, ...members: string[]): Promise<void> {
-        if (!this.isConnected) return;
-        try {
-            await this.client.srem(key, ...members);
-        } catch {}
+        const set = this.sets.get(key);
+        if (!set) return;
+        for (const m of members) set.delete(m);
     }
 
     async smembers(key: string): Promise<string[]> {
-        if (!this.isConnected) return [];
-        try {
-            return await this.client.smembers(key);
-        } catch {
-            return [];
-        }
+        const set = this.sets.get(key);
+        return set ? Array.from(set) : [];
     }
 
     async sismember(key: string, member: string): Promise<boolean> {
-        if (!this.isConnected) return false;
-        try {
-            return (await this.client.sismember(key, member)) === 1;
-        } catch {
-            return false;
-        }
+        const set = this.sets.get(key);
+        return set ? set.has(member) : false;
     }
 
     // ─── Online Presence ─────────────────────────────────────
@@ -204,7 +163,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         return this.smembers('online_users');
     }
 
-    // ─── Rate Limiting (Redis + in-memory fallback) ──────────
+    // ─── Rate Limiting ───────────────────────────────────────
 
     async checkRateLimit(
         key: string,
@@ -212,32 +171,18 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         windowSeconds: number,
     ): Promise<boolean> {
         const fullKey = `ratelimit:${key}`;
-
-        // Try Redis first
-        if (this.isConnected) {
-            try {
-                const current = await this.client.incr(fullKey);
-                if (current === 1) {
-                    await this.client.expire(fullKey, windowSeconds);
-                }
-                return current <= limit;
-            } catch {
-                // Fall through to in-memory
-            }
-        }
-
-        // In-memory fallback — rate limiting must never fail open
         const now = Date.now();
-        const entry = this.memRateLimit.get(fullKey);
+        const entry = this.rateLimits.get(fullKey);
+
         if (!entry || entry.expiresAt < now) {
-            this.memRateLimit.set(fullKey, { count: 1, expiresAt: now + windowSeconds * 1000 });
+            this.rateLimits.set(fullKey, { count: 1, expiresAt: now + windowSeconds * 1000 });
             return true;
         }
         entry.count++;
         return entry.count <= limit;
     }
 
-    // ─── Token Blacklist (for logout / session revocation) ───
+    // ─── Token Blacklist ─────────────────────────────────────
 
     async blacklistToken(jti: string, ttlSeconds: number): Promise<void> {
         await this.set(`blacklist:${jti}`, '1', ttlSeconds);
@@ -248,7 +193,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         return result === '1';
     }
 
-    // ─── Token Family (refresh token rotation detection) ─────
+    // ─── Token Family ────────────────────────────────────────
 
     async storeTokenFamily(userId: string, familyId: string, ttlSeconds: number): Promise<void> {
         await this.set(`tokenfamily:${userId}:${familyId}`, 'valid', ttlSeconds);
@@ -264,7 +209,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
 
     async invalidateAllUserSessions(userId: string): Promise<void> {
-        // Set a global revocation timestamp — any token issued before this is invalid
         await this.set(`user_revoked_at:${userId}`, Date.now().toString(), 86400 * 30);
     }
 
@@ -273,28 +217,26 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         return val ? parseInt(val, 10) : null;
     }
 
-    // ─── Audit Log (append to Redis list, capped) ────────────
+    // ─── Audit Log ───────────────────────────────────────────
 
     async appendAuditLog(entry: Record<string, any>): Promise<void> {
-        if (!this.isConnected) return;
-        try {
-            const key = `audit:${entry.type || 'general'}`;
-            await this.client.lpush(key, JSON.stringify({ ...entry, timestamp: new Date().toISOString() }));
-            await this.client.ltrim(key, 0, 9999); // Keep last 10,000 entries per type
-        } catch {}
+        const key = `audit:${entry.type || 'general'}`;
+        if (!this.lists.has(key)) this.lists.set(key, []);
+        const list = this.lists.get(key)!;
+        list.unshift(JSON.stringify({ ...entry, timestamp: new Date().toISOString() }));
+        // Keep last 10,000 entries per type
+        if (list.length > 10_000) list.length = 10_000;
     }
 
     async getAuditLogs(type: string, count = 100): Promise<any[]> {
-        if (!this.isConnected) return [];
-        try {
-            const entries = await this.client.lrange(`audit:${type}`, 0, count - 1);
-            return entries.map(e => JSON.parse(e));
-        } catch {
-            return [];
-        }
+        const list = this.lists.get(`audit:${type}`);
+        if (!list) return [];
+        return list.slice(0, count).map(e => {
+            try { return JSON.parse(e); } catch { return null; }
+        }).filter(Boolean);
     }
 
-    // ─── Stats (for monitoring endpoint) ──────────────────────
+    // ─── Stats ───────────────────────────────────────────────
 
     getCacheStats(): { hits: number; misses: number; hitRate: string; connected: boolean } {
         const total = this.cacheHits + this.cacheMisses;
@@ -302,7 +244,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
             hits: this.cacheHits,
             misses: this.cacheMisses,
             hitRate: total > 0 ? `${((this.cacheHits / total) * 100).toFixed(1)}%` : '0%',
-            connected: this.isConnected,
+            connected: true,
         };
     }
 
@@ -311,13 +253,20 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         this.cacheMisses = 0;
     }
 
-    // ─── Periodic cleanup for in-memory rate limit map ───────
+    // ─── Cleanup ─────────────────────────────────────────────
 
-    cleanupMemRateLimit(): void {
+    private cleanup(): void {
         const now = Date.now();
-        for (const [key, entry] of this.memRateLimit) {
+        // Clean expired KV entries
+        for (const [key, entry] of this.store) {
+            if (entry.expiresAt && entry.expiresAt < now) {
+                this.store.delete(key);
+            }
+        }
+        // Clean expired rate limits
+        for (const [key, entry] of this.rateLimits) {
             if (entry.expiresAt < now) {
-                this.memRateLimit.delete(key);
+                this.rateLimits.delete(key);
             }
         }
     }
