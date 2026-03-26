@@ -33,7 +33,11 @@ export class CloudinaryService {
                 },
                 (error, result) => {
                     if (error || !result) {
-                        this.logger.error('Upload failed', error);
+                        this.logger.error(`Cloudinary upload failed: ${error?.message || 'No result'}`, {
+                            error,
+                            cloudName: this.configService.get('cloudinary.cloudName'),
+                            apiKey: this.configService.get('cloudinary.apiKey'),
+                        });
                         reject(error || new Error('Upload returned no result'));
                     } else {
                         resolve(result);

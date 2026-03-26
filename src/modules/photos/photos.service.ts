@@ -3,6 +3,7 @@ import {
     NotFoundException,
     BadRequestException,
     ForbiddenException,
+    Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -14,6 +15,8 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 @Injectable()
 export class PhotosService {
+    private readonly logger = new Logger(PhotosService.name);
+
     constructor(
         @InjectRepository(Photo)
         private readonly photoRepository: Repository<Photo>,
@@ -24,6 +27,11 @@ export class PhotosService {
         userId: string,
         file: Express.Multer.File,
     ): Promise<Photo> {
+        // Validate file presence
+        if (!file) {
+            throw new BadRequestException('No photo file provided');
+        }
+
         // Validate file type
         if (!ALLOWED_TYPES.includes(file.mimetype)) {
             throw new BadRequestException(
@@ -44,22 +52,32 @@ export class PhotosService {
             throw new BadRequestException(`Maximum ${MAX_PHOTOS} photos allowed`);
         }
 
-        // Upload to Cloudinary
-        const result = await this.cloudinaryService.uploadImage(file);
+        try {
+            // Upload to Cloudinary
+            const result = await this.cloudinaryService.uploadImage(file);
 
-        // Determine if first photo (auto-set as main)
-        const isMain = photoCount === 0;
+            // Determine if first photo (auto-set as main)
+            const isMain = photoCount === 0;
 
-        // Save to DB
-        const photo = this.photoRepository.create({
-            userId,
-            url: result.secure_url,
-            publicId: result.public_id,
-            isMain,
-            order: photoCount,
-        });
+            // Save to DB
+            const photo = this.photoRepository.create({
+                userId,
+                url: result.secure_url,
+                publicId: result.public_id,
+                isMain,
+                order: photoCount,
+            });
 
-        return this.photoRepository.save(photo);
+            return await this.photoRepository.save(photo);
+        } catch (error) {
+            this.logger.error(`Photo upload failed for user ${userId}: ${error.message}`, error.stack);
+            
+            if (error instanceof BadRequestException) {
+                throw error;
+            }
+            
+            throw new Error(`Failed to process photo: ${error.message}`);
+        }
     }
 
     async getMyPhotos(userId: string): Promise<Photo[]> {
