@@ -10,7 +10,7 @@ export class MailService {
 
     constructor(private readonly configService: ConfigService) {
         const apiKey = this.configService.get<string>('resend.apiKey');
-        this.fromAddress = this.configService.get<string>('mail.from') || 'Methna App <onboarding@resend.dev>';
+        this.fromAddress = this.configService.get<string>('mail.from') || 'Methna App <verify@waqti.pro>';
         
         if (!apiKey) {
             this.logger.error('❌ [RESEND] RESEND_API_KEY is NOT set — Emails WILL FAIL');

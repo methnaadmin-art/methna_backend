@@ -42,7 +42,7 @@ export default () => {
         port: parseInt(process.env.MAIL_PORT || '587', 10),
         user: process.env.MAIL_USER || '',
         pass: process.env.MAIL_PASS || '',
-        from: process.env.MAIL_FROM || 'onboarding@resend.dev',
+        from: process.env.MAIL_FROM || 'Methna App <verify@waqti.pro>',
     },
 
     resend: {
