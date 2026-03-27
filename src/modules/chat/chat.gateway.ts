@@ -184,6 +184,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             if (type === 'image' || imageUrl) {
                 msgType = MessageType.IMAGE;
                 msgContent = imageUrl || content;
+            } else if (type === 'voice') {
+                msgType = MessageType.VOICE;
+                msgContent = content; // audio URL
             }
 
             // Content moderation for text messages

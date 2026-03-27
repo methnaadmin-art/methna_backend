@@ -2,6 +2,8 @@ import {
     Injectable,
     NotFoundException,
     ForbiddenException,
+    Inject,
+    forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -11,6 +13,8 @@ import { Conversation } from '../../database/entities/conversation.entity';
 import { Photo } from '../../database/entities/photo.entity';
 import { BlockedUser } from '../../database/entities/blocked-user.entity';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { CloudinaryService } from '../photos/cloudinary.service';
+import { ChatGateway } from './chat.gateway';
 
 @Injectable()
 export class ChatService {
@@ -25,6 +29,9 @@ export class ChatService {
         private readonly photoRepository: Repository<Photo>,
         @InjectRepository(BlockedUser)
         private readonly blockedUserRepository: Repository<BlockedUser>,
+        private readonly cloudinaryService: CloudinaryService,
+        @Inject(forwardRef(() => ChatGateway))
+        private readonly chatGateway: ChatGateway,
     ) { }
 
     // ─── CONVERSATIONS LIST ─────────────────────────────────
@@ -145,6 +152,43 @@ export class ChatService {
         } as any);
 
         return saved;
+    }
+
+    async sendMediaMessage(
+        senderId: string,
+        conversationId: string,
+        file: Express.Multer.File,
+        type: 'image' | 'voice',
+    ): Promise<Message> {
+        let msgType = MessageType.TEXT;
+        let folder = 'chat/images';
+
+        if (type === 'image') {
+            msgType = MessageType.IMAGE;
+            folder = 'chat/images';
+        } else if (type === 'voice') {
+            msgType = MessageType.VOICE;
+            folder = 'chat/voice';
+        }
+
+        // Upload to Cloudinary
+        const result = await this.cloudinaryService.uploadImage(file, folder);
+
+        // Save message (using existing sendMessage logic)
+        const message = await this.sendMessage(senderId, conversationId, result.secure_url, msgType);
+
+        // Emit to the conversation room via the gateway
+        this.chatGateway.server.to(`conversation:${conversationId}`).emit('newMessage', {
+            id: message.id,
+            conversationId: message.conversationId,
+            senderId: message.senderId,
+            content: message.content,
+            type: message.type,
+            status: message.status,
+            createdAt: message.createdAt,
+        });
+
+        return message;
     }
 
     // ─── MESSAGE STATUS ─────────────────────────────────────

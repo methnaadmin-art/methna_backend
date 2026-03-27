@@ -15,6 +15,8 @@ import type { Conversation } from './conversation.entity';
 export enum MessageType {
     TEXT = 'text',
     IMAGE = 'image',
+    VOICE = 'voice',
+    VIDEO = 'video',
     SYSTEM = 'system',
 }
 

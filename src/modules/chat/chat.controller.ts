@@ -2,11 +2,15 @@ import {
     Controller,
     Get,
     Patch,
+    Post,
     Param,
     Query,
     Body,
     UseGuards,
+    UseInterceptors,
+    UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -75,5 +79,27 @@ export class ChatController {
     async getUnreadCount(@CurrentUser('sub') userId: string) {
         const count = await this.chatService.getTotalUnreadCount(userId);
         return { unreadCount: count };
+    }
+
+    @Post('messages/image')
+    @UseInterceptors(FileInterceptor('image'))
+    @ApiOperation({ summary: 'Send an image message' })
+    async sendImage(
+        @CurrentUser('sub') userId: string,
+        @Body('conversationId') conversationId: string,
+        @UploadedFile() file: Express.Multer.File,
+    ) {
+        return this.chatService.sendMediaMessage(userId, conversationId, file, 'image');
+    }
+
+    @Post('messages/voice')
+    @UseInterceptors(FileInterceptor('voice'))
+    @ApiOperation({ summary: 'Send a voice message' })
+    async sendVoice(
+        @CurrentUser('sub') userId: string,
+        @Body('conversationId') conversationId: string,
+        @UploadedFile() file: Express.Multer.File,
+    ) {
+        return this.chatService.sendMediaMessage(userId, conversationId, file, 'voice');
     }
 }

@@ -14,6 +14,7 @@ import { RedisModule } from '../redis/redis.module';
 import { TrustSafetyModule } from '../trust-safety/trust-safety.module';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PhotosModule } from '../photos/photos.module';
 
 @Module({
     imports: [
@@ -23,6 +24,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
         AuthModule,
         ConfigModule,
         NotificationsModule,
+        PhotosModule,
     ],
     controllers: [ChatController],
     providers: [ChatService, ChatGateway],
