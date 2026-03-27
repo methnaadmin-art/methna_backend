@@ -46,13 +46,18 @@ export class ProfilesService {
     }
 
     async createOrUpdateProfile(userId: string, dto: CreateProfileDto | UpdateProfileDto): Promise<Profile> {
+        console.log(`[ProfilesService] createOrUpdateProfile for user ${userId}`);
+        console.log(`[ProfilesService] Data received: ${JSON.stringify(dto)}`);
+        
         let profile = await this.profileRepository.findOne({
             where: { userId },
         });
 
         if (profile) {
+            console.log(`[ProfilesService] Updating existing profile ${profile.id}`);
             Object.assign(profile, dto);
         } else {
+            console.log(`[ProfilesService] Creating new profile for user ${userId}`);
             profile = this.profileRepository.create({
                 userId,
                 ...dto,
@@ -64,12 +69,16 @@ export class ProfilesService {
         profile.isComplete = profile.profileCompletionPercentage >= 60;
 
         const saved = await this.profileRepository.save(profile);
+        console.log(`[ProfilesService] Profile saved successfully. Completion: ${profile.profileCompletionPercentage}%`);
 
         // Invalidate cache
         await this.redisService.del(`profile:${userId}`);
+        console.log(`[ProfilesService] Cache invalidated for user ${userId}`);
 
         // Re-evaluate dynamic categories (non-blocking)
-        this.categoriesService.evaluateUserCategories(userId).catch(() => {});
+        this.categoriesService.evaluateUserCategories(userId).catch(err => {
+            console.error(`[ProfilesService] Error evaluating categories: ${err.message}`);
+        });
 
         return saved;
     }

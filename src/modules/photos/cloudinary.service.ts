@@ -8,12 +8,23 @@ export class CloudinaryService {
     private readonly logger = new Logger(CloudinaryService.name);
 
     constructor(private configService: ConfigService) {
+        const cloudName = this.configService.get<string>('cloudinary.cloudName');
+        const apiKey = this.configService.get<string>('cloudinary.apiKey');
+        const apiSecret = this.configService.get<string>('cloudinary.apiSecret');
+
         cloudinary.config({
-            cloud_name: this.configService.get<string>('cloudinary.cloudName'),
-            api_key: this.configService.get<string>('cloudinary.apiKey'),
-            api_secret: this.configService.get<string>('cloudinary.apiSecret'),
+            cloud_name: cloudName,
+            api_key: apiKey,
+            api_secret: apiSecret,
         });
-        this.logger.log('Cloudinary configured');
+
+        this.logger.log(`Cloudinary configured: ${cloudName}`);
+        this.logger.debug(`API Key: ${apiKey?.substring(0, 4)}...`);
+        this.logger.debug(`API Secret: ${apiSecret?.substring(0, 4)}...`);
+        
+        if (apiKey === apiSecret && apiKey) {
+            this.logger.warn('CRITICAL: CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET are identical. This will likely cause Invalid Signature errors.');
+        }
     }
 
     async uploadImage(
@@ -33,12 +44,16 @@ export class CloudinaryService {
                 },
                 (error, result) => {
                     if (error || !result) {
+                        const cloudName = this.configService.get('cloudinary.cloudName');
+                        const apiKey = this.configService.get('cloudinary.apiKey');
+                        
                         this.logger.error(`Cloudinary upload failed: ${error?.message || 'No result'}`, {
-                            error,
-                            cloudName: this.configService.get('cloudinary.cloudName'),
-                            apiKey: this.configService.get('cloudinary.apiKey'),
+                            error: error || 'No result',
+                            cloudName: cloudName,
+                            apiKey: apiKey?.substring(0, 4) + '...',
                         });
-                        reject(error || new Error('Upload returned no result'));
+                        const descriptiveError = new Error(`Cloudinary upload failed: ${error?.message || 'No result'}. Please verify your API Key and Secret.`);
+                        reject(descriptiveError);
                     } else {
                         resolve(result);
                     }

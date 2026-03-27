@@ -70,13 +70,14 @@ export class PhotosService {
 
             return await this.photoRepository.save(photo);
         } catch (error) {
-            this.logger.error(`Photo upload failed for user ${userId}: ${error.message}`, error.stack);
+            this.logger.error(`Photo upload failed for user ${userId}: ${error.message}`);
             
-            if (error instanceof BadRequestException) {
+            // If it's already a NestJS exception (like BadRequest), re-throw it
+            if (error.status && error.message) {
                 throw error;
             }
             
-            throw new Error(`Failed to process photo: ${error.message}`);
+            throw new BadRequestException(`Photo upload failed: ${error.message}`);
         }
     }
 
