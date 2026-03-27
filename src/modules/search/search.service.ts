@@ -65,7 +65,7 @@ export class SearchService {
                     .andWhere('l.likedId = profile.userId')
                     .getQuery();
                 return `NOT EXISTS ${subQuery}`;
-            })
+            }, { userId })
             .andWhere('user.status = :status', { status: 'active' });
 
         // Fetch logged-in user's profile once (used for gender logic + distance sorting)
