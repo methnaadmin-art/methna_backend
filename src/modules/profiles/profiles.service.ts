@@ -54,8 +54,15 @@ export class ProfilesService {
         });
 
         if (profile) {
-            console.log(`[ProfilesService] Updating existing profile ${profile.id}`);
-            Object.assign(profile, dto);
+            console.log(`[ProfilesService] Updating existing profile ${profile.id} for user ${userId}`);
+            // Defensive merge: only update fields that are NOT undefined.
+            // This prevents accidental wiping of data during partial updates.
+            Object.keys(dto).forEach(key => {
+                const p = profile as Profile;
+                if (dto[key] !== undefined) {
+                    p[key] = dto[key];
+                }
+            });
         } else {
             console.log(`[ProfilesService] Creating new profile for user ${userId}`);
             profile = this.profileRepository.create({

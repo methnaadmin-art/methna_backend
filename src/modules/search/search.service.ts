@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Profile } from '../../database/entities/profile.entity';
 import { Photo } from '../../database/entities/photo.entity';
 import { BlockedUser } from '../../database/entities/blocked-user.entity';
+import { Like } from '../../database/entities/like.entity';
 import { SearchFiltersDto } from './dto/search.dto';
 import { RedisService } from '../redis/redis.service';
 import { CloudinaryService } from '../photos/cloudinary.service';
@@ -19,6 +20,8 @@ export class SearchService {
         private readonly photoRepository: Repository<Photo>,
         @InjectRepository(BlockedUser)
         private readonly blockedUserRepository: Repository<BlockedUser>,
+        @InjectRepository(Like)
+        private readonly likeRepository: Repository<Like>,
         private readonly redisService: RedisService,
     ) { }
 
@@ -50,7 +53,19 @@ export class SearchService {
         const query = this.profileRepository
             .createQueryBuilder('profile')
             .leftJoinAndSelect('profile.user', 'user')
+            // Exclude myself and blocked users
             .where('profile.userId NOT IN (:...excludeIds)', { excludeIds })
+            // Exclude users already swiped (liked / passed / complimented)
+            .andWhere((qb) => {
+                const subQuery = qb
+                    .subQuery()
+                    .select('1')
+                    .from(Like, 'l')
+                    .where('l.likerId = :userId')
+                    .andWhere('l.likedId = profile.userId')
+                    .getQuery();
+                return `NOT EXISTS ${subQuery}`;
+            })
             .andWhere('user.status = :status', { status: 'active' });
 
         // Fetch logged-in user's profile once (used for gender logic + distance sorting)

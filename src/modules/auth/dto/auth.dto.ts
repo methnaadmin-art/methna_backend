@@ -44,6 +44,7 @@ export class RegisterDto {
     @ApiPropertyOptional({ example: '+966501234567' })
     @IsOptional()
     @IsString()
+    @Matches(/^\+?[0-9]{8,15}$/, { message: 'Phone number must be between 8 and 15 digits and can start with +' })
     phone?: string;
 }
 

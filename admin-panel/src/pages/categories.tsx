@@ -401,7 +401,14 @@ export default function CategoriesPage() {
                       {cat.status}
                     </Badge>
                   </div>
-                  {cat.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{cat.description}</p>}
+                  <div className="flex items-center gap-2 mt-1">
+                    {cat.icon && (
+                      <div className="p-1 rounded bg-primary/5 text-primary">
+                        {ICONS[cat.icon as keyof typeof ICONS] || <icons.Layers className="h-3 w-3" />}
+                      </div>
+                    )}
+                    {cat.description && <p className="text-xs text-muted-foreground truncate">{cat.description}</p>}
+                  </div>
                 </div>
                 <div className="flex items-center gap-6 shrink-0">
                   <div className="text-center"><div className="text-lg font-bold">{cat.userCount}</div><div className="text-[10px] text-muted-foreground">users</div></div>

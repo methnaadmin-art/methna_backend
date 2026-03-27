@@ -6,8 +6,10 @@ import { Profile } from '../../database/entities/profile.entity';
 import { Photo } from '../../database/entities/photo.entity';
 import { BlockedUser } from '../../database/entities/blocked-user.entity';
 
+import { Like } from '../../database/entities/like.entity';
+
 @Module({
-    imports: [TypeOrmModule.forFeature([Profile, Photo, BlockedUser])],
+    imports: [TypeOrmModule.forFeature([Profile, Photo, BlockedUser, Like])],
     controllers: [SearchController],
     providers: [SearchService],
     exports: [SearchService],
