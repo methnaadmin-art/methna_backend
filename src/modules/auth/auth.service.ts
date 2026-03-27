@@ -26,6 +26,7 @@ import {
 import { RedisService } from '../redis/redis.service';
 import { MailService } from '../mail/mail.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class AuthService {
@@ -39,6 +40,7 @@ export class AuthService {
         private readonly redisService: RedisService,
         private readonly mailService: MailService,
         private readonly subscriptionsService: SubscriptionsService,
+        private readonly usersService: UsersService,
     ) { }
 
     // ─── REGISTRATION WITH OTP ──────────────────────────────
@@ -239,7 +241,7 @@ export class AuthService {
 
         return {
             message: 'Email verified successfully',
-            user: this.sanitizeUser(user),
+            user: await this.usersService.getMe(user.id),
             ...tokens,
         };
     }
@@ -406,7 +408,7 @@ export class AuthService {
         this.logger.log(`User logged in: ${email} from ${clientIp}`);
 
         return {
-            user: this.sanitizeUser(user),
+            user: await this.usersService.getMe(user.id),
             accessToken: tokens.accessToken,
             refreshToken: tokens.refreshToken,
         };

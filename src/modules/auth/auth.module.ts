@@ -8,6 +8,7 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { User } from '../../database/entities/user.entity';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
     imports: [
@@ -24,6 +25,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
             }),
         }),
         SubscriptionsModule,
+        UsersModule,
     ],
     controllers: [AuthController],
     providers: [AuthService, JwtStrategy],
