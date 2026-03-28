@@ -19,16 +19,6 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 export class ContentController {
     constructor(private readonly contentService: ContentService) {}
 
-    // Public endpoint — no auth needed
-    @Get(':type')
-    @ApiOperation({ summary: 'Get published content by type (terms, privacy, etc.)' })
-    @ApiQuery({ name: 'locale', required: false, description: 'Locale code (en, ar)' })
-    async getByType(
-        @Param('type') type: string,
-        @Query('locale') locale?: string,
-    ) {
-        return this.contentService.getByType(type, locale || 'en');
-    }
 
     // Admin endpoints
     @Get()
@@ -187,5 +177,16 @@ export class ContentController {
     @ApiOperation({ summary: 'Delete partner (admin)' })
     async deletePartner(@Param('id') id: string) {
         return this.contentService.deletePartner(id);
+    }
+
+    // Public endpoint — no auth needed (Must be at the bottom to avoid route shadowing)
+    @Get(':type')
+    @ApiOperation({ summary: 'Get published content by type (terms, privacy, etc.)' })
+    @ApiQuery({ name: 'locale', required: false, description: 'Locale code (en, ar)' })
+    async getByType(
+        @Param('type') type: string,
+        @Query('locale') locale?: string,
+    ) {
+        return this.contentService.getByType(type, locale || 'en');
     }
 }
