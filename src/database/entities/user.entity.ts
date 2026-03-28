@@ -149,6 +149,19 @@ export class User {
     @Column({ default: false })
     surveyNotifications: boolean;
 
+    // Chat settings
+    @Column({ default: true })
+    readReceipts: boolean;
+
+    @Column({ default: true })
+    typingIndicator: boolean;
+
+    @Column({ default: true })
+    autoDownloadMedia: boolean;
+
+    @Column({ default: true })
+    receiveDMs: boolean;
+
     // Location toggle
     @Column({ default: false })
     locationEnabled: boolean;

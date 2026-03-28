@@ -25,19 +25,11 @@ export class UsersService {
         private readonly likeRepository: Repository<Like>,
         @InjectRepository(Boost)
         private readonly boostRepository: Repository<Boost>,
-        private readonly redisService: RedisService,
     ) { }
 
     async findById(id: string): Promise<User> {
-        // Try cache first
-        const cached = await this.redisService.getJson<User>(`user:${id}`);
-        if (cached) return cached;
-
         const user = await this.userRepository.findOne({ where: { id } });
         if (!user) throw new NotFoundException('User not found');
-
-        // Cache for 5 minutes
-        await this.redisService.setJson(`user:${id}`, user, 300);
         return user;
     }
 
@@ -79,6 +71,11 @@ export class UsersService {
         'firstName', 'lastName', 'phone', 'username',
         'notificationsEnabled', 'matchNotifications',
         'messageNotifications', 'likeNotifications',
+        'profileVisitorNotifications', 'eventsNotifications',
+        'safetyAlertNotifications', 'promotionsNotifications',
+        'inAppRecommendationNotifications', 'weeklySummaryNotifications',
+        'connectionRequestNotifications', 'surveyNotifications',
+        'readReceipts', 'typingIndicator', 'autoDownloadMedia', 'receiveDMs',
         'locationEnabled',
     ]);
 
@@ -96,14 +93,12 @@ export class UsersService {
 
         if (Object.keys(safeData).length > 0) {
             await this.userRepository.update(userId, safeData);
-            await this.redisService.del(`user:${userId}`);
         }
         return this.findById(userId);
     }
 
     async softDelete(userId: string): Promise<void> {
         await this.userRepository.softDelete(userId);
-        await this.redisService.del(`user:${userId}`);
     }
 
     async getPublicProfile(userId: string): Promise<Partial<User>> {
@@ -122,7 +117,6 @@ export class UsersService {
 
     async updateStatus(userId: string, status: UserStatus): Promise<void> {
         await this.userRepository.update(userId, { status });
-        await this.redisService.del(`user:${userId}`);
     }
 
     async findAll(page: number, limit: number) {

@@ -1,13 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, MoreThanOrEqual } from 'typeorm';
+import { Repository, MoreThanOrEqual } from 'typeorm';
 import { AnalyticsEvent, AnalyticsEventType } from '../../database/entities/analytics-event.entity';
 import { User, UserStatus } from '../../database/entities/user.entity';
 import { Match } from '../../database/entities/match.entity';
-import { Like } from '../../database/entities/like.entity';
+import { Like, LikeType } from '../../database/entities/like.entity';
 import { Message } from '../../database/entities/message.entity';
 import { Subscription, SubscriptionPlan } from '../../database/entities/subscription.entity';
-import { RedisService } from '../redis/redis.service';
+import { ProfileView } from '../../database/entities/profile-view.entity';
 
 @Injectable()
 export class AnalyticsService {
@@ -26,7 +26,8 @@ export class AnalyticsService {
         private readonly messageRepository: Repository<Message>,
         @InjectRepository(Subscription)
         private readonly subscriptionRepository: Repository<Subscription>,
-        private readonly redisService: RedisService,
+        @InjectRepository(ProfileView)
+        private readonly profileViewRepository: Repository<ProfileView>,
     ) { }
 
     // ─── EVENT TRACKING ─────────────────────────────────────
@@ -39,22 +40,12 @@ export class AnalyticsService {
             metadata,
             eventDate: today,
         });
-
-        // Increment daily counter in Redis for fast reads
-        const counterKey = `analytics:${eventType}:${today}`;
-        await this.redisService.incr(counterKey);
-        // Set TTL of 90 days
-        await this.redisService.expire(counterKey, 90 * 86400);
     }
 
     // ─── DAILY ACTIVE USERS ─────────────────────────────────
 
     async getDailyActiveUsers(date?: string): Promise<number> {
         const targetDate = date || new Date().toISOString().split('T')[0];
-        const cacheKey = `analytics:dau:${targetDate}`;
-
-        const cached = await this.redisService.get(cacheKey);
-        if (cached) return parseInt(cached, 10);
 
         const count = await this.analyticsRepository
             .createQueryBuilder('event')
@@ -65,9 +56,7 @@ export class AnalyticsService {
             })
             .getRawOne();
 
-        const dau = parseInt(count?.count || '0', 10);
-        await this.redisService.set(cacheKey, dau.toString(), 3600);
-        return dau;
+        return parseInt(count?.count || '0', 10);
     }
 
     // ─── LIKE → MATCH CONVERSION ────────────────────────────
@@ -102,10 +91,6 @@ export class AnalyticsService {
         day7: string;
         day30: string;
     }> {
-        const cacheKey = `analytics:retention:${cohortDays}`;
-        const cached = await this.redisService.getJson<any>(cacheKey);
-        if (cached) return cached;
-
         const cohortStart = new Date(Date.now() - cohortDays * 24 * 60 * 60 * 1000);
         const cohortEnd = new Date(cohortStart.getTime() + 24 * 60 * 60 * 1000);
 
@@ -116,9 +101,7 @@ export class AnalyticsService {
             .getCount();
 
         if (cohortUsers === 0) {
-            const result = { day1: '0%', day3: '0%', day7: '0%', day30: '0%' };
-            await this.redisService.setJson(cacheKey, result, 3600);
-            return result;
+            return { day1: '0%', day3: '0%', day7: '0%', day30: '0%' };
         }
 
         const retentionAt = async (daysAfter: number): Promise<string> => {
@@ -139,15 +122,12 @@ export class AnalyticsService {
             return ((count / cohortUsers) * 100).toFixed(1) + '%';
         };
 
-        const result = {
+        return {
             day1: await retentionAt(1),
             day3: await retentionAt(3),
             day7: await retentionAt(7),
             day30: await retentionAt(30),
         };
-
-        await this.redisService.setJson(cacheKey, result, 3600);
-        return result;
     }
 
     // ─── MATCHES OVER TIME ──────────────────────────────────
@@ -170,12 +150,6 @@ export class AnalyticsService {
     // ─── COMPREHENSIVE ADMIN ANALYTICS ──────────────────────
 
     async getAdminAnalytics(): Promise<any> {
-        const today = new Date().toISOString().split('T')[0];
-        const cacheKey = `analytics:admin:${today}`;
-
-        const cached = await this.redisService.getJson<any>(cacheKey);
-        if (cached) return cached;
-
         const [
             dau,
             conversion,
@@ -217,7 +191,7 @@ export class AnalyticsService {
             .where('event.eventDate >= :date', { date: mauDate })
             .getRawOne();
 
-        const result = {
+        return {
             engagement: {
                 dau,
                 wau: parseInt(wau?.count || '0', 10),
@@ -240,8 +214,58 @@ export class AnalyticsService {
                 totalMessages,
             },
         };
+    }
 
-        await this.redisService.setJson(cacheKey, result, 1800); // 30 min cache
-        return result;
+    async getProfileAnalytics(userId: string): Promise<any> {
+        const todayAt = new Date().toISOString().split('T')[0];
+
+        const [
+            totalViews,
+            todayViews,
+            totalLikes,
+            totalMatches,
+            totalSuperLikes,
+        ] = await Promise.all([
+            this.profileViewRepository.count({ where: { viewedId: userId } }),
+            this.profileViewRepository.createQueryBuilder('view')
+                .where('view.viewedId = :userId', { userId })
+                .andWhere("TO_CHAR(view.createdAt, 'YYYY-MM-DD') = :today", { today: todayAt })
+                .getCount(),
+            this.likeRepository.count({ where: { likedId: userId, isLike: true } }),
+            this.matchRepository.count({
+                where: [
+                    { user1Id: userId },
+                    { user2Id: userId },
+                ],
+            }),
+            this.likeRepository.count({ where: { likedId: userId, type: LikeType.SUPER_LIKE } }),
+        ]);
+
+        // Get weekly views
+        const weeklyViews: any[] = [];
+        for (let i = 6; i >= 0; i--) {
+            const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            const count = await this.profileViewRepository.createQueryBuilder('view')
+                .where('view.viewedId = :userId', { userId })
+                .andWhere("TO_CHAR(view.createdAt, 'YYYY-MM-DD') = :date", { date })
+                .getCount();
+
+            weeklyViews.push({
+                day: date,
+                views: count,
+            });
+        }
+
+        const matchRate = totalViews > 0 ? (totalMatches / totalViews) * 100 : 0;
+
+        return {
+            totalViews,
+            todayViews,
+            totalLikes,
+            totalMatches,
+            totalSuperLikes,
+            matchRate,
+            weeklyViews,
+        };
     }
 }

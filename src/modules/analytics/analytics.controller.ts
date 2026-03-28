@@ -14,18 +14,26 @@ import { UserRole } from '../../database/entities/user.entity';
 @ApiTags('analytics')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
 @Controller('analytics')
 export class AnalyticsController {
     constructor(private readonly analyticsService: AnalyticsService) { }
 
     @Get('dashboard')
+    @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Get comprehensive admin analytics dashboard' })
     async getDashboard() {
         return this.analyticsService.getAdminAnalytics();
     }
 
+    @Get('profile')
+    @Roles(UserRole.USER, UserRole.ADMIN)
+    @ApiOperation({ summary: 'Get profile analytics for the current user' })
+    async getProfileAnalytics(@Query('userId') userId: string) {
+        return this.analyticsService.getProfileAnalytics(userId);
+    }
+
     @Get('dau')
+    @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Get daily active users' })
     async getDau(@Query('date') date?: string) {
         const dau = await this.analyticsService.getDailyActiveUsers(date);
@@ -33,18 +41,21 @@ export class AnalyticsController {
     }
 
     @Get('conversion')
+    @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Get like-to-match conversion rate' })
     async getConversion(@Query('days') days?: number) {
         return this.analyticsService.getLikeToMatchConversion(days || 30);
     }
 
     @Get('retention')
+    @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Get user retention metrics' })
     async getRetention(@Query('cohortDays') cohortDays?: number) {
         return this.analyticsService.getUserRetention(cohortDays || 7);
     }
 
     @Get('matches-over-time')
+    @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Get matches over time' })
     async getMatchesOverTime(@Query('days') days?: number) {
         return this.analyticsService.getMatchesOverTime(days || 30);

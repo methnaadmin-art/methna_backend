@@ -8,12 +8,11 @@ import { Match } from '../../database/entities/match.entity';
 import { Like } from '../../database/entities/like.entity';
 import { Message } from '../../database/entities/message.entity';
 import { Subscription } from '../../database/entities/subscription.entity';
-import { RedisModule } from '../redis/redis.module';
+import { ProfileView } from '../../database/entities/profile-view.entity';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([AnalyticsEvent, User, Match, Like, Message, Subscription]),
-        RedisModule,
+        TypeOrmModule.forFeature([AnalyticsEvent, User, Match, Like, Message, Subscription, ProfileView]),
     ],
     controllers: [AnalyticsController],
     providers: [AnalyticsService],

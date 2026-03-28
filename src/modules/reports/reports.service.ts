@@ -17,7 +17,6 @@ export class ReportsService {
         private readonly reportRepository: Repository<Report>,
         @InjectRepository(BlockedUser)
         private readonly blockedUserRepository: Repository<BlockedUser>,
-        private readonly redisService: RedisService,
     ) { }
 
     // ─── User Reports ──────────────────────────────────────
@@ -100,11 +99,6 @@ export class ReportsService {
             blockedId,
         });
         await this.blockedUserRepository.save(block);
-
-        await Promise.all([
-            this.redisService.del(`blocked_ids:${userId}`),
-            this.redisService.del(`blocked_ids:${blockedId}`),
-        ]);
     }
 
     async unblockUser(userId: string, blockedId: string): Promise<void> {
@@ -113,11 +107,6 @@ export class ReportsService {
         });
         if (!block) throw new NotFoundException('User is not blocked');
         await this.blockedUserRepository.remove(block);
-
-        await Promise.all([
-            this.redisService.del(`blocked_ids:${userId}`),
-            this.redisService.del(`blocked_ids:${blockedId}`),
-        ]);
     }
 
     async getBlockedUsers(userId: string) {
