@@ -743,8 +743,8 @@ export class AuthService {
         });
     }
 
-    private sanitizeUser(user: User) {
-        const { password, refreshToken, otpCode, otpExpiresAt, otpAttempts, otpCooldownUntil, resetOtpCode, resetOtpExpiresAt, resetOtpAttempts, ...sanitized } = user as any;
+    private sanitizeUser(user: any) {
+        const { password, refreshToken, otpCode, otpExpiresAt, otpAttempts, otpCooldownUntil, resetOtpCode, resetOtpExpiresAt, resetOtpAttempts, ...sanitized } = user;
         return sanitized;
     }
 }
