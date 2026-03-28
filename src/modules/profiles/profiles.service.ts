@@ -58,9 +58,9 @@ export class ProfilesService {
             // Defensive merge: only update fields that are NOT undefined.
             // This prevents accidental wiping of data during partial updates.
             Object.keys(dto).forEach(key => {
-                const p = profile as Profile;
-                if (dto[key] !== undefined) {
-                    p[key] = dto[key];
+                if (profile && dto[key] !== undefined) {
+                    profile[key] = dto[key];
+                    console.log(`[ProfilesService] Mapping key ${key} to value: ${JSON.stringify(dto[key])}`);
                 }
             });
         } else {
@@ -172,7 +172,9 @@ export class ProfilesService {
             { value: profile.gender, weight: 10 },
             { value: profile.dateOfBirth, weight: 10 },
             { value: profile.maritalStatus, weight: 5 },
-            { value: profile.religiousLevel, weight: 8 },
+            { value: profile.religiousLevel, weight: 5 },
+            { value: profile.sect, weight: 4 },
+            { value: profile.prayerFrequency, weight: 4 },
             { value: profile.ethnicity, weight: 3 },
             { value: profile.nationality, weight: 3 },
             { value: profile.height, weight: 3 },
@@ -180,11 +182,13 @@ export class ProfilesService {
             { value: profile.jobTitle, weight: 4 },
             { value: profile.education, weight: 4 },
             { value: profile.familyPlans, weight: 5 },
-            { value: profile.marriageIntention, weight: 8 },
+            { value: profile.marriageIntention, weight: 5 },
             { value: profile.communicationStyle, weight: 3 },
             { value: profile.secondWifePreference, weight: 3 },
-            { value: profile.city, weight: 5 },
-            { value: profile.country, weight: 5 },
+            { value: profile.city, weight: 3 },
+            { value: profile.country, weight: 3 },
+            { value: profile.dietary, weight: 2 },
+            { value: profile.alcohol, weight: 2 },
             { value: profile.interests && profile.interests.length > 0 ? true : null, weight: 5 },
             { value: profile.languages && profile.languages.length > 0 ? true : null, weight: 3 },
             { value: profile.aboutPartner, weight: 5 },
