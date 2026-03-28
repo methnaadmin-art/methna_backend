@@ -102,7 +102,12 @@ export class UsersService {
     }
 
     async getPublicProfile(userId: string): Promise<Partial<User>> {
-        const user = await this.findById(userId);
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            relations: ['profile', 'photos'],
+        });
+        if (!user) throw new NotFoundException('User not found');
+
         // Explicit whitelist — never expose sensitive fields to other users
         return {
             id: user.id,
@@ -112,6 +117,8 @@ export class UsersService {
             role: user.role,
             selfieVerified: user.selfieVerified,
             createdAt: user.createdAt,
+            profile: user.profile,
+            photos: user.photos || [],
         } as Partial<User>;
     }
 
@@ -123,6 +130,7 @@ export class UsersService {
         const [users, total] = await this.userRepository.findAndCount({
             skip: (page - 1) * limit,
             take: limit,
+            relations: ['profile', 'photos'],
             order: { createdAt: 'DESC' },
         });
         return { users, total, page, limit };

@@ -1,3 +1,5 @@
+import { Profile } from './profile.entity';
+import { Photo } from './photo.entity';
 import {
     Entity,
     PrimaryGeneratedColumn,
@@ -195,6 +197,12 @@ export class User {
 
     @CreateDateColumn()
     createdAt: Date;
+
+    @OneToOne(() => Profile, (profile) => profile.user)
+    profile: Profile;
+
+    @OneToMany(() => Photo, (photo) => photo.user)
+    photos: Photo[];
 
     @UpdateDateColumn()
     updatedAt: Date;
