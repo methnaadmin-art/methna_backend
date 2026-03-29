@@ -308,7 +308,7 @@ export class CategoriesService {
             .update(Category)
             .set({
                 userCount: () =>
-                    `(SELECT COUNT(*) FROM user_categories uc WHERE uc."categoryId" = "Category"."id")`,
+                    `(SELECT COUNT(*) FROM user_categories uc WHERE uc."categoryId" = "categories"."id")`,
             })
             .execute();
         await this.invalidateCache();
