@@ -28,16 +28,21 @@ export class SearchService {
     async search(userId: string, filters: SearchFiltersDto) {
         this.logger.log(`[Search] Starting search for userId=${userId}, filters=${JSON.stringify(filters)}`);
 
-        // Check cache
+        // Check cache (skip if forceRefresh)
         const cacheKey = `search:${userId}:${JSON.stringify(filters)}`;
-        try {
-            const cached = await this.redisService.getJson<any>(cacheKey);
-            if (cached) {
-                this.logger.log(`[Search] Cache hit for userId=${userId}`);
-                return cached;
+        if (!filters.forceRefresh) {
+            try {
+                const cached = await this.redisService.getJson<any>(cacheKey);
+                if (cached) {
+                    this.logger.log(`[Search] Cache hit for userId=${userId}`);
+                    return cached;
+                }
+            } catch (err) {
+                this.logger.warn(`[Search] Redis cache read failed, continuing without cache: ${err?.message}`);
             }
-        } catch (err) {
-            this.logger.warn(`[Search] Redis cache read failed, continuing without cache: ${err?.message}`);
+        } else {
+            // Bust cache on force refresh
+            try { await this.redisService.del(cacheKey); } catch (_) {}
         }
 
         // Get blocked users (cached 2 min)

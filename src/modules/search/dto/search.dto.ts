@@ -107,6 +107,12 @@ export class SearchFiltersDto {
     @IsString()
     name?: string;
 
+    @ApiPropertyOptional({ description: 'Force refresh (bypass cache)' })
+    @IsOptional()
+    @Type(() => Boolean)
+    @IsBoolean()
+    forceRefresh?: boolean;
+
     @ApiPropertyOptional({ default: 1 })
     @IsOptional()
     @Type(() => Number)

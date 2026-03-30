@@ -13,16 +13,21 @@ export class MailService {
         this.fromAddress = this.configService.get<string>('mail.from') || 'Methna App <verify@waqti.pro>';
         
         if (!apiKey) {
-            this.logger.error('❌ [RESEND] RESEND_API_KEY is NOT set — Emails WILL FAIL');
+            this.logger.warn('⚠️ [RESEND] RESEND_API_KEY is NOT set — Emails will fail at send time');
+            this.resend = null as any;
         } else {
             this.logger.log('✅ [RESEND] API Key is set');
+            this.resend = new Resend(apiKey);
         }
-
-        this.resend = new Resend(apiKey);
     }
 
     async sendOtpEmail(to: string, otp: string, name: string): Promise<void> {
         this.logger.log(`[OTP-MAIL] Sending verification OTP via Resend to ${to} (name=${name})`);
+
+        if (!this.resend) {
+            this.logger.error(`❌ [OTP-MAIL] Cannot send — Resend client not initialized (missing API key)`);
+            throw new Error('Mail service not configured: RESEND_API_KEY is missing');
+        }
 
         try {
             const { data, error } = await this.resend.emails.send({
@@ -58,6 +63,11 @@ export class MailService {
 
     async sendPasswordResetOtp(to: string, otp: string, name: string): Promise<void> {
         this.logger.log(`[OTP-MAIL] Sending password reset OTP via Resend to ${to} (name=${name})`);
+
+        if (!this.resend) {
+            this.logger.error(`❌ [OTP-MAIL] Cannot send — Resend client not initialized (missing API key)`);
+            throw new Error('Mail service not configured: RESEND_API_KEY is missing');
+        }
 
         try {
             const { data, error } = await this.resend.emails.send({

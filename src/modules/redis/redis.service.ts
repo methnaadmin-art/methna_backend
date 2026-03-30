@@ -1,77 +1,124 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import Redis from 'ioredis';
 
 /**
- * In-Memory replacement for Redis.
+ * Real Redis service using ioredis.
+ * Connects to Redis Labs via REDIS_URL env var.
  * Keeps the exact same public API so all 23+ consumer files need ZERO changes.
- * All data lives in Maps — works without any external dependency.
  */
 @Injectable()
 export class RedisService implements OnModuleDestroy {
     private readonly logger = new Logger(RedisService.name);
-
-    // ─── Core KV store ───────────────────────────────────────
-    private readonly store = new Map<string, { value: string; expiresAt: number | null }>();
-
-    // ─── Sets ────────────────────────────────────────────────
-    private readonly sets = new Map<string, Set<string>>();
-
-    // ─── Lists (for audit logs) ──────────────────────────────
-    private readonly lists = new Map<string, string[]>();
-
-    // ─── Rate limiting ───────────────────────────────────────
-    private readonly rateLimits = new Map<string, { count: number; expiresAt: number }>();
+    private readonly client: Redis;
+    private _connected = false;
 
     // ─── Stats ───────────────────────────────────────────────
     private cacheHits = 0;
     private cacheMisses = 0;
-    private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
     constructor() {
-        // Periodic cleanup of expired keys every 30s
-        this.cleanupInterval = setInterval(() => this.cleanup(), 30_000);
-        this.logger.log('In-memory cache initialized (Redis-free mode)');
+        const redisUrl = process.env.REDIS_URL;
+
+        if (!redisUrl) {
+            this.logger.warn('REDIS_URL not set — Redis will not be available');
+            this.client = null as any;
+            return;
+        }
+
+        this.client = new Redis(redisUrl, {
+            maxRetriesPerRequest: 3,
+            retryStrategy: (times) => {
+                if (times > 10) {
+                    this.logger.error('Redis: max retries reached, giving up');
+                    return null; // stop retrying
+                }
+                return Math.min(times * 200, 5000);
+            },
+            reconnectOnError: (err) => {
+                this.logger.warn(`Redis reconnectOnError: ${err.message}`);
+                return true;
+            },
+            enableReadyCheck: true,
+            lazyConnect: false,
+        });
+
+        this.client.on('connect', () => {
+            this._connected = true;
+            this.logger.log('✅ Redis connected successfully');
+        });
+
+        this.client.on('ready', () => {
+            this.logger.log('✅ Redis ready to accept commands');
+        });
+
+        this.client.on('error', (err) => {
+            this._connected = false;
+            this.logger.error(`Redis error: ${err.message}`);
+        });
+
+        this.client.on('close', () => {
+            this._connected = false;
+            this.logger.warn('Redis connection closed');
+        });
     }
 
-    onModuleDestroy() {
-        if (this.cleanupInterval) clearInterval(this.cleanupInterval);
-        this.logger.log('In-memory cache destroyed');
+    async onModuleDestroy() {
+        if (this.client) {
+            await this.client.quit().catch(() => {});
+            this.logger.log('Redis disconnected');
+        }
     }
 
-    /** No real Redis client — return null safely */
-    getClient(): any {
-        return null;
+    getClient(): Redis | null {
+        return this.client || null;
     }
 
-    /** No real Redis client — return null safely */
-    createDuplicate(): any {
-        return null;
+    createDuplicate(): Redis | null {
+        return this.client ? this.client.duplicate() : null;
     }
 
     get connected(): boolean {
-        return true; // In-memory is always "connected"
+        return this._connected;
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────
+
+    private isReady(): boolean {
+        return this.client && this._connected;
     }
 
     // ─── Core Commands ───────────────────────────────────────
 
     async get(key: string): Promise<string | null> {
-        const entry = this.store.get(key);
-        if (!entry) return null;
-        if (entry.expiresAt && Date.now() > entry.expiresAt) {
-            this.store.delete(key);
+        if (!this.isReady()) return null;
+        try {
+            return await this.client.get(key);
+        } catch (e) {
+            this.logger.warn(`Redis GET error: ${e.message}`);
             return null;
         }
-        return entry.value;
     }
 
     async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
-        this.store.set(key, {
-            value,
-            expiresAt: ttlSeconds && ttlSeconds > 0 ? Date.now() + ttlSeconds * 1000 : null,
-        });
+        if (!this.isReady()) return;
+        try {
+            if (ttlSeconds && ttlSeconds > 0) {
+                await this.client.setex(key, ttlSeconds, value);
+            } else {
+                await this.client.set(key, value);
+            }
+        } catch (e) {
+            this.logger.warn(`Redis SET error: ${e.message}`);
+        }
     }
 
     async del(key: string): Promise<void> {
-        this.store.delete(key);
+        if (!this.isReady()) return;
+        try {
+            await this.client.del(key);
+        } catch (e) {
+            this.logger.warn(`Redis DEL error: ${e.message}`);
+        }
     }
 
     async setJson(key: string, value: any, ttlSeconds?: number): Promise<void> {
@@ -93,54 +140,70 @@ export class RedisService implements OnModuleDestroy {
     }
 
     async exists(key: string): Promise<boolean> {
-        const val = await this.get(key);
-        return val !== null;
+        if (!this.isReady()) return false;
+        try {
+            const result = await this.client.exists(key);
+            return result === 1;
+        } catch {
+            return false;
+        }
     }
 
     async expire(key: string, ttlSeconds: number): Promise<void> {
-        const entry = this.store.get(key);
-        if (entry) {
-            entry.expiresAt = Date.now() + ttlSeconds * 1000;
+        if (!this.isReady()) return;
+        try {
+            await this.client.expire(key, ttlSeconds);
+        } catch (e) {
+            this.logger.warn(`Redis EXPIRE error: ${e.message}`);
         }
     }
 
     async incr(key: string): Promise<number> {
-        const current = await this.get(key);
-        const newVal = (parseInt(current || '0', 10) || 0) + 1;
-        // Preserve existing TTL
-        const entry = this.store.get(key);
-        await this.set(key, newVal.toString());
-        if (entry?.expiresAt) {
-            const remaining = Math.max(0, Math.ceil((entry.expiresAt - Date.now()) / 1000));
-            if (remaining > 0) {
-                this.store.get(key)!.expiresAt = entry.expiresAt;
-            }
+        if (!this.isReady()) return 1;
+        try {
+            return await this.client.incr(key);
+        } catch {
+            return 1;
         }
-        return newVal;
     }
 
     // ─── Sets ────────────────────────────────────────────────
 
     async sadd(key: string, ...members: string[]): Promise<void> {
-        if (!this.sets.has(key)) this.sets.set(key, new Set());
-        const set = this.sets.get(key)!;
-        for (const m of members) set.add(m);
+        if (!this.isReady() || members.length === 0) return;
+        try {
+            await this.client.sadd(key, ...members);
+        } catch (e) {
+            this.logger.warn(`Redis SADD error: ${e.message}`);
+        }
     }
 
     async srem(key: string, ...members: string[]): Promise<void> {
-        const set = this.sets.get(key);
-        if (!set) return;
-        for (const m of members) set.delete(m);
+        if (!this.isReady() || members.length === 0) return;
+        try {
+            await this.client.srem(key, ...members);
+        } catch (e) {
+            this.logger.warn(`Redis SREM error: ${e.message}`);
+        }
     }
 
     async smembers(key: string): Promise<string[]> {
-        const set = this.sets.get(key);
-        return set ? Array.from(set) : [];
+        if (!this.isReady()) return [];
+        try {
+            return await this.client.smembers(key);
+        } catch {
+            return [];
+        }
     }
 
     async sismember(key: string, member: string): Promise<boolean> {
-        const set = this.sets.get(key);
-        return set ? set.has(member) : false;
+        if (!this.isReady()) return false;
+        try {
+            const result = await this.client.sismember(key, member);
+            return result === 1;
+        } catch {
+            return false;
+        }
     }
 
     // ─── Online Presence ─────────────────────────────────────
@@ -170,16 +233,17 @@ export class RedisService implements OnModuleDestroy {
         limit: number,
         windowSeconds: number,
     ): Promise<boolean> {
+        if (!this.isReady()) return true; // Allow if Redis is down
         const fullKey = `ratelimit:${key}`;
-        const now = Date.now();
-        const entry = this.rateLimits.get(fullKey);
-
-        if (!entry || entry.expiresAt < now) {
-            this.rateLimits.set(fullKey, { count: 1, expiresAt: now + windowSeconds * 1000 });
-            return true;
+        try {
+            const current = await this.client.incr(fullKey);
+            if (current === 1) {
+                await this.client.expire(fullKey, windowSeconds);
+            }
+            return current <= limit;
+        } catch {
+            return true; // Allow on error
         }
-        entry.count++;
-        return entry.count <= limit;
     }
 
     // ─── Token Blacklist ─────────────────────────────────────
@@ -220,20 +284,26 @@ export class RedisService implements OnModuleDestroy {
     // ─── Audit Log ───────────────────────────────────────────
 
     async appendAuditLog(entry: Record<string, any>): Promise<void> {
+        if (!this.isReady()) return;
         const key = `audit:${entry.type || 'general'}`;
-        if (!this.lists.has(key)) this.lists.set(key, []);
-        const list = this.lists.get(key)!;
-        list.unshift(JSON.stringify({ ...entry, timestamp: new Date().toISOString() }));
-        // Keep last 10,000 entries per type
-        if (list.length > 10_000) list.length = 10_000;
+        try {
+            await this.client.lpush(key, JSON.stringify({ ...entry, timestamp: new Date().toISOString() }));
+            await this.client.ltrim(key, 0, 9999); // Keep last 10,000 entries
+        } catch (e) {
+            this.logger.warn(`Redis LPUSH error: ${e.message}`);
+        }
     }
 
     async getAuditLogs(type: string, count = 100): Promise<any[]> {
-        const list = this.lists.get(`audit:${type}`);
-        if (!list) return [];
-        return list.slice(0, count).map(e => {
-            try { return JSON.parse(e); } catch { return null; }
-        }).filter(Boolean);
+        if (!this.isReady()) return [];
+        try {
+            const list = await this.client.lrange(`audit:${type}`, 0, count - 1);
+            return list.map(e => {
+                try { return JSON.parse(e); } catch { return null; }
+            }).filter(Boolean);
+        } catch {
+            return [];
+        }
     }
 
     // ─── Stats ───────────────────────────────────────────────
@@ -244,30 +314,12 @@ export class RedisService implements OnModuleDestroy {
             hits: this.cacheHits,
             misses: this.cacheMisses,
             hitRate: total > 0 ? `${((this.cacheHits / total) * 100).toFixed(1)}%` : '0%',
-            connected: true,
+            connected: this._connected,
         };
     }
 
     resetCacheStats(): void {
         this.cacheHits = 0;
         this.cacheMisses = 0;
-    }
-
-    // ─── Cleanup ─────────────────────────────────────────────
-
-    private cleanup(): void {
-        const now = Date.now();
-        // Clean expired KV entries
-        for (const [key, entry] of this.store) {
-            if (entry.expiresAt && entry.expiresAt < now) {
-                this.store.delete(key);
-            }
-        }
-        // Clean expired rate limits
-        for (const [key, entry] of this.rateLimits) {
-            if (entry.expiresAt < now) {
-                this.rateLimits.delete(key);
-            }
-        }
     }
 }

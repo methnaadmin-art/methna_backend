@@ -17,6 +17,10 @@ export class ProfileViewsService {
     ) { }
 
     async recordView(viewerId: string, viewedId: string): Promise<void> {
+        if (!viewerId || !viewedId) {
+            this.logger.warn(`recordView skipped: viewerId=${viewerId}, viewedId=${viewedId}`);
+            return;
+        }
         if (viewerId === viewedId) return;
 
         // Throttle: only record one view per viewer-viewed pair per hour
