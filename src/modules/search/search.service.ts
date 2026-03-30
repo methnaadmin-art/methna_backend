@@ -52,14 +52,20 @@ export class SearchService {
         } catch (err) {
             this.logger.warn(`[Search] Failed to get blocked IDs, continuing: ${err?.message}`);
         }
-        const excludeIds = [userId, ...blockedIds];
+        const excludeIds = [userId, ...blockedIds].filter(id => id); // Filter out any null/undefined
+        
+        // Validate userId exists
+        if (!userId) {
+            this.logger.error('[Search] No userId provided - returning empty results');
+            return { users: [], total: 0, page: filters.page ?? 1, limit: filters.limit ?? 20 };
+        }
 
         // Build query
         const query = this.profileRepository
             .createQueryBuilder('profile')
             .leftJoinAndSelect('profile.user', 'user')
-            // Exclude myself and blocked users
-            .where('profile.userId NOT IN (:...excludeIds)', { excludeIds })
+            // Exclude myself and blocked users (ensure excludeIds is never empty)
+            .where(excludeIds.length > 0 ? 'profile.userId NOT IN (:...excludeIds)' : '1=1', { excludeIds: excludeIds.length > 0 ? excludeIds : ['__none__'] })
             // Exclude users already swiped (liked / passed / complimented)
             .andWhere((qb) => {
                 const subQuery = qb
@@ -197,22 +203,21 @@ export class SearchService {
         const hasUserLocation = !!(myProfile?.latitude && myProfile?.longitude);
 
         // Distance filter (requires user's location)
+        // Include profiles with NULL lat/lng so users without location aren't excluded
         if (filters.maxDistance && hasUserLocation) {
-            // Bounding box pre-filter (uses indexes, avoids full-table Haversine)
             const latDelta = filters.maxDistance / 111;
             const lngDelta = filters.maxDistance / (111 * Math.cos(Number(myProfile.latitude) * Math.PI / 180));
-            query.andWhere('profile.latitude BETWEEN :sMinLat AND :sMaxLat', {
-                sMinLat: Number(myProfile.latitude) - latDelta,
-                sMaxLat: Number(myProfile.latitude) + latDelta,
-            });
-            query.andWhere('profile.longitude BETWEEN :sMinLng AND :sMaxLng', {
-                sMinLng: Number(myProfile.longitude) - lngDelta,
-                sMaxLng: Number(myProfile.longitude) + lngDelta,
-            });
-            // Precise Haversine filter
             query.andWhere(
-                `(6371 * acos(cos(radians(:userLat)) * cos(radians(profile.latitude)) * cos(radians(profile.longitude) - radians(:userLng)) + sin(radians(:userLat)) * sin(radians(profile.latitude)))) <= :maxDist`,
-                { userLat: myProfile.latitude, userLng: myProfile.longitude, maxDist: filters.maxDistance },
+                `(profile.latitude IS NULL OR (profile.latitude BETWEEN :sMinLat AND :sMaxLat AND profile.longitude BETWEEN :sMinLng AND :sMaxLng AND (6371 * acos(cos(radians(:userLat)) * cos(radians(profile.latitude)) * cos(radians(profile.longitude) - radians(:userLng)) + sin(radians(:userLat)) * sin(radians(profile.latitude)))) <= :maxDist))`,
+                {
+                    sMinLat: Number(myProfile.latitude) - latDelta,
+                    sMaxLat: Number(myProfile.latitude) + latDelta,
+                    sMinLng: Number(myProfile.longitude) - lngDelta,
+                    sMaxLng: Number(myProfile.longitude) + lngDelta,
+                    userLat: myProfile.latitude,
+                    userLng: myProfile.longitude,
+                    maxDist: filters.maxDistance,
+                },
             );
         }
 
