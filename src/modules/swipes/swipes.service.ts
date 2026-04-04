@@ -103,6 +103,7 @@ export class SwipesService {
             complimentMessage: action === SwipeAction.COMPLIMENT ? complimentMessage : undefined,
         });
         await this.likeRepository.save(like);
+        await this.invalidateDiscoveryCaches(userId);
 
         // Notify target user for super-like or compliment
         if (action === SwipeAction.SUPER_LIKE) {
@@ -129,6 +130,7 @@ export class SwipesService {
 
             if (mutualLike) {
                 const match = await this.createMatch(userId, targetUserId);
+                await this.invalidateDiscoveryCaches(targetUserId);
                 this.logger.log(`Match created between ${userId} and ${targetUserId}`);
                 return { liked: true, matched: true, matchId: match.id, action };
             }
@@ -200,6 +202,7 @@ export class SwipesService {
 
         // Remove the swipe
         await this.likeRepository.remove(lastSwipe);
+        await this.invalidateDiscoveryCaches(userId, lastSwipe.likedId);
 
         this.logger.log(`User ${userId} rewound swipe on ${lastSwipe.likedId}`);
 
@@ -357,6 +360,22 @@ export class SwipesService {
     }
 
     // ─── REMATCH / SECOND CHANCE (premium feature) ────────
+
+    private async invalidateDiscoveryCaches(...userIds: string[]): Promise<void> {
+        const uniqueIds = [
+            ...new Set(userIds.map((id) => id?.trim()).filter((id): id is string => !!id)),
+        ];
+        if (uniqueIds.length === 0) return;
+
+        await Promise.all(
+            uniqueIds.flatMap((id) => [
+                this.redisService.del(`excludeIds:${id}`),
+                this.redisService.del(`discovery:${id}`),
+                this.redisService.del(`suggestions:${id}`),
+                this.redisService.delByPattern(`search:${id}:*`),
+            ]),
+        );
+    }
 
     async requestRematch(userId: string, targetUserId: string, message?: string) {
         // Verify premium feature

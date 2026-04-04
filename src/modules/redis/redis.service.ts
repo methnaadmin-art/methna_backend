@@ -121,6 +121,18 @@ export class RedisService implements OnModuleDestroy {
         }
     }
 
+    async delByPattern(pattern: string): Promise<void> {
+        if (!this.isReady()) return;
+        try {
+            const keys = await this.client.keys(pattern);
+            if (keys.length > 0) {
+                await this.client.del(...keys);
+            }
+        } catch (e) {
+            this.logger.warn(`Redis DEL pattern error: ${e.message}`);
+        }
+    }
+
     async setJson(key: string, value: any, ttlSeconds?: number): Promise<void> {
         await this.set(key, JSON.stringify(value), ttlSeconds);
     }
