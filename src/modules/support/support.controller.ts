@@ -15,6 +15,9 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { TicketStatus } from '../../database/entities/support-ticket.entity';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { UserRole } from '../../database/entities/user.entity';
 
 @ApiTags('support')
 @ApiBearerAuth()
@@ -53,6 +56,8 @@ export class SupportController {
     // ─── Admin endpoints ────────────────────────────────────
 
     @Get()
+    @UseGuards(RolesGuard)
+    @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Get all tickets (admin)' })
     async getAllTickets(
         @Query() pagination: PaginationDto,
@@ -62,12 +67,16 @@ export class SupportController {
     }
 
     @Get('stats')
+    @UseGuards(RolesGuard)
+    @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Get ticket stats (admin)' })
     async getStats() {
         return this.supportService.getTicketStats();
     }
 
     @Patch(':id/status')
+    @UseGuards(RolesGuard)
+    @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Update ticket status (admin)' })
     async updateStatus(
         @Param('id') ticketId: string,

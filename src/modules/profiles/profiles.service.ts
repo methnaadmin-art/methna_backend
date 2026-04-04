@@ -1,16 +1,14 @@
 import {
     Injectable,
     NotFoundException,
-    ConflictException,
-    BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Profile } from '../../database/entities/profile.entity';
 import { UserPreference } from '../../database/entities/user-preference.entity';
-import { User } from '../../database/entities/user.entity';
 import { RedisService } from '../redis/redis.service';
 import { CategoriesService } from '../categories/categories.service';
+import { TrustSafetyService } from '../trust-safety/trust-safety.service';
 import {
     CreateProfileDto,
     UpdateProfileDto,
@@ -28,6 +26,7 @@ export class ProfilesService {
         private readonly preferenceRepository: Repository<UserPreference>,
         private readonly redisService: RedisService,
         private readonly categoriesService: CategoriesService,
+        private readonly trustSafetyService: TrustSafetyService,
     ) { }
 
     async getProfile(userId: string): Promise<Profile> {
@@ -46,51 +45,38 @@ export class ProfilesService {
     }
 
     async createOrUpdateProfile(userId: string, dto: CreateProfileDto | UpdateProfileDto): Promise<Profile> {
-        console.log(`[ProfilesService] createOrUpdateProfile for user ${userId}`);
-        console.log(`[ProfilesService] Data received: ${JSON.stringify(dto)}`);
-        
+        const sanitizedDto = await this.sanitizeProfilePayload(userId, dto);
+
         let profile = await this.profileRepository.findOne({
             where: { userId },
         });
 
         if (profile) {
-            console.log(`[ProfilesService] Updating existing profile ${profile.id} for user ${userId}`);
-            // Defensive merge: only update fields that are NOT undefined.
-            // This prevents accidental wiping of data during partial updates.
-            Object.keys(dto).forEach(key => {
-                if (profile && dto[key] !== undefined) {
-                    profile[key] = dto[key];
-                    console.log(`[ProfilesService] Mapping key ${key} to value: ${JSON.stringify(dto[key])}`);
+            Object.keys(sanitizedDto).forEach((key) => {
+                if (profile && (sanitizedDto as any)[key] !== undefined) {
+                    (profile as any)[key] = (sanitizedDto as any)[key];
                 }
             });
         } else {
-            console.log(`[ProfilesService] Creating new profile for user ${userId}`);
             profile = this.profileRepository.create({
                 userId,
-                ...dto,
+                ...sanitizedDto,
             });
         }
 
-        // Calculate profile completion and completeness
         profile.profileCompletionPercentage = this.calculateCompletionPercentage(profile);
         profile.isComplete = profile.profileCompletionPercentage >= 60;
 
         const saved = await this.profileRepository.save(profile);
-        console.log(`[ProfilesService] Profile saved successfully. Completion: ${profile.profileCompletionPercentage}%`);
 
-        // Invalidate cache
         await this.redisService.del(`profile:${userId}`);
-        console.log(`[ProfilesService] Cache invalidated for user ${userId}`);
 
-        // Re-evaluate dynamic categories (non-blocking)
-        this.categoriesService.evaluateUserCategories(userId).catch(err => {
+        this.categoriesService.evaluateUserCategories(userId).catch((err) => {
             console.error(`[ProfilesService] Error evaluating categories: ${err.message}`);
         });
 
         return saved;
     }
-
-    // ─── Location ───────────────────────────────────────────
 
     async updateLocation(userId: string, dto: UpdateLocationDto): Promise<Profile> {
         const profile = await this.profileRepository.findOne({ where: { userId } });
@@ -111,8 +97,6 @@ export class ProfilesService {
         // Handled via UserRepository in users module, called from controller
     }
 
-    // ─── Privacy Settings ───────────────────────────────────
-
     async updatePrivacySettings(userId: string, dto: UpdatePrivacySettingsDto): Promise<Profile> {
         const profile = await this.profileRepository.findOne({ where: { userId } });
         if (!profile) throw new NotFoundException('Profile not found');
@@ -126,8 +110,6 @@ export class ProfilesService {
         await this.redisService.del(`profile:${userId}`);
         return saved;
     }
-
-    // ─── Preferences ────────────────────────────────────────
 
     async getPreferences(userId: string): Promise<UserPreference> {
         let prefs = await this.preferenceRepository.findOne({
@@ -152,8 +134,6 @@ export class ProfilesService {
         return this.preferenceRepository.save(prefs);
     }
 
-    // ─── Activity Score ─────────────────────────────────────
-
     async updateActivityScore(userId: string): Promise<void> {
         const profile = await this.profileRepository.findOne({
             where: { userId },
@@ -163,8 +143,6 @@ export class ProfilesService {
             await this.profileRepository.save(profile);
         }
     }
-
-    // ─── Profile Completion % ───────────────────────────────
 
     private calculateCompletionPercentage(profile: Profile): number {
         const fields = [
@@ -182,6 +160,7 @@ export class ProfilesService {
             { value: profile.jobTitle, weight: 4 },
             { value: profile.education, weight: 4 },
             { value: profile.familyPlans, weight: 5 },
+            { value: profile.familyValues && profile.familyValues.length > 0 ? true : null, weight: 4 },
             { value: profile.marriageIntention, weight: 5 },
             { value: profile.communicationStyle, weight: 3 },
             { value: profile.secondWifePreference, weight: 3 },
@@ -203,5 +182,57 @@ export class ProfilesService {
         }, 0);
 
         return Math.round((achievedWeight / totalWeight) * 100);
+    }
+
+    private async sanitizeProfilePayload(
+        userId: string,
+        dto: CreateProfileDto | UpdateProfileDto,
+    ): Promise<CreateProfileDto | UpdateProfileDto> {
+        const sanitized = { ...dto } as Record<string, any>;
+
+        const textFields = [
+            'bio',
+            'aboutPartner',
+            'company',
+            'jobTitle',
+            'educationDetails',
+            'healthNotes',
+            'petPreference',
+        ];
+
+        for (const field of textFields) {
+            const value = sanitized[field];
+            if (typeof value === 'string' && value.trim().length > 0) {
+                const moderation = await this.trustSafetyService.moderateProfileText(
+                    userId,
+                    value.trim(),
+                    field,
+                );
+                sanitized[field] = moderation.cleanText;
+            }
+        }
+
+        const arrayFields = [
+            'interests',
+            'languages',
+            'familyValues',
+            'nationalities',
+            'favoriteMusic',
+            'favoriteMovies',
+            'favoriteBooks',
+            'travelPreferences',
+        ];
+
+        for (const field of arrayFields) {
+            const value = sanitized[field];
+            if (Array.isArray(value)) {
+                sanitized[field] = value
+                    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+                    .filter((entry) => entry.length > 0)
+                    .filter((entry, index, arr) => arr.indexOf(entry) === index);
+            }
+        }
+
+        return sanitized as CreateProfileDto | UpdateProfileDto;
     }
 }

@@ -22,6 +22,7 @@ import {
     ForgotPasswordDto,
     VerifyResetOtpDto,
     ResetPasswordDto,
+    ChangePasswordDto,
     GoogleSignInDto,
 } from './dto/auth.dto';
 import { RedisService } from '../redis/redis.service';
@@ -335,16 +336,23 @@ export class AuthService {
     // ─── LOGIN ──────────────────────────────────────────────
 
     async login(loginDto: LoginDto, clientIp?: string, userAgent?: string) {
-        const { email, password } = loginDto;
+        const identifier = (loginDto.identifier || loginDto.email || '').trim();
+        const normalizedIdentifier = identifier.toLowerCase();
+        const normalizedPhone = identifier.replace(/\s+/g, '');
+        const { password } = loginDto;
+
+        if (!identifier) {
+            throw new UnauthorizedException('Invalid credentials');
+        }
 
         // Anti-bruteforce: rate limit per email AND per IP
-        const emailRateKey = `login:${email}`;
+        const emailRateKey = `login:${normalizedIdentifier || normalizedPhone}`;
         const emailAllowed = await this.redisService.checkRateLimit(emailRateKey, 5, 300);
         if (!emailAllowed) {
             this.redisService.appendAuditLog({
                 type: 'suspicious',
                 action: 'login_rate_limit_email',
-                email,
+                email: identifier,
                 ip: clientIp,
             }).catch(() => {});
             throw new HttpException('Too many login attempts. Try again in 5 minutes.', HttpStatus.TOO_MANY_REQUESTS);
@@ -365,8 +373,10 @@ export class AuthService {
 
         const user = await this.userRepository.findOne({
             where: [
-                { email: email.toLowerCase() },
-                { username: email.toLowerCase() },
+                { email: normalizedIdentifier },
+                { username: normalizedIdentifier },
+                { phone: identifier },
+                { phone: normalizedPhone },
             ],
             select: [
                 'id', 'email', 'password', 'firstName', 'lastName',
@@ -378,7 +388,7 @@ export class AuthService {
             this.redisService.appendAuditLog({
                 type: 'suspicious',
                 action: 'login_failed_unknown_email',
-                email,
+                email: identifier,
                 ip: clientIp,
             }).catch(() => {});
             throw new UnauthorizedException('Invalid credentials');
@@ -406,7 +416,7 @@ export class AuthService {
                 type: 'suspicious',
                 action: 'login_failed_bad_password',
                 userId: user.id,
-                email,
+                email: identifier,
                 ip: clientIp,
             }).catch(() => {});
             throw new UnauthorizedException('Invalid credentials');
@@ -427,7 +437,7 @@ export class AuthService {
             userAgent,
         }).catch(() => {});
 
-        this.logger.log(`User logged in: ${email} from ${clientIp}`);
+        this.logger.log(`User logged in: ${identifier} from ${clientIp}`);
 
         return {
             user: this.sanitizeUser(await this.usersService.getMe(user.id)),
@@ -690,6 +700,42 @@ export class AuthService {
     }
 
     // ─── TOKEN MANAGEMENT ───────────────────────────────────
+
+    async changePassword(userId: string, dto: ChangePasswordDto) {
+        const { oldPassword, newPassword } = dto;
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: ['id', 'password'],
+        });
+
+        if (!user) {
+            throw new BadRequestException('User not found');
+        }
+
+        const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
+        if (!isPasswordValid) {
+            throw new BadRequestException('Current password is incorrect');
+        }
+
+        if (oldPassword === newPassword) {
+            throw new BadRequestException('New password must be different from the current password');
+        }
+
+        const salt = await bcrypt.genSalt(12);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        await this.userRepository.update(userId, {
+            password: hashedPassword,
+        });
+
+        this.redisService.appendAuditLog({
+            type: 'login',
+            userId,
+            action: 'password_changed',
+        }).catch(() => {});
+
+        return { message: 'Password changed successfully' };
+    }
 
     async refreshTokens(refreshToken: string) {
         let payload: any;

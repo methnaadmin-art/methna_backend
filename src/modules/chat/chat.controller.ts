@@ -21,6 +21,15 @@ import { PaginationDto } from '../../common/dto/pagination.dto';
 export class ChatController {
     constructor(private readonly chatService: ChatService) { }
 
+    @Get('live-today')
+    @ApiOperation({ summary: 'Get users who were online or active in the last 24 hours' })
+    async getLiveTodayUsers(
+        @CurrentUser('sub') userId: string,
+        @Query('limit') limit?: number,
+    ) {
+        return this.chatService.getLiveTodayUsers(userId, limit ? Number(limit) : 20);
+    }
+
     @Get('conversations')
     @ApiOperation({ summary: 'Get all conversations' })
     async getConversations(

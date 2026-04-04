@@ -66,9 +66,14 @@ export class ResendOtpDto {
 }
 
 export class LoginDto {
-    @ApiProperty({ example: 'user@example.com' })
+    @ApiProperty({ example: 'user@example.com', description: 'Email, username, or phone number' })
     @IsString()
-    email: string;
+    identifier: string;
+
+    @ApiPropertyOptional({ example: 'user@example.com', deprecated: true, description: 'Deprecated alias for identifier' })
+    @IsOptional()
+    @IsString()
+    email?: string;
 
     @ApiProperty({ example: 'StrongP@ss123' })
     @IsString()
@@ -107,6 +112,21 @@ export class ResetPasswordDto {
     @IsString()
     @Length(6, 6)
     otp: string;
+
+    @ApiProperty({ example: 'NewStr0ngP@ss' })
+    @IsString()
+    @MinLength(8)
+    @MaxLength(128)
+    @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
+        message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number',
+    })
+    newPassword: string;
+}
+
+export class ChangePasswordDto {
+    @ApiProperty({ example: 'OldStr0ngP@ss' })
+    @IsString()
+    oldPassword: string;
 
     @ApiProperty({ example: 'NewStr0ngP@ss' })
     @IsString()

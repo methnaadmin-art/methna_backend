@@ -81,7 +81,7 @@ class ReplyTicketDto {
 @ApiTags('admin')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
+@Roles(UserRole.ADMIN, UserRole.MODERATOR)
 @Controller('admin')
 export class AdminController {
     constructor(
@@ -103,6 +103,7 @@ export class AdminController {
         return this.adminService.getUsers(pagination, status, search, role, plan);
     }
 
+    @Roles(UserRole.ADMIN)
     @Post('users')
     @ApiOperation({ summary: 'Create a new user (admin)' })
     async createUser(@Body() dto: CreateUserDto) {
@@ -179,6 +180,7 @@ export class AdminController {
         return this.adminService.autoApproveDocuments();
     }
 
+    @Roles(UserRole.ADMIN)
     @Delete('users/:id')
     @HttpCode(HttpStatus.NO_CONTENT)
     @ApiOperation({ summary: 'Soft-delete a user account' })
@@ -192,6 +194,7 @@ export class AdminController {
         await this.adminService.deleteUserAccount(userId);
     }
 
+    @Roles(UserRole.ADMIN)
     @Post('users/:id/revoke-sessions')
     @ApiOperation({ summary: 'Force-revoke all sessions for a user' })
     async revokeUserSessions(@CurrentUser('sub') adminId: string, @Param('id') userId: string) {
@@ -313,18 +316,21 @@ export class AdminController {
         return this.adminService.getAds();
     }
 
+    @Roles(UserRole.ADMIN)
     @Post('ads')
     @ApiOperation({ summary: 'Create a new ad' })
     async createAd(@Body() dto: any) {
         return this.adminService.createAd(dto);
     }
 
+    @Roles(UserRole.ADMIN)
     @Patch('ads/:id')
     @ApiOperation({ summary: 'Update an ad' })
     async updateAd(@Param('id') id: string, @Body() dto: any) {
         return this.adminService.updateAd(id, dto);
     }
 
+    @Roles(UserRole.ADMIN)
     @Delete('ads/:id')
     @HttpCode(HttpStatus.NO_CONTENT)
     @ApiOperation({ summary: 'Delete an ad' })
@@ -348,18 +354,21 @@ export class AdminController {
         return this.adminService.getPlans();
     }
 
+    @Roles(UserRole.ADMIN)
     @Post('plans')
     @ApiOperation({ summary: 'Create a new subscription plan' })
     async createPlan(@Body() dto: any) {
         return this.adminService.createPlan(dto);
     }
 
+    @Roles(UserRole.ADMIN)
     @Put('plans/:id')
     @ApiOperation({ summary: 'Update a subscription plan' })
     async updatePlan(@Param('id') id: string, @Body() dto: any) {
         return this.adminService.updatePlan(id, dto);
     }
 
+    @Roles(UserRole.ADMIN)
     @Delete('plans/:id')
     @HttpCode(HttpStatus.NO_CONTENT)
     @ApiOperation({ summary: 'Delete a subscription plan' })
@@ -367,6 +376,7 @@ export class AdminController {
         return this.adminService.deletePlan(id);
     }
 
+    @Roles(UserRole.ADMIN)
     @Post('users/:id/subscription/override')
     @ApiOperation({ summary: 'Override user subscription plan manually' })
     async overrideUserSubscription(
@@ -397,6 +407,7 @@ export class AdminController {
 
     // ─── SYSTEM HEALTH / PERFORMANCE ─────────────────────────
 
+    @Roles(UserRole.ADMIN)
     @Get('system/health')
     @ApiOperation({ summary: 'System health: cache stats, uptime, memory' })
     async getSystemHealth() {
@@ -415,8 +426,7 @@ export class AdminController {
         };
     }
 
-    // ─── AUDIT LOGS ──────────────────────────────────────────
-
+    @Roles(UserRole.ADMIN)
     @Get('audit-logs/:type')
     @ApiOperation({ summary: 'View audit logs by type (login, admin, suspicious)' })
     async getAuditLogs(
@@ -426,6 +436,7 @@ export class AdminController {
         return this.redisService.getAuditLogs(type, count || 100);
     }
 
+    @Roles(UserRole.ADMIN)
     @Get('audit-logs')
     @ApiOperation({ summary: 'View all audit log types' })
     async getAllAuditLogs() {

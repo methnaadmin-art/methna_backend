@@ -384,7 +384,25 @@ export class UpdatePreferencesDto {
     @IsOptional()
     @IsArray()
     @IsString({ each: true })
+    preferredNationalities?: string[];
+
+    @ApiPropertyOptional({ type: [String] })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
     preferredInterests?: string[];
+
+    @ApiPropertyOptional({ type: [String] })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    preferredLanguages?: string[];
+
+    @ApiPropertyOptional({ type: [String] })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    preferredFamilyValues?: string[];
 
     @ApiPropertyOptional({ enum: MarriageIntention })
     @IsOptional()

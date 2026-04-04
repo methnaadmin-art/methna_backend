@@ -23,6 +23,7 @@ import {
     ForgotPasswordDto,
     VerifyResetOtpDto,
     ResetPasswordDto,
+    ChangePasswordDto,
     UpdateFcmTokenDto,
     GoogleSignInDto,
 } from './dto/auth.dto';
@@ -90,7 +91,7 @@ export class AuthController {
     @Public()
     @Post('login')
     @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Login with email and password' })
+    @ApiOperation({ summary: 'Login with email, username, or phone and password' })
     @ApiResponse({ status: 200, description: 'Login successful' })
     @ApiResponse({ status: 401, description: 'Invalid credentials' })
     @ApiResponse({ status: 429, description: 'Too many login attempts' })
@@ -177,6 +178,18 @@ export class AuthController {
     @ApiResponse({ status: 400, description: 'Invalid OTP or request' })
     async resetPassword(@Body() dto: ResetPasswordDto) {
         return this.authService.resetPassword(dto);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Patch('change-password')
+    @HttpCode(HttpStatus.OK)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Change password for the current user' })
+    async changePassword(
+        @CurrentUser('sub') userId: string,
+        @Body() dto: ChangePasswordDto,
+    ) {
+        return this.authService.changePassword(userId, dto);
     }
 
     // ─── FCM Token ──────────────────────────────────────────

@@ -84,6 +84,24 @@ export class SearchFiltersDto {
     @IsString({ each: true })
     interests?: string[];
 
+    @ApiPropertyOptional({ type: [String], description: 'Filter by spoken languages' })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    languages?: string[];
+
+    @ApiPropertyOptional({ type: [String], description: 'Filter by family values tags' })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    familyValues?: string[];
+
+    @ApiPropertyOptional({ type: [String], description: 'Filter by nationality or dual nationality' })
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    nationalities?: string[];
+
     @ApiPropertyOptional({ description: 'Only show verified users' })
     @IsOptional()
     @Type(() => Boolean)

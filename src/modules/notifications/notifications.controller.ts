@@ -1,6 +1,7 @@
 import {
     Controller,
     Get,
+    Post,
     Patch,
     Delete,
     Param,
@@ -62,6 +63,32 @@ export class NotificationsController {
     ) {
         await this.notificationsService.deleteNotification(userId, notificationId);
         return { message: 'Notification deleted' };
+    }
+
+    @Post('device-token')
+    @ApiOperation({ summary: 'Legacy device token sync endpoint for push notifications' })
+    async updateDeviceToken(
+        @CurrentUser('sub') userId: string,
+        @Body() body: { token?: string; fcmToken?: string },
+    ) {
+        await this.notificationsService.updateFcmToken(
+            userId,
+            body.fcmToken ?? body.token,
+        );
+        return { message: 'Push token updated' };
+    }
+
+    @Post('fcm-token')
+    @ApiOperation({ summary: 'Legacy FCM token sync endpoint for push notifications' })
+    async updateFcmToken(
+        @CurrentUser('sub') userId: string,
+        @Body() body: { fcmToken?: string; token?: string },
+    ) {
+        await this.notificationsService.updateFcmToken(
+            userId,
+            body.fcmToken ?? body.token,
+        );
+        return { message: 'FCM token updated' };
     }
 
     // ─── SETTINGS ───────────────────────────────────────────

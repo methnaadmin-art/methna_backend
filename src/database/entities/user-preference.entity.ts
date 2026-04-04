@@ -51,6 +51,12 @@ export class UserPreference {
     @Column({ type: 'simple-array', nullable: true })
     preferredInterests: string[];
 
+    @Column({ type: 'simple-array', nullable: true })
+    preferredLanguages: string[];
+
+    @Column({ type: 'simple-array', nullable: true })
+    preferredFamilyValues: string[];
+
     @CreateDateColumn()
     createdAt: Date;
 

@@ -53,7 +53,7 @@ export class TrustSafetyController {
     }
 
     @Post('selfie-verify')
-    @ApiOperation({ summary: 'Compare selfie to profile photos (mock AI)' })
+    @ApiOperation({ summary: 'Submit selfie verification for automated or manual review' })
     async verifySelfie(@CurrentUser('sub') userId: string) {
         return this.trustSafetyService.compareSelfieToPhotos(userId);
     }

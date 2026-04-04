@@ -16,6 +16,9 @@ import { ReportsService } from './reports.service';
 import { CreateReportDto, UpdateReportStatusDto } from './dto/report.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { UserRole } from '../../database/entities/user.entity';
 
 @ApiTags('reports')
 @ApiBearerAuth()
@@ -41,6 +44,8 @@ export class ReportsController {
 
     // ─── Admin ─────────────────────────────────────────────
     @Get('admin/all')
+    @UseGuards(RolesGuard)
+    @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Get all reports (admin)' })
     @ApiQuery({ name: 'page', required: false })
     @ApiQuery({ name: 'limit', required: false })
@@ -55,6 +60,8 @@ export class ReportsController {
     }
 
     @Patch('admin/:id/status')
+    @UseGuards(RolesGuard)
+    @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Update report status (admin)' })
     async updateStatus(
         @Param('id') id: string,

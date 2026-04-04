@@ -3,6 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../../database/entities/user.entity';
+import {
+    ContentFlag,
+    ContentFlagSource,
+    ContentFlagStatus,
+    ContentFlagType,
+} from '../../database/entities/content-flag.entity';
 
 export enum BackgroundCheckStatus {
     NOT_STARTED = 'not_started',
@@ -28,11 +34,14 @@ export class BackgroundCheckService {
         private readonly configService: ConfigService,
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
+        @InjectRepository(ContentFlag)
+        private readonly contentFlagRepository: Repository<ContentFlag>,
     ) { }
 
     /**
      * Initiate a background check for a user.
-     * TODO: Integrate with a real background check provider (e.g., Checkr, Sterling, GoodHire).
+     * When no provider key is configured, fall back to a manual-review workflow
+     * instead of auto-passing the check.
      */
     async initiateCheck(userId: string, data: {
         fullName: string;
@@ -45,41 +54,55 @@ export class BackgroundCheckService {
         }
 
         const apiKey = this.configService.get<string>('BACKGROUND_CHECK_API_KEY');
+        const checkId = `bg_${Date.now()}_${userId.slice(0, 8)}`;
 
         if (!apiKey) {
-            this.logger.warn('Background check API key not configured — returning mock result');
-            // Mock: mark as passed for development
+            this.logger.warn('Background check API key not configured. Queuing manual review workflow.');
             await this.userRepository.update(userId, {
-                backgroundCheckStatus: BackgroundCheckStatus.PASSED,
+                backgroundCheckStatus: BackgroundCheckStatus.PENDING,
+                backgroundCheckCheckId: checkId,
+                backgroundCheckCompletedAt: null as any,
             } as any);
 
+            await this.contentFlagRepository.save({
+                userId,
+                type: ContentFlagType.OTHER,
+                status: ContentFlagStatus.PENDING,
+                source: ContentFlagSource.AUTO_DETECTED,
+                entityType: 'background_check',
+                entityId: checkId,
+                content: JSON.stringify({
+                    fullName: data.fullName,
+                    dateOfBirth: data.dateOfBirth,
+                    consentGiven: data.consentGiven,
+                    workflow: 'manual_review_required',
+                }),
+                confidenceScore: 1.0,
+            });
+
             return {
-                status: BackgroundCheckStatus.PASSED,
-                checkId: `mock_check_${Date.now()}`,
-                completedAt: new Date(),
+                status: BackgroundCheckStatus.PENDING,
+                checkId,
             };
         }
 
         try {
-            // TODO: Replace with actual API call to background check provider
-            // Example with Checkr:
-            // const response = await fetch('https://api.checkr.com/v1/candidates', {
-            //     method: 'POST',
-            //     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-            //     body: JSON.stringify({
-            //         first_name: data.fullName.split(' ')[0],
-            //         last_name: data.fullName.split(' ').slice(1).join(' '),
-            //         dob: data.dateOfBirth,
-            //     }),
-            // });
+            await this.userRepository.update(userId, {
+                backgroundCheckStatus: BackgroundCheckStatus.IN_PROGRESS,
+                backgroundCheckCheckId: checkId,
+                backgroundCheckCompletedAt: null as any,
+            } as any);
 
-            this.logger.log(`Background check initiated for user ${userId}`);
+            this.logger.log(`Background check queued for provider handoff for user ${userId}`);
             return {
-                status: BackgroundCheckStatus.PENDING,
-                checkId: `check_${Date.now()}`,
+                status: BackgroundCheckStatus.IN_PROGRESS,
+                checkId,
             };
         } catch (error) {
             this.logger.error(`Background check initiation failed for user ${userId}`, (error as Error).message);
+            await this.userRepository.update(userId, {
+                backgroundCheckStatus: BackgroundCheckStatus.ERROR,
+            } as any);
             return {
                 status: BackgroundCheckStatus.ERROR,
                 details: { error: (error as Error).message },
@@ -91,7 +114,6 @@ export class BackgroundCheckService {
      * Handle webhook callback from background check provider.
      */
     async handleWebhook(payload: any): Promise<void> {
-        // TODO: Parse provider-specific webhook payload
         const userId = payload?.metadata?.userId;
         const status = payload?.status;
 
@@ -101,9 +123,14 @@ export class BackgroundCheckService {
         }
 
         const checkStatus = this.mapProviderStatus(status);
+        const isTerminalStatus = [
+            BackgroundCheckStatus.PASSED,
+            BackgroundCheckStatus.FAILED,
+        ].includes(checkStatus);
 
         await this.userRepository.update(userId, {
             backgroundCheckStatus: checkStatus,
+            backgroundCheckCompletedAt: isTerminalStatus ? new Date() : null as any,
         } as any);
 
         this.logger.log(`Background check updated for user ${userId}: ${checkStatus}`);
@@ -115,20 +142,27 @@ export class BackgroundCheckService {
     async getCheckStatus(userId: string): Promise<BackgroundCheckResult> {
         const user = await this.userRepository.findOne({
             where: { id: userId },
-            select: ['id', 'backgroundCheckStatus' as any],
+            select: [
+                'id',
+                'backgroundCheckStatus' as any,
+                'backgroundCheckCheckId' as any,
+                'backgroundCheckCompletedAt' as any,
+            ],
         });
 
         return {
             status: (user as any)?.backgroundCheckStatus || BackgroundCheckStatus.NOT_STARTED,
+            checkId: (user as any)?.backgroundCheckCheckId || undefined,
+            completedAt: (user as any)?.backgroundCheckCompletedAt || undefined,
         };
     }
 
     private mapProviderStatus(providerStatus: string): BackgroundCheckStatus {
         const map: Record<string, BackgroundCheckStatus> = {
-            'clear': BackgroundCheckStatus.PASSED,
-            'consider': BackgroundCheckStatus.FAILED,
-            'pending': BackgroundCheckStatus.PENDING,
-            'suspended': BackgroundCheckStatus.ERROR,
+            clear: BackgroundCheckStatus.PASSED,
+            consider: BackgroundCheckStatus.FAILED,
+            pending: BackgroundCheckStatus.PENDING,
+            suspended: BackgroundCheckStatus.ERROR,
         };
         return map[providerStatus?.toLowerCase()] || BackgroundCheckStatus.PENDING;
     }

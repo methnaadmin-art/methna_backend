@@ -64,6 +64,9 @@ export class User {
     @Column({ default: false })
     emailVerified: boolean;
 
+    @Column({ default: false })
+    phoneVerified: boolean;
+
     // OTP fields
     @Column({ nullable: true, select: false })
     otpCode: string;
@@ -109,6 +112,15 @@ export class User {
 
     @Column({ nullable: true })
     documentRejectionReason: string;
+
+    @Column({ default: 'not_started' })
+    backgroundCheckStatus: string;
+
+    @Column({ nullable: true })
+    backgroundCheckCheckId: string;
+
+    @Column({ nullable: true })
+    backgroundCheckCompletedAt: Date;
 
     // FCM push token
     @Column({ nullable: true })

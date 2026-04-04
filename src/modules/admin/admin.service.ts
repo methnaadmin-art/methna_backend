@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike } from 'typeorm';
+import { Repository, ILike, Not, IsNull } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User, UserRole, UserStatus } from '../../database/entities/user.entity';
 import { Report, ReportStatus } from '../../database/entities/report.entity';
@@ -135,7 +135,7 @@ export class AdminService implements OnModuleInit {
 
     async getPendingDocuments() {
         return this.userRepository.find({
-            where: { documentUrl: ILike('%'), documentVerified: false },
+            where: { documentUrl: Not(IsNull()), documentVerified: false },
             order: { createdAt: 'DESC' },
         });
     }
@@ -159,7 +159,7 @@ export class AdminService implements OnModuleInit {
 
     async autoApproveDocuments() {
         const pending = await this.userRepository.find({
-            where: { documentUrl: ILike('%'), documentVerified: false },
+            where: { documentUrl: Not(IsNull()), documentVerified: false },
         });
         let count = 0;
         for (const user of pending) {

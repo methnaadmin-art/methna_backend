@@ -5,8 +5,10 @@ import {
     Inject,
     forwardRef,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
 import { Message, MessageType, MessageStatus } from '../../database/entities/message.entity';
 import { Match, MatchStatus } from '../../database/entities/match.entity';
 import { Conversation } from '../../database/entities/conversation.entity';
@@ -15,6 +17,7 @@ import { BlockedUser } from '../../database/entities/blocked-user.entity';
 import { User } from '../../database/entities/user.entity';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { ChatGateway } from './chat.gateway';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class ChatService {
@@ -31,6 +34,8 @@ export class ChatService {
         private readonly blockedUserRepository: Repository<BlockedUser>,
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
+        private readonly configService: ConfigService,
+        private readonly redisService: RedisService,
         @Inject(forwardRef(() => ChatGateway))
         private readonly chatGateway: ChatGateway,
     ) { }
@@ -103,7 +108,7 @@ export class ChatService {
                     lastName: otherUser?.lastName,
                     photo: photoMap.get(otherUserId) || null,
                 },
-                lastMessage: conv.lastMessageContent,
+                lastMessage: this.decryptContent(conv.lastMessageContent),
                 lastMessageAt: conv.lastMessageAt,
                 lastMessageSenderId: conv.lastMessageSenderId,
                 unreadCount,
@@ -127,8 +132,13 @@ export class ChatService {
             relations: ['sender'],
         });
 
+        const decryptedMessages = messages.map((message) => {
+            message.content = this.decryptContent(message.content);
+            return message;
+        });
+
         return {
-            messages: messages.reverse(),
+            messages: decryptedMessages.reverse(),
             total,
             page: pagination.page,
             limit: pagination.limit,
@@ -155,11 +165,15 @@ export class ChatService {
             throw new ForbiddenException('Cannot send messages to this user');
         }
 
+        const safeContent = content.trim();
+        const encryptedContent = this.encryptContent(safeContent);
+        const encryptedPreview = this.encryptContent(safeContent.substring(0, 200));
+
         const message = this.messageRepository.create({
             conversationId,
             matchId: conversation.matchId,
             senderId,
-            content,
+            content: encryptedContent,
             type,
             status: MessageStatus.SENT,
         });
@@ -169,7 +183,7 @@ export class ChatService {
         // Update conversation metadata
         const isUser1 = conversation.user1Id === senderId;
         await this.conversationRepository.update(conversation.id, {
-            lastMessageContent: content.substring(0, 200),
+            lastMessageContent: encryptedPreview,
             lastMessageAt: new Date(),
             lastMessageSenderId: senderId,
             // Increment unread count for the other user
@@ -179,18 +193,20 @@ export class ChatService {
         } as any);
 
         // Real-time broadcast (for users on Socket)
-        this.chatGateway.broadcastMessage({
+        const outboundMessage = {
             id: saved.id,
             conversationId: saved.conversationId,
             senderId: saved.senderId,
-            content: saved.content,
+            content: safeContent,
             type: saved.type,
             status: saved.status,
             createdAt: saved.createdAt,
-        }).catch(err => {
+        };
+        this.chatGateway.broadcastMessage(outboundMessage).catch(err => {
             console.error('Failed to broadcast message:', err);
         });
 
+        saved.content = safeContent;
         return saved;
     }
 
@@ -258,6 +274,114 @@ export class ChatService {
         return parseInt(result?.total || '0', 10);
     }
 
+    async getLiveTodayUsers(userId: string, limit = 20) {
+        const safeLimit = Math.max(1, Math.min(limit || 20, 50));
+        const activeSince = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const onlineUserIds = await this.redisService.getOnlineUsers();
+        const onlineSet = new Set(onlineUserIds);
+
+        const query = this.userRepository
+            .createQueryBuilder('user')
+            .leftJoinAndSelect('user.profile', 'profile')
+            .leftJoinAndSelect(
+                'user.photos',
+                'photo',
+                'photo.isMain = :isMain AND photo.moderationStatus = :approvedPhotoStatus',
+                { isMain: true, approvedPhotoStatus: 'approved' },
+            )
+            .where('user.id != :userId', { userId })
+            .andWhere('user.status = :activeStatus', { activeStatus: 'active' })
+            .andWhere('user.isShadowBanned = false')
+            .andWhere(
+                `NOT EXISTS (
+                    SELECT 1
+                    FROM blocked_users blocked
+                    WHERE (
+                        blocked."blockerId" = :userId
+                        AND blocked."blockedId" = user.id
+                    ) OR (
+                        blocked."blockerId" = user.id
+                        AND blocked."blockedId" = :userId
+                    )
+                )`,
+                { userId },
+            )
+            .andWhere(
+                `EXISTS (
+                    SELECT 1
+                    FROM photos approved_photo
+                    WHERE approved_photo."userId" = user.id
+                    AND approved_photo."moderationStatus" = :approvedPhotoStatus
+                )`,
+                { approvedPhotoStatus: 'approved' },
+            )
+            .distinct(true)
+            .take(Math.max(safeLimit * 2, safeLimit))
+            .orderBy('user.lastLoginAt', 'DESC');
+
+        if (onlineUserIds.length > 0) {
+            query.andWhere('(user.lastLoginAt >= :activeSince OR user.id IN (:...onlineUserIds))', {
+                activeSince,
+                onlineUserIds,
+            });
+        } else {
+            query.andWhere('user.lastLoginAt >= :activeSince', { activeSince });
+        }
+
+        const users = await query.getMany();
+        const serialized = users
+            .map((user) => {
+                const mainPhoto =
+                    user.photos?.find((photo) => photo.isMain) ??
+                    user.photos?.[0] ??
+                    null;
+
+                return {
+                    id: user.id,
+                    username: user.username,
+                    email: '',
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    phoneVerified: user.phoneVerified,
+                    selfieVerified: user.selfieVerified,
+                    status: onlineSet.has(user.id) ? 'online' : 'active',
+                    isOnline: onlineSet.has(user.id),
+                    lastLoginAt: user.lastLoginAt,
+                    mainPhotoUrl: mainPhoto?.url ?? null,
+                    photos: mainPhoto
+                        ? [{
+                            id: mainPhoto.id,
+                            url: mainPhoto.url,
+                            isMain: mainPhoto.isMain,
+                            moderationStatus: mainPhoto.moderationStatus,
+                        }]
+                        : [],
+                    profile: user.profile ?? null,
+                };
+            })
+            .sort((left, right) => {
+                const leftOnline = onlineSet.has(left.id) ? 1 : 0;
+                const rightOnline = onlineSet.has(right.id) ? 1 : 0;
+                if (leftOnline !== rightOnline) {
+                    return rightOnline - leftOnline;
+                }
+
+                const leftSeen = left.lastLoginAt
+                    ? new Date(left.lastLoginAt).getTime()
+                    : 0;
+                const rightSeen = right.lastLoginAt
+                    ? new Date(right.lastLoginAt).getTime()
+                    : 0;
+                return rightSeen - leftSeen;
+            })
+            .slice(0, safeLimit);
+
+        return {
+            users: serialized,
+            total: serialized.length,
+        };
+    }
+
     // ─── PUBLIC: Get conversation participant IDs ─────────
 
     async getConversationParticipants(conversationId: string): Promise<string[] | null> {
@@ -321,5 +445,65 @@ export class ChatService {
         if (Object.keys(update).length > 0) {
             await this.userRepository.update(userId, update);
         }
+    }
+
+    private encryptContent(content: string | null | undefined): string {
+        const value = content ?? '';
+        if (value.length === 0) {
+            return value;
+        }
+
+        const encryptionKey = this.getEncryptionKey();
+        if (encryptionKey == null || value.startsWith('enc:v1:')) {
+            return value;
+        }
+
+        const iv = randomBytes(12);
+        const cipher = createCipheriv('aes-256-gcm', encryptionKey, iv);
+        const encrypted = Buffer.concat([
+            cipher.update(value, 'utf8'),
+            cipher.final(),
+        ]);
+        const authTag = cipher.getAuthTag();
+
+        return `enc:v1:${iv.toString('base64')}:${authTag.toString('base64')}:${encrypted.toString('base64')}`;
+    }
+
+    private decryptContent(content: string | null | undefined): string {
+        const value = content ?? '';
+        if (!value.startsWith('enc:v1:')) {
+            return value;
+        }
+
+        const encryptionKey = this.getEncryptionKey();
+        if (encryptionKey == null) {
+            return value;
+        }
+
+        try {
+            const [, , ivPart, tagPart, cipherPart] = value.split(':');
+            const decipher = createDecipheriv(
+                'aes-256-gcm',
+                encryptionKey,
+                Buffer.from(ivPart, 'base64'),
+            );
+            decipher.setAuthTag(Buffer.from(tagPart, 'base64'));
+            const decrypted = Buffer.concat([
+                decipher.update(Buffer.from(cipherPart, 'base64')),
+                decipher.final(),
+            ]);
+            return decrypted.toString('utf8');
+        } catch {
+            return value;
+        }
+    }
+
+    private getEncryptionKey(): Buffer | null {
+        const rawKey = this.configService.get<string>('CHAT_ENCRYPTION_KEY');
+        if (!rawKey || rawKey.trim().length === 0) {
+            return null;
+        }
+
+        return createHash('sha256').update(rawKey).digest();
     }
 }

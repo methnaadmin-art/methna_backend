@@ -9,6 +9,7 @@ import { ContentFlag, ContentFlagType, ContentFlagStatus, ContentFlagSource } fr
 import { LoginHistory } from '../../database/entities/login-history.entity';
 import { RedisService } from '../redis/redis.service';
 import { CloudinaryService } from '../photos/cloudinary.service';
+import { BackgroundCheckStatus } from './background-check.service';
 
 const BAD_WORDS = [
     'fuck', 'shit', 'ass', 'bitch', 'dick', 'pussy', 'whore', 'slut',
@@ -19,6 +20,18 @@ const BAD_WORDS = [
 @Injectable()
 export class TrustSafetyService {
     private readonly logger = new Logger(TrustSafetyService.name);
+
+    private selfieStatusKey(userId: string): string {
+        return `selfie_status:${userId}`;
+    }
+
+    private idDocumentStatusKey(userId: string): string {
+        return `id_doc_status:${userId}`;
+    }
+
+    private marriageCertStatusKey(userId: string): string {
+        return `marriage_cert_status:${userId}`;
+    }
 
     constructor(
         @InjectRepository(User)
@@ -43,12 +56,17 @@ export class TrustSafetyService {
         if (!file) throw new BadRequestException('No selfie file provided');
 
         const result = await this.cloudinaryService.uploadImage(file);
-        await this.userRepository.update(userId, { selfieUrl: result.secure_url });
+        await this.userRepository.update(userId, {
+            selfieUrl: result.secure_url,
+            selfieVerified: false,
+        });
+        await this.redisService.set(this.selfieStatusKey(userId), 'uploaded');
 
         this.logger.log(`Selfie uploaded for user ${userId}`);
         return {
-            message: 'Selfie uploaded successfully. Verification will begin automatically.',
+            message: 'Selfie uploaded successfully. Verification review will begin automatically.',
             selfieUrl: result.secure_url,
+            status: 'uploaded',
         };
     }
 
@@ -56,9 +74,16 @@ export class TrustSafetyService {
         if (!file) throw new BadRequestException('No document file provided');
 
         const result = await this.cloudinaryService.uploadImage(file);
+        await this.userRepository.update(userId, {
+            documentUrl: result.secure_url,
+            documentVerified: false,
+            documentVerifiedAt: null,
+            documentRejectionReason: null,
+        } as any);
 
         // Store ID document URL in Redis (pending admin review)
         await this.redisService.set(`id_doc:${userId}`, result.secure_url, 0);
+        await this.redisService.set(this.idDocumentStatusKey(userId), 'pending_review');
 
         // Create a content flag for admin review
         await this.contentFlagRepository.save({
@@ -86,6 +111,7 @@ export class TrustSafetyService {
 
         // Store marriage cert URL in Redis (pending admin review)
         await this.redisService.set(`marriage_cert:${userId}`, result.secure_url, 0);
+        await this.redisService.set(this.marriageCertStatusKey(userId), 'pending_review');
 
         // Create a content flag for admin review
         await this.contentFlagRepository.save({
@@ -109,20 +135,39 @@ export class TrustSafetyService {
     async getVerificationStatus(userId: string) {
         const user = await this.userRepository.findOne({
             where: { id: userId },
-            select: ['id', 'selfieVerified', 'emailVerified', 'selfieUrl', 'trustScore'],
+            select: [
+                'id',
+                'selfieVerified',
+                'emailVerified',
+                'selfieUrl',
+                'trustScore',
+                'documentVerified',
+            ],
         });
 
         const idDocUrl = await this.redisService.get(`id_doc:${userId}`);
         const marriageCertUrl = await this.redisService.get(`marriage_cert:${userId}`);
+        const selfieStatus = user?.selfieVerified
+            ? 'verified'
+            : (await this.redisService.get(this.selfieStatusKey(userId))) ||
+              (user?.selfieUrl ? 'uploaded' : 'not_uploaded');
+        const idDocumentStatus = user?.documentVerified
+            ? 'verified'
+            : (await this.redisService.get(this.idDocumentStatusKey(userId))) ||
+              (idDocUrl ? 'pending_review' : 'not_uploaded');
+        const marriageCertStatus =
+            (await this.redisService.get(this.marriageCertStatusKey(userId))) ||
+            (marriageCertUrl ? 'pending_review' : 'not_uploaded');
 
         return {
             emailVerified: user?.emailVerified ?? false,
             selfieVerified: user?.selfieVerified ?? false,
             selfieUploaded: !!user?.selfieUrl,
+            selfieStatus,
             idDocumentUploaded: !!idDocUrl,
-            idDocumentStatus: idDocUrl ? 'pending_review' : 'not_uploaded',
+            idDocumentStatus,
             marriageCertUploaded: !!marriageCertUrl,
-            marriageCertStatus: marriageCertUrl ? 'pending_review' : 'not_uploaded',
+            marriageCertStatus,
             trustScore: user?.trustScore ?? 100,
         };
     }
@@ -290,40 +335,64 @@ export class TrustSafetyService {
 
     // ─── SELFIE VS PROFILE PHOTO COMPARISON (MOCK AI) ──────
 
-    async compareSelfieToPhotos(userId: string): Promise<{ match: boolean; confidence: number; message: string }> {
-        const user = await this.userRepository.findOne({ where: { id: userId }, select: ['id', 'selfieUrl'] });
+    async compareSelfieToPhotos(
+        userId: string,
+    ): Promise<{ match: boolean; confidence: number; message: string; status: string }> {
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: ['id', 'selfieUrl', 'selfieVerified'],
+        });
 
         if (!user?.selfieUrl) {
-            return { match: false, confidence: 0, message: 'No selfie uploaded' };
+            return {
+                match: false,
+                confidence: 0,
+                message: 'No selfie uploaded',
+                status: 'not_uploaded',
+            };
         }
 
-        // Mock AI face comparison
-        // In production, this would call AWS Rekognition, Azure Face API, or similar
-        // For now, simulate a high confidence match (95%+ success rate)
-        const mockConfidence = 0.90 + Math.random() * 0.10; // 0.90-1.0 range
-        const isMatch = true; // Always match for now to ensure smooth onboarding during development
+        if (user.selfieVerified) {
+            await this.redisService.set(this.selfieStatusKey(userId), 'verified');
+            return {
+                match: true,
+                confidence: 1,
+                message: 'Selfie already verified',
+                status: 'verified',
+            };
+        }
 
-        if (isMatch) {
-            await this.userRepository.update(userId, { selfieVerified: true });
-            await this.incrementTrustScore(userId, 10);
-            this.logger.log(`Selfie verified successfully for user ${userId}`);
-        } else {
+        const existingPendingReview = await this.contentFlagRepository.findOne({
+            where: {
+                userId,
+                entityType: 'selfie_verification',
+                status: ContentFlagStatus.PENDING,
+            },
+            order: { createdAt: 'DESC' },
+        });
+
+        if (!existingPendingReview) {
             await this.contentFlagRepository.save({
                 userId,
-                type: ContentFlagType.FAKE_PROFILE,
-                source: ContentFlagSource.AUTO_DETECTED,
-                content: `Selfie verification failed. Confidence: ${mockConfidence.toFixed(2)}`,
-                entityType: 'user',
+                type: ContentFlagType.OTHER,
+                status: ContentFlagStatus.PENDING,
+                source: ContentFlagSource.USER_REPORT,
+                content: `Selfie verification submitted for manual review: ${user.selfieUrl}`,
+                entityType: 'selfie_verification',
                 entityId: userId,
-                confidenceScore: 1 - mockConfidence,
+                confidenceScore: 0.5,
             });
-            this.logger.warn(`Selfie verification FAILED for user ${userId}`);
         }
 
+        await this.userRepository.update(userId, { selfieVerified: false });
+        await this.redisService.set(this.selfieStatusKey(userId), 'pending_review');
+        this.logger.log(`Selfie verification queued for manual review for user ${userId}`);
+
         return {
-            match: isMatch,
-            confidence: parseFloat(mockConfidence.toFixed(2)),
-            message: isMatch ? 'Selfie verified successfully' : 'Selfie does not match profile photos',
+            match: false,
+            confidence: 0,
+            message: 'Selfie submitted for manual review.',
+            status: 'pending_review',
         };
     }
 
@@ -373,10 +442,61 @@ export class TrustSafetyService {
     }
 
     async resolveFlag(flagId: string, adminId: string, status: ContentFlagStatus, note?: string): Promise<void> {
+        const flag = await this.contentFlagRepository.findOne({
+            where: { id: flagId },
+            select: ['id', 'userId', 'entityType', 'content'],
+        });
+
         await this.contentFlagRepository.update(flagId, {
             status,
             reviewedById: adminId,
             reviewNote: note,
         });
+
+        if (flag?.entityType === 'background_check') {
+            const approved = status === ContentFlagStatus.ACTION_TAKEN || status === ContentFlagStatus.REVIEWED;
+            await this.userRepository.update(flag.userId, {
+                backgroundCheckStatus: approved
+                    ? BackgroundCheckStatus.PASSED
+                    : BackgroundCheckStatus.FAILED,
+                backgroundCheckCompletedAt: new Date(),
+            } as any);
+        }
+
+        if (flag?.entityType === 'selfie_verification') {
+            const approved = status === ContentFlagStatus.ACTION_TAKEN || status === ContentFlagStatus.REVIEWED;
+            await this.userRepository.update(flag.userId, { selfieVerified: approved });
+            await this.redisService.set(
+                this.selfieStatusKey(flag.userId),
+                approved ? 'verified' : 'rejected',
+            );
+            if (approved) {
+                await this.incrementTrustScore(flag.userId, 10);
+            }
+        }
+
+        if (flag?.entityType === 'verification') {
+            const approved = status === ContentFlagStatus.ACTION_TAKEN || status === ContentFlagStatus.REVIEWED;
+            const normalizedContent = (flag.content ?? '').toLowerCase();
+
+            if (normalizedContent.includes('id document')) {
+                await this.userRepository.update(flag.userId, {
+                    documentVerified: approved,
+                    documentVerifiedAt: approved ? new Date() : null,
+                    documentRejectionReason: approved ? null : (note ?? 'Document review rejected'),
+                } as any);
+                await this.redisService.set(
+                    this.idDocumentStatusKey(flag.userId),
+                    approved ? 'verified' : 'rejected',
+                );
+            }
+
+            if (normalizedContent.includes('marriage certificate')) {
+                await this.redisService.set(
+                    this.marriageCertStatusKey(flag.userId),
+                    approved ? 'verified' : 'rejected',
+                );
+            }
+        }
     }
 }

@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -120,12 +120,8 @@ export class PaymentsService {
         stripeCustomerId: string,
     ): Promise<PaymentResult> {
         if (!this.stripe) {
-            this.logger.warn('Stripe secret key not configured — returning mock payment');
-            return {
-                success: true,
-                paymentId: `mock_sub_${Date.now()}`,
-                clientSecret: `mock_secret_${Date.now()}`,
-            };
+            this.logger.error('Stripe secret key is not configured');
+            throw new ServiceUnavailableException('Stripe is not configured on the server.');
         }
 
         try {
@@ -353,3 +349,5 @@ export class PaymentsService {
         };
     }
 }
+
+

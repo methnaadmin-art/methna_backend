@@ -1,7 +1,8 @@
 import {
     Injectable,
     NotFoundException,
-    ForbiddenException,
+    BadRequestException,
+    ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -87,7 +88,29 @@ export class UsersService {
         const safeData: Record<string, any> = {};
         for (const [key, value] of Object.entries(updateData)) {
             if (UsersService.ALLOWED_UPDATE_FIELDS.has(key)) {
-                safeData[key] = value;
+                safeData[key] = key === 'username' && typeof value === 'string'
+                    ? value.trim().toLowerCase()
+                    : value;
+            }
+        }
+
+        if (updateData.status !== undefined) {
+            if (updateData.status !== UserStatus.DEACTIVATED) {
+                throw new BadRequestException('Invalid status update');
+            }
+            safeData.status = UserStatus.DEACTIVATED;
+        }
+
+        if (safeData.username !== undefined) {
+            if (!safeData.username) {
+                throw new BadRequestException('Username cannot be empty');
+            }
+
+            const existingUser = await this.userRepository.findOne({
+                where: { username: safeData.username },
+            });
+            if (existingUser && existingUser.id !== userId) {
+                throw new ConflictException('Username already taken');
             }
         }
 
