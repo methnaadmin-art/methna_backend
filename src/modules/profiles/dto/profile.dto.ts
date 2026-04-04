@@ -13,7 +13,7 @@ import {
     MinLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import {
     Gender,
     MaritalStatus,
@@ -301,7 +301,7 @@ export class CreateProfileDto {
     aboutPartner?: string;
 }
 
-export class UpdateProfileDto extends CreateProfileDto { }
+export class UpdateProfileDto extends PartialType(CreateProfileDto) { }
 
 export class UpdatePrivacySettingsDto {
     @ApiPropertyOptional()
@@ -420,5 +420,6 @@ export class UpdatePreferencesDto {
     @IsEnum(SecondWifePreference)
     preferredSecondWifePreference?: SecondWifePreference;
 }
+
 
 

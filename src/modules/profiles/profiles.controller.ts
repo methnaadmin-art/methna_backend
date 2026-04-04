@@ -37,7 +37,7 @@ export class ProfilesController {
     @ApiOperation({ summary: 'Create or update profile' })
     async createOrUpdateProfile(
         @CurrentUser('sub') userId: string,
-        @Body() dto: CreateProfileDto,
+        @Body() dto: UpdateProfileDto,
     ) {
         return this.profilesService.createOrUpdateProfile(userId, dto);
     }
@@ -87,3 +87,4 @@ export class ProfilesController {
         return this.profilesService.getProfile(userId);
     }
 }
+
