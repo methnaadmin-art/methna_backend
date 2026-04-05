@@ -4,13 +4,27 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 
 const dbLogger = new Logger('DatabaseModule');
 
+function sanitizeDatabaseUrl(url?: string) {
+    if (!url) return url;
+
+    try {
+        const parsed = new URL(url);
+        parsed.searchParams.delete('sslmode');
+        parsed.searchParams.delete('uselibpqcompat');
+        return parsed.toString();
+    } catch {
+        return url;
+    }
+}
+
 @Module({
     imports: [
         TypeOrmModule.forRootAsync({
             imports: [ConfigModule],
             inject: [ConfigService],
             useFactory: (configService: ConfigService) => {
-                const databaseUrl = configService.get<string>('database.url');
+                const rawDatabaseUrl = configService.get<string>('database.url');
+                const databaseUrl = sanitizeDatabaseUrl(rawDatabaseUrl);
                 const dbHost = configService.get<string>('database.host');
 
                 let connectionConfig: any;

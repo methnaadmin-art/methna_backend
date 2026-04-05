@@ -107,10 +107,10 @@ export class User {
     @Column({ default: false })
     documentVerified: boolean;
 
-    @Column({ nullable: true })
+    @Column({ type: 'timestamptz', nullable: true })
     documentVerifiedAt: Date | null;
 
-    @Column({ nullable: true })
+    @Column({ type: 'text', nullable: true })
     documentRejectionReason: string | null;
 
     @Column({ default: 'not_started' })
@@ -119,7 +119,7 @@ export class User {
     @Column({ nullable: true })
     backgroundCheckCheckId: string;
 
-    @Column({ nullable: true })
+    @Column({ type: 'timestamptz', nullable: true })
     backgroundCheckCompletedAt: Date;
 
     // FCM push token
@@ -181,7 +181,7 @@ export class User {
     locationEnabled: boolean;
 
     // Profile boost
-    @Column({ nullable: true })
+    @Column({ type: 'timestamptz', nullable: true })
     boostedUntil: Date;
 
     // Trust & Safety
@@ -200,7 +200,7 @@ export class User {
     @Column({ type: 'int', default: 0 })
     deviceCount: number;
 
-    @Column({ nullable: true })
+    @Column({ type: 'timestamptz', nullable: true })
     lastLoginAt: Date;
 
     // Stripe Customer ID
