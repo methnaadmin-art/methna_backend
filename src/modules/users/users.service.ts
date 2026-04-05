@@ -28,14 +28,67 @@ export class UsersService {
         private readonly boostRepository: Repository<Boost>,
     ) { }
 
+    private static readonly SAFE_USER_SELECT = {
+        id: true,
+        username: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
+        status: true,
+        emailVerified: true,
+        selfieVerified: true,
+        selfieUrl: true,
+        documentUrl: true,
+        documentType: true,
+        documentVerified: true,
+        documentVerifiedAt: true,
+        documentRejectionReason: true,
+        fcmToken: true,
+        notificationsEnabled: true,
+        matchNotifications: true,
+        messageNotifications: true,
+        likeNotifications: true,
+        profileVisitorNotifications: true,
+        eventsNotifications: true,
+        safetyAlertNotifications: true,
+        promotionsNotifications: true,
+        inAppRecommendationNotifications: true,
+        weeklySummaryNotifications: true,
+        connectionRequestNotifications: true,
+        surveyNotifications: true,
+        readReceipts: true,
+        typingIndicator: true,
+        autoDownloadMedia: true,
+        receiveDMs: true,
+        locationEnabled: true,
+        boostedUntil: true,
+        isShadowBanned: true,
+        trustScore: true,
+        flagCount: true,
+        lastKnownIp: true,
+        deviceCount: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+        deletedAt: true,
+    } as const;
+
     async findById(id: string): Promise<User> {
-        const user = await this.userRepository.findOne({ where: { id } });
+        const user = await this.userRepository.findOne({
+            where: { id },
+            select: UsersService.SAFE_USER_SELECT,
+        });
         if (!user) throw new NotFoundException('User not found');
         return user;
     }
 
     async findByEmail(email: string): Promise<User> {
-        const user = await this.userRepository.findOne({ where: { email } });
+        const user = await this.userRepository.findOne({
+            where: { email },
+            select: UsersService.SAFE_USER_SELECT,
+        });
         if (!user) throw new NotFoundException('User not found');
         return user;
     }
@@ -108,6 +161,9 @@ export class UsersService {
 
             const existingUser = await this.userRepository.findOne({
                 where: { username: safeData.username },
+                select: {
+                    id: true,
+                },
             });
             if (existingUser && existingUser.id !== userId) {
                 throw new ConflictException('Username already taken');
@@ -127,6 +183,15 @@ export class UsersService {
     async getPublicProfile(userId: string): Promise<Partial<User>> {
         const user = await this.userRepository.findOne({
             where: { id: userId },
+            select: {
+                id: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                role: true,
+                selfieVerified: true,
+                createdAt: true,
+            },
             relations: ['profile'],
         });
         if (!user) throw new NotFoundException('User not found');

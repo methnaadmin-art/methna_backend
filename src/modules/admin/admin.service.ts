@@ -64,6 +64,7 @@ export class AdminService implements OnModuleInit {
         try {
             const adminExists = await this.userRepository.findOne({
                 where: { role: UserRole.ADMIN },
+                select: ['id'],
             });
 
             if (!adminExists) {

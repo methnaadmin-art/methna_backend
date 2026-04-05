@@ -114,14 +114,13 @@ export class User {
     @Column({ type: 'text', nullable: true })
     documentRejectionReason: string | null;
 
-    @Column({ default: 'not_started' })
-    backgroundCheckStatus: string;
+    // Legacy background-check fields are intentionally not mapped because the
+    // production database does not currently have these columns.
+    backgroundCheckStatus?: string;
 
-    @Column({ nullable: true })
-    backgroundCheckCheckId: string;
+    backgroundCheckCheckId?: string;
 
-    @Column({ type: 'timestamptz', nullable: true })
-    backgroundCheckCompletedAt: Date;
+    backgroundCheckCompletedAt?: Date;
 
     // FCM push token
     @Column({ nullable: true })

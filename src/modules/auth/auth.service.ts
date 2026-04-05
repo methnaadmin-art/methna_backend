@@ -55,6 +55,7 @@ export class AuthService {
 
         const existingUser = await this.userRepository.findOne({
             where: { email },
+            select: ['id', 'email', 'status', 'emailVerified'],
         });
         if (existingUser) {
             // Allow re-registration if user never verified their email
@@ -102,6 +103,7 @@ export class AuthService {
         if (username) {
             const existingUsername = await this.userRepository.findOne({
                 where: { username: username.toLowerCase() },
+                select: ['id', 'username', 'status', 'emailVerified'],
             });
             if (existingUsername && (existingUsername.status !== UserStatus.PENDING_VERIFICATION || existingUsername.emailVerified)) {
                 throw new ConflictException('Username already taken');
@@ -492,7 +494,10 @@ export class AuthService {
             let baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
             let username = baseUsername;
             let counter = 1;
-            while (await this.userRepository.findOne({ where: { username } })) {
+            while (await this.userRepository.findOne({
+                where: { username },
+                select: ['id'],
+            })) {
                 username = `${baseUsername}${counter}`;
                 counter++;
             }
