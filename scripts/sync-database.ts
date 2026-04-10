@@ -1,25 +1,48 @@
 /**
  * Database Sync Script
- * Run this to add missing columns to the users table
- * Usage: npx ts-node scripts/sync-database.ts
+ * Run this to add missing columns to the users table.
  */
 
 import { Client } from 'pg';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
-// Load .env from project root
-dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
+const projectRoot = path.resolve(__dirname, '..');
+dotenv.config({ path: path.join(projectRoot, '.env') });
+dotenv.config({ path: path.join(projectRoot, '.env.example') });
 
-const DATABASE_URL = process.env.DATABASE_URL;
+function buildDatabaseUrl() {
+    if (process.env.DATABASE_URL) {
+        return process.env.DATABASE_URL;
+    }
+
+    const host = process.env.DB_HOST;
+    const port = process.env.DB_PORT || '5432';
+    const username = process.env.DB_USERNAME;
+    const password = process.env.DB_PASSWORD;
+    const database = process.env.DB_NAME;
+
+    if (!host || !username || !password || !database) {
+        return null;
+    }
+
+    const encodedUsername = encodeURIComponent(username);
+    const encodedPassword = encodeURIComponent(password);
+    return `postgresql://${encodedUsername}:${encodedPassword}@${host}:${port}/${database}?sslmode=require`;
+}
+
+const DATABASE_URL = buildDatabaseUrl();
 
 async function syncDatabase() {
     if (!DATABASE_URL) {
-        console.error('DATABASE_URL not set in environment');
+        console.error('DATABASE_URL not set and DB_HOST/DB_PORT/DB_USERNAME/DB_PASSWORD/DB_NAME are incomplete');
         process.exit(1);
     }
 
-    const client = new Client({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } });
+    const client = new Client({
+        connectionString: DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+    });
 
     try {
         await client.connect();
@@ -46,16 +69,12 @@ async function syncDatabase() {
             }
         }
 
-        // Add missing columns if they don't exist
         const alterStatements = [
-            // Chat Settings
             `ALTER TABLE users ADD COLUMN IF NOT EXISTS "readReceipts" boolean DEFAULT true`,
             `ALTER TABLE users ADD COLUMN IF NOT EXISTS "typingIndicator" boolean DEFAULT true`,
             `ALTER TABLE users ADD COLUMN IF NOT EXISTS "autoDownloadMedia" boolean DEFAULT true`,
             `ALTER TABLE users ADD COLUMN IF NOT EXISTS "receiveDMs" boolean DEFAULT true`,
-            // Location
             `ALTER TABLE users ADD COLUMN IF NOT EXISTS "locationEnabled" boolean DEFAULT false`,
-            // User lifecycle / admin fields
             `ALTER TABLE users ADD COLUMN IF NOT EXISTS "isPremium" boolean DEFAULT false`,
             `ALTER TABLE users ADD COLUMN IF NOT EXISTS "premiumStartDate" timestamptz`,
             `ALTER TABLE users ADD COLUMN IF NOT EXISTS "premiumExpiryDate" timestamptz`,
@@ -65,14 +84,9 @@ async function syncDatabase() {
         for (const statement of alterStatements) {
             try {
                 await client.query(statement);
-                console.log(`✓ ${statement.split('"')[1]} column ensured`);
+                console.log(`Ensured ${statement}`);
             } catch (err: any) {
-                if (err.code === '42701') {
-                    // Column already exists
-                    console.log(`- ${statement.split('"')[1]} already exists`);
-                } else {
-                    console.error(`✗ Error: ${err.message}`);
-                }
+                console.error(`Error while ensuring schema: ${err.message}`);
             }
         }
 
@@ -145,30 +159,7 @@ async function syncDatabase() {
             )
         `);
 
-        // Verify columns
-        const result = await client.query(`
-            SELECT column_name, data_type, column_default 
-            FROM information_schema.columns 
-            WHERE table_name = 'users' 
-            AND column_name IN (
-                'readReceipts',
-                'typingIndicator',
-                'autoDownloadMedia',
-                'receiveDMs',
-                'locationEnabled',
-                'isPremium',
-                'premiumStartDate',
-                'premiumExpiryDate',
-                'verification'
-            )
-        `);
-
-        console.log('\n=== Verified Columns ===');
-        result.rows.forEach(row => {
-            console.log(`  ${row.column_name}: ${row.data_type} (default: ${row.column_default})`);
-        });
-
-        console.log('\n✓ Database sync complete!');
+        console.log('Database sync complete');
     } catch (error) {
         console.error('Database sync failed:', error);
         process.exit(1);

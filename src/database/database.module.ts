@@ -1,6 +1,7 @@
 import { Module, Logger } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { DatabaseCompatibilityService } from './database-compatibility.service';
 
 const dbLogger = new Logger('DatabaseModule');
 
@@ -51,25 +52,24 @@ function sanitizeDatabaseUrl(url?: string) {
                     ...connectionConfig,
                     ssl: { rejectUnauthorized: false },
                     autoLoadEntities: true,
-                    synchronize: !isProduction, // Disable in production — use migrations instead
+                    synchronize: !isProduction,
                     logging: !isProduction ? ['error', 'warn', 'query'] : ['error'],
                     entities: [__dirname + '/entities/**/*.entity{.ts,.js}'],
                     retryAttempts: 5,
                     retryDelay: 3000,
-                    // Connection pool tuning — optimized for Neon serverless
-                    // Neon has its own connection pooler (PgBouncer), so keep app-side pool small
                     extra: {
                         max: isNeon ? 20 : (isProduction ? 50 : 10),
                         min: isNeon ? 2 : (isProduction ? 5 : 2),
-                        idleTimeoutMillis: isNeon ? 10000 : 30000,  // Neon: release fast to avoid idle charges
+                        idleTimeoutMillis: isNeon ? 10000 : 30000,
                         connectionTimeoutMillis: 10000,
                         statement_timeout: 30000,
-                        keepAlive: true,                            // Prevent Neon cold-start disconnects
+                        keepAlive: true,
                         keepAliveInitialDelayMillis: 10000,
                     },
                 };
             },
         }),
     ],
+    providers: [DatabaseCompatibilityService],
 })
 export class DatabaseModule { }
