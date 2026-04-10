@@ -83,20 +83,25 @@ export class UsersService {
         deletedAt: true,
     } as const;
 
+    private static readonly SAFE_USER_SELECT_WITHOUT_PREMIUM = (() => {
+        const {
+            isPremium,
+            premiumStartDate,
+            premiumExpiryDate,
+            ...safeSelectWithoutPremium
+        } = UsersService.SAFE_USER_SELECT;
+
+        return safeSelectWithoutPremium;
+    })();
+
     async findById(id: string): Promise<User> {
-        const user = await this.userRepository.findOne({
-            where: { id },
-            select: UsersService.SAFE_USER_SELECT,
-        });
+        const user = await this.findUserWithSafeSelect({ id });
         if (!user) throw new NotFoundException('User not found');
         return this.normalizeUserState(user);
     }
 
     async findByEmail(email: string): Promise<User> {
-        const user = await this.userRepository.findOne({
-            where: { email },
-            select: UsersService.SAFE_USER_SELECT,
-        });
+        const user = await this.findUserWithSafeSelect({ email });
         if (!user) throw new NotFoundException('User not found');
         return user;
     }
@@ -261,5 +266,40 @@ export class UsersService {
             ...user,
             verification: normalizeVerificationState(user.verification),
         };
+    }
+
+    private async findUserWithSafeSelect(where: { id: string } | { email: string }): Promise<User | null> {
+        try {
+            return await this.userRepository.findOne({
+                where,
+                select: UsersService.SAFE_USER_SELECT,
+            });
+        } catch (error: any) {
+            if (!this.isMissingPremiumColumnsError(error)) {
+                throw error;
+            }
+
+            return this.userRepository.findOne({
+                where,
+                select: UsersService.SAFE_USER_SELECT_WITHOUT_PREMIUM,
+            });
+        }
+    }
+
+    private isMissingPremiumColumnsError(error: unknown): boolean {
+        if (!error || typeof error !== 'object') {
+            return false;
+        }
+
+        const message = String((error as { message?: unknown }).message ?? '');
+        if (!message.toLowerCase().includes('does not exist')) {
+            return false;
+        }
+
+        return (
+            message.includes('isPremium') ||
+            message.includes('premiumStartDate') ||
+            message.includes('premiumExpiryDate')
+        );
     }
 }

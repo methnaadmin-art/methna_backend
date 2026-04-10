@@ -17,6 +17,7 @@ import { RedisService } from '../redis/redis.service';
 @Injectable()
 export class SubscriptionsService {
     private readonly logger = new Logger(SubscriptionsService.name);
+    private hasLoggedMissingPremiumColumns = false;
 
     constructor(
         @InjectRepository(Subscription)
@@ -233,35 +234,14 @@ export class SubscriptionsService {
             }
         }
 
-        const expiredUsers = await this.userRepository.find({
-            where: { isPremium: true },
-            select: ['id', 'premiumExpiryDate'],
-        });
-
-        for (const user of expiredUsers) {
-            if (user.premiumExpiryDate && new Date(user.premiumExpiryDate) <= now) {
-                this.logger.log(
-                    `Premium expired for user ${user.id} at ${new Date(user.premiumExpiryDate).toISOString()}`,
-                );
-                expiredUserIds.add(user.id);
-            }
-        }
-
         if (expiredUserIds.size === 0) {
             return [];
         }
 
         const ids = [...expiredUserIds];
-        await this.userRepository
-            .createQueryBuilder()
-            .update(User)
-            .set({
-                isPremium: false,
-                premiumStartDate: null,
-                premiumExpiryDate: null,
-            })
-            .where('id IN (:...ids)', { ids })
-            .execute();
+        await Promise.all(
+            ids.map((userId) => this.updateUserPremiumState(userId, false, null, null)),
+        );
 
         await Promise.all(ids.map((userId) => this.invalidatePremiumCaches(userId)));
 
@@ -341,11 +321,42 @@ export class SubscriptionsService {
         premiumStartDate: Date | null,
         premiumExpiryDate: Date | null,
     ): Promise<void> {
-        await this.userRepository.update(userId, {
-            isPremium,
-            premiumStartDate,
-            premiumExpiryDate,
-        });
+        try {
+            await this.userRepository.update(userId, {
+                isPremium,
+                premiumStartDate,
+                premiumExpiryDate,
+            });
+        } catch (error: any) {
+            if (this.isMissingPremiumColumnsError(error)) {
+                if (!this.hasLoggedMissingPremiumColumns) {
+                    this.hasLoggedMissingPremiumColumns = true;
+                    this.logger.warn(
+                        'users premium columns are missing in the database. Skipping user premium state writes and relying on subscriptions table state.',
+                    );
+                }
+                return;
+            }
+
+            throw error;
+        }
+    }
+
+    private isMissingPremiumColumnsError(error: unknown): boolean {
+        if (!error || typeof error !== 'object') {
+            return false;
+        }
+
+        const message = String((error as { message?: unknown }).message ?? '');
+        if (!message.toLowerCase().includes('does not exist')) {
+            return false;
+        }
+
+        return (
+            message.includes('isPremium') ||
+            message.includes('premiumStartDate') ||
+            message.includes('premiumExpiryDate')
+        );
     }
 
     private async invalidatePremiumCaches(userId: string): Promise<void> {

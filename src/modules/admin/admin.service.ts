@@ -31,6 +31,65 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 @Injectable()
 export class AdminService implements OnModuleInit {
     private readonly logger = new Logger(AdminService.name);
+    private static readonly ADMIN_USER_SELECT = {
+        id: true,
+        username: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
+        status: true,
+        verification: true,
+        emailVerified: true,
+        selfieVerified: true,
+        selfieUrl: true,
+        documentUrl: true,
+        documentType: true,
+        documentVerified: true,
+        documentVerifiedAt: true,
+        documentRejectionReason: true,
+        notificationsEnabled: true,
+        isShadowBanned: true,
+        trustScore: true,
+        flagCount: true,
+        lastKnownIp: true,
+        deviceCount: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+        deletedAt: true,
+    } as const;
+
+    private static readonly ADMIN_USER_QUERY_SELECT_COLUMNS = [
+        'user.id',
+        'user.username',
+        'user.email',
+        'user.firstName',
+        'user.lastName',
+        'user.phone',
+        'user.role',
+        'user.status',
+        'user.verification',
+        'user.emailVerified',
+        'user.selfieVerified',
+        'user.selfieUrl',
+        'user.documentUrl',
+        'user.documentType',
+        'user.documentVerified',
+        'user.documentVerifiedAt',
+        'user.documentRejectionReason',
+        'user.notificationsEnabled',
+        'user.isShadowBanned',
+        'user.trustScore',
+        'user.flagCount',
+        'user.lastKnownIp',
+        'user.deviceCount',
+        'user.lastLoginAt',
+        'user.createdAt',
+        'user.updatedAt',
+        'user.deletedAt',
+    ] as const;
 
     constructor(
         @InjectRepository(User)
@@ -112,6 +171,7 @@ export class AdminService implements OnModuleInit {
 
     async getUsers(pagination: PaginationDto, status?: UserStatus, search?: string, role?: UserRole, plan?: string) {
         const qb = this.userRepository.createQueryBuilder('user');
+        qb.select([...AdminService.ADMIN_USER_QUERY_SELECT_COLUMNS]);
 
         if (status) qb.andWhere('user.status = :status', { status });
         if (role) qb.andWhere('user.role = :role', { role });
@@ -140,7 +200,10 @@ export class AdminService implements OnModuleInit {
 
     async getUserDetail(userId: string) {
         await this.subscriptionsService.syncUserPremiumState(userId);
-        const user = await this.userRepository.findOne({ where: { id: userId } });
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: AdminService.ADMIN_USER_SELECT,
+        });
         if (!user) throw new NotFoundException('User not found');
 
         const profile = await this.profileRepository.findOne({ where: { userId } });
@@ -167,6 +230,7 @@ export class AdminService implements OnModuleInit {
                 documentVerified: false,
                 documentRejectionReason: IsNull(),
             },
+            select: AdminService.ADMIN_USER_SELECT,
             order: { createdAt: 'DESC' },
         });
 
@@ -174,7 +238,21 @@ export class AdminService implements OnModuleInit {
     }
 
     async verifyDocument(userId: string, approved: boolean, rejectionReason?: string) {
-        const user = await this.userRepository.findOne({ where: { id: userId } });
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: {
+                id: true,
+                status: true,
+                verification: true,
+                selfieUrl: true,
+                selfieVerified: true,
+                documentUrl: true,
+                documentType: true,
+                documentVerified: true,
+                documentVerifiedAt: true,
+                documentRejectionReason: true,
+            },
+        });
         if (!user) throw new NotFoundException('User not found');
         if (!user.documentUrl) throw new BadRequestException('User has no document uploaded');
 
@@ -589,7 +667,10 @@ export class AdminService implements OnModuleInit {
     }
 
     async updateUserStatus(userId: string, status: UserStatus): Promise<User | null> {
-        const user = await this.userRepository.findOne({ where: { id: userId } });
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: { id: true },
+        });
         if (!user) throw new NotFoundException('User not found');
 
         await this.userRepository.update(userId, { status });
@@ -611,6 +692,7 @@ export class AdminService implements OnModuleInit {
         const fallbackStatus = VerificationStatus.NOT_UPLOADED;
         const users = await this.userRepository
             .createQueryBuilder('user')
+            .select([...AdminService.ADMIN_USER_QUERY_SELECT_COLUMNS])
             .where(
                 '(COALESCE(user.verification->\'selfie\'->>\'status\', :fallbackStatus) = :pendingStatus OR (user."selfieUrl" IS NOT NULL AND user."selfieVerified" = false))',
                 { pendingStatus, fallbackStatus },
@@ -626,7 +708,10 @@ export class AdminService implements OnModuleInit {
     }
 
     async setUserPremium(userId: string, startDate: Date, expiryDate: Date) {
-        const user = await this.userRepository.findOne({ where: { id: userId } });
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: { id: true, email: true },
+        });
         if (!user) throw new NotFoundException('User not found');
 
         const subscription = await this.subscriptionsService.setManualPremium(
@@ -645,7 +730,10 @@ export class AdminService implements OnModuleInit {
             },
         );
 
-        const updatedUser = await this.userRepository.findOne({ where: { id: userId } });
+        const updatedUser = await this.userRepository.findOne({
+            where: { id: userId },
+            select: AdminService.ADMIN_USER_SELECT,
+        });
 
         return {
             user: updatedUser ? this.normalizeUserState(updatedUser) : null,
@@ -654,7 +742,10 @@ export class AdminService implements OnModuleInit {
     }
 
     async removeUserPremium(userId: string) {
-        const user = await this.userRepository.findOne({ where: { id: userId } });
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: { id: true, email: true },
+        });
         if (!user) throw new NotFoundException('User not found');
 
         await this.subscriptionsService.removePremium(userId);
@@ -666,7 +757,10 @@ export class AdminService implements OnModuleInit {
             {},
         );
 
-        const updatedUser = await this.userRepository.findOne({ where: { id: userId } });
+        const updatedUser = await this.userRepository.findOne({
+            where: { id: userId },
+            select: AdminService.ADMIN_USER_SELECT,
+        });
         return updatedUser ? this.normalizeUserState(updatedUser) : null;
     }
 
@@ -701,7 +795,10 @@ export class AdminService implements OnModuleInit {
     }
 
     async deleteUserAccount(userId: string): Promise<void> {
-        const user = await this.userRepository.findOne({ where: { id: userId } });
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: { id: true },
+        });
         if (!user) throw new NotFoundException('User not found');
 
         // Soft delete the user (uses @DeleteDateColumn)
@@ -804,7 +901,15 @@ export class AdminService implements OnModuleInit {
             this.matchRepository.count(),
             this.reportRepository.count({ where: { status: ReportStatus.PENDING } }),
             this.reportRepository.count({ where: { status: ReportStatus.RESOLVED } }),
-            this.userRepository.count({ where: { isPremium: true } }),
+            this.subscriptionRepository
+                .createQueryBuilder('subscription')
+                .where('subscription.status = :status', { status: SubscriptionStatus.ACTIVE })
+                .andWhere('subscription.plan IN (:...plans)', {
+                    plans: [SubscriptionPlan.PREMIUM, SubscriptionPlan.GOLD],
+                })
+                .select('COUNT(DISTINCT subscription.userId)', 'count')
+                .getRawOne()
+                .then((row) => Number(row?.count) || 0),
             this.photoRepository.count(),
             this.photoRepository.count({ where: { moderationStatus: PhotoModerationStatus.PENDING } }),
             this.messageRepository.count(),
@@ -903,7 +1008,15 @@ export class AdminService implements OnModuleInit {
         adminId: string,
         rejectionReason?: string,
     ) {
-        const user = await this.userRepository.findOne({ where: { id: userId } });
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: {
+                id: true,
+                verification: true,
+                selfieUrl: true,
+                selfieVerified: true,
+            },
+        });
         if (!user) throw new NotFoundException('User not found');
 
         const verification = normalizeVerificationState(user.verification);
