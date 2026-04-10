@@ -94,6 +94,18 @@ export class UsersService {
         return safeSelectWithoutPremium;
     })();
 
+    private static readonly SAFE_USER_SELECT_LEGACY = (() => {
+        const {
+            isPremium,
+            premiumStartDate,
+            premiumExpiryDate,
+            verification,
+            ...safeSelectLegacy
+        } = UsersService.SAFE_USER_SELECT;
+
+        return safeSelectLegacy;
+    })();
+
     async findById(id: string): Promise<User> {
         const user = await this.findUserWithSafeSelect({ id });
         if (!user) throw new NotFoundException('User not found');
@@ -103,7 +115,7 @@ export class UsersService {
     async findByEmail(email: string): Promise<User> {
         const user = await this.findUserWithSafeSelect({ email });
         if (!user) throw new NotFoundException('User not found');
-        return user;
+        return this.normalizeUserState(user);
     }
 
     async getMe(userId: string) {
@@ -264,6 +276,9 @@ export class UsersService {
     private normalizeUserState(user: User): User {
         return {
             ...user,
+            isPremium: user.isPremium ?? false,
+            premiumStartDate: user.premiumStartDate ?? null,
+            premiumExpiryDate: user.premiumExpiryDate ?? null,
             verification: normalizeVerificationState(user.verification),
         };
     }
@@ -275,18 +290,18 @@ export class UsersService {
                 select: UsersService.SAFE_USER_SELECT,
             });
         } catch (error: any) {
-            if (!this.isMissingPremiumColumnsError(error)) {
+            if (!this.isMissingUserCompatibilityColumnsError(error)) {
                 throw error;
             }
 
             return this.userRepository.findOne({
                 where,
-                select: UsersService.SAFE_USER_SELECT_WITHOUT_PREMIUM,
+                select: UsersService.SAFE_USER_SELECT_LEGACY,
             });
         }
     }
 
-    private isMissingPremiumColumnsError(error: unknown): boolean {
+    private isMissingUserCompatibilityColumnsError(error: unknown): boolean {
         if (!error || typeof error !== 'object') {
             return false;
         }
@@ -296,10 +311,20 @@ export class UsersService {
             return false;
         }
 
+        return this.isMissingPremiumColumnsError(error) || this.isMissingVerificationColumnError(error);
+    }
+
+    private isMissingPremiumColumnsError(error: unknown): boolean {
+        const message = String((error as { message?: unknown })?.message ?? '');
         return (
             message.includes('isPremium') ||
             message.includes('premiumStartDate') ||
             message.includes('premiumExpiryDate')
         );
+    }
+
+    private isMissingVerificationColumnError(error: unknown): boolean {
+        const message = String((error as { message?: unknown })?.message ?? '');
+        return message.includes('verification');
     }
 }
