@@ -967,11 +967,28 @@ export class AuthService {
 
         throw new HttpException(
             {
+                success: false,
                 status: normalizedStatus,
                 message,
+                reason: this.getStatusReason(normalizedStatus),
             },
             httpStatus,
         );
+    }
+
+    private getStatusReason(status: UserStatus): string {
+        switch (status) {
+            case UserStatus.PENDING_VERIFICATION:
+                return 'Your account verification is under review. You will be notified once approved.';
+            case UserStatus.REJECTED:
+                return 'Your verification was rejected. Please update your profile and try again.';
+            case UserStatus.BANNED:
+                return 'Your account has been permanently banned for violating our terms of service.';
+            case UserStatus.SUSPENDED:
+                return 'Your account has been temporarily suspended. Please contact support for more information.';
+            default:
+                return 'Account access is restricted.';
+        }
     }
 
     private getAuthResponseStatus(status: UserStatus): UserStatus {

@@ -59,6 +59,9 @@ export class AdminService implements OnModuleInit {
         createdAt: true,
         updatedAt: true,
         deletedAt: true,
+        isPremium: true,
+        premiumStartDate: true,
+        premiumExpiryDate: true,
     } as const;
 
     private static readonly ADMIN_USER_QUERY_SELECT_COLUMNS = [
@@ -89,6 +92,9 @@ export class AdminService implements OnModuleInit {
         'user.createdAt',
         'user.updatedAt',
         'user.deletedAt',
+        'user.isPremium',
+        'user.premiumStartDate',
+        'user.premiumExpiryDate',
     ] as const;
 
     constructor(
@@ -202,7 +208,12 @@ export class AdminService implements OnModuleInit {
         await this.subscriptionsService.syncUserPremiumState(userId);
         const user = await this.userRepository.findOne({
             where: { id: userId },
-            select: AdminService.ADMIN_USER_SELECT,
+            select: {
+                ...AdminService.ADMIN_USER_SELECT,
+                isPremium: true,
+                premiumStartDate: true,
+                premiumExpiryDate: true,
+            },
         });
         if (!user) throw new NotFoundException('User not found');
 
@@ -213,11 +224,26 @@ export class AdminService implements OnModuleInit {
             order: { createdAt: 'DESC' },
         });
 
+        // Compute premium display fields
+        const now = new Date();
+        const premiumExpiryDate = user.premiumExpiryDate ? new Date(user.premiumExpiryDate) : null;
+        const premiumRemainingDays = premiumExpiryDate
+            ? Math.max(0, Math.ceil((premiumExpiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+            : 0;
+        const premiumIsExpired = premiumExpiryDate ? premiumExpiryDate < now : false;
+
         return {
             user: this.normalizeUserState(user),
             profile,
             photos,
             subscription,
+            premium: {
+                isPremium: user.isPremium,
+                startDate: user.premiumStartDate,
+                expiryDate: user.premiumExpiryDate,
+                remainingDays: premiumRemainingDays,
+                isExpired: premiumIsExpired,
+            },
         };
     }
 
@@ -689,7 +715,7 @@ export class AdminService implements OnModuleInit {
 
     async getPendingVerifications() {
         const pendingStatus = VerificationStatus.PENDING;
-        const fallbackStatus = VerificationStatus.NOT_UPLOADED;
+        const fallbackStatus = VerificationStatus.NOT_SUBMITTED;
         const users = await this.userRepository
             .createQueryBuilder('user')
             .select([...AdminService.ADMIN_USER_QUERY_SELECT_COLUMNS])
@@ -1024,7 +1050,7 @@ export class AdminService implements OnModuleInit {
         const now = new Date().toISOString();
         const url = existing.url || (field === 'selfie' ? user.selfieUrl : null);
 
-        if (status !== VerificationStatus.NOT_UPLOADED && !url) {
+        if (status !== VerificationStatus.NOT_SUBMITTED && !url) {
             throw new BadRequestException(
                 field === 'selfie'
                     ? 'User has not uploaded a selfie'
@@ -1035,17 +1061,17 @@ export class AdminService implements OnModuleInit {
         verification[field] = {
             ...existing,
             status,
-            url: status === VerificationStatus.NOT_UPLOADED ? null : url,
+            url: status === VerificationStatus.NOT_SUBMITTED ? null : url,
             submittedAt:
-                status === VerificationStatus.NOT_UPLOADED
+                status === VerificationStatus.NOT_SUBMITTED
                     ? null
                     : existing.submittedAt || now,
             reviewedAt:
-                status === VerificationStatus.PENDING || status === VerificationStatus.NOT_UPLOADED
+                status === VerificationStatus.PENDING || status === VerificationStatus.NOT_SUBMITTED
                     ? null
                     : now,
             reviewedBy:
-                status === VerificationStatus.PENDING || status === VerificationStatus.NOT_UPLOADED
+                status === VerificationStatus.PENDING || status === VerificationStatus.NOT_SUBMITTED
                     ? null
                     : adminId,
             rejectionReason:
@@ -1098,7 +1124,7 @@ export class AdminService implements OnModuleInit {
                 return 'reverify_required';
             case VerificationStatus.PENDING:
                 return 'pending_review';
-            case VerificationStatus.NOT_UPLOADED:
+            case VerificationStatus.NOT_SUBMITTED:
             default:
                 return 'not_uploaded';
         }

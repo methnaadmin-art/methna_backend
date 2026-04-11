@@ -28,7 +28,7 @@ export enum UserStatus {
 }
 
 export enum VerificationStatus {
-    NOT_UPLOADED = 'not_uploaded',
+    NOT_SUBMITTED = 'not_submitted',
     PENDING = 'pending',
     APPROVED = 'approved',
     REJECTED = 'rejected',
@@ -49,7 +49,7 @@ export interface UserVerificationState {
 }
 
 export function createVerificationItem(
-    status: VerificationStatus = VerificationStatus.NOT_UPLOADED,
+    status: VerificationStatus = VerificationStatus.NOT_SUBMITTED,
 ): UserVerificationItem {
     return {
         status,
@@ -69,7 +69,17 @@ export function createDefaultVerificationState(): UserVerificationState {
 }
 
 function isVerificationStatus(value: unknown): value is VerificationStatus {
+    if (value === 'not_uploaded') return true; // legacy compat
     return Object.values(VerificationStatus).includes(value as VerificationStatus);
+}
+
+/** Map legacy DB value 'not_uploaded' → 'not_submitted'; pass-through valid statuses. */
+function migrateLegacyStatus(value: unknown): VerificationStatus | null {
+    if (value === 'not_uploaded') return VerificationStatus.NOT_SUBMITTED;
+    if (Object.values(VerificationStatus).includes(value as VerificationStatus)) {
+        return value as VerificationStatus;
+    }
+    return null;
 }
 
 function normalizeVerificationItem(
@@ -79,7 +89,7 @@ function normalizeVerificationItem(
     if (typeof value === 'string') {
         return {
             ...defaults,
-            status: isVerificationStatus(value) ? value : defaults.status,
+            status: migrateLegacyStatus(value) ?? defaults.status,
         };
     }
 
@@ -90,7 +100,7 @@ function normalizeVerificationItem(
 
     return {
         ...normalized,
-        status: isVerificationStatus(normalized.status) ? normalized.status : defaults.status,
+        status: migrateLegacyStatus(normalized.status) ?? defaults.status,
     };
 }
 

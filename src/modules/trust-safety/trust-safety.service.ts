@@ -404,7 +404,7 @@ export class TrustSafetyService {
                 match: false,
                 confidence: 0,
                 message: 'No selfie uploaded',
-                status: VerificationStatus.NOT_UPLOADED,
+                status: VerificationStatus.NOT_SUBMITTED,
             };
         }
 
@@ -609,15 +609,15 @@ export class TrustSafetyService {
             status,
             rejectionReason: status === VerificationStatus.REJECTED ? rejectionReason ?? null : null,
             reviewedAt:
-                status === VerificationStatus.PENDING || status === VerificationStatus.NOT_UPLOADED
+                status === VerificationStatus.PENDING || status === VerificationStatus.NOT_SUBMITTED
                     ? null
                     : now,
             reviewedBy: null,
             submittedAt:
-                status === VerificationStatus.NOT_UPLOADED
+                status === VerificationStatus.NOT_SUBMITTED
                     ? null
                     : current.submittedAt || now,
-            url: status === VerificationStatus.NOT_UPLOADED ? null : current.url,
+            url: status === VerificationStatus.NOT_SUBMITTED ? null : current.url,
         };
 
         const updateData: any = {
