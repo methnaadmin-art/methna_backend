@@ -134,13 +134,6 @@ export class SwipesService {
 
     async getWhoLikedMe(userId: string) {
         const isPremium = await this.isPremiumUser(userId);
-        if (!isPremium) {
-            // Free users only see the count
-            const count = await this.likeRepository.count({
-                where: { likedId: userId, isLike: true },
-            });
-            return { count, users: [], isPremiumFeature: true };
-        }
 
         const likes = await this.likeRepository.find({
             where: { likedId: userId, isLike: true },
@@ -149,17 +142,120 @@ export class SwipesService {
             take: 50,
         });
 
+        // Filter out users that are already matched
+        const matchedUserIds = new Set<string>();
+        const activeMatches = await this.matchRepository.find({
+            where: [
+                { user1Id: userId, status: MatchStatus.ACTIVE },
+                { user2Id: userId, status: MatchStatus.ACTIVE },
+            ],
+        });
+        for (const m of activeMatches) {
+            matchedUserIds.add(m.user1Id === userId ? m.user2Id : m.user1Id);
+        }
+        const filteredLikes = likes.filter(l => !matchedUserIds.has(l.likerId));
+
+        if (!isPremium) {
+            // Non-premium: return anonymized data for blurred card display
+            const photos = filteredLikes.length > 0
+                ? await this.profileRepository
+                    .createQueryBuilder('profile')
+                    .leftJoinAndSelect('profile.user', 'user')
+                    .where('profile.userId IN (:...userIds)', {
+                        userIds: filteredLikes.map(l => l.likerId),
+                    })
+                    .getMany()
+                : [];
+            const profileMap = new Map(photos.map(p => [p.userId, p]));
+
+            return {
+                count: filteredLikes.length,
+                users: filteredLikes.map((l) => {
+                    const profile = profileMap.get(l.likerId);
+                    return {
+                        userId: l.likerId,
+                        // Anonymized: no name, only age/city for teaser
+                        firstName: null,
+                        lastName: null,
+                        age: profile?.dateOfBirth
+                            ? Math.floor((Date.now() - new Date(profile.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+                            : null,
+                        city: profile?.city ?? null,
+                        type: l.type,
+                        isBlurred: true,
+                        createdAt: l.createdAt,
+                    };
+                }),
+                isPremiumFeature: true,
+            };
+        }
+
         return {
-            count: likes.length,
-            users: likes.map((l) => ({
+            count: filteredLikes.length,
+            users: filteredLikes.map((l) => ({
                 userId: l.likerId,
                 firstName: l.liker?.firstName,
                 lastName: l.liker?.lastName,
                 type: l.type,
                 complimentMessage: l.complimentMessage,
+                isBlurred: false,
                 createdAt: l.createdAt,
             })),
             isPremiumFeature: false,
+        };
+    }
+
+    // ─── INTERACTIONS (all sent likes/passes) ─────────────────
+
+    async getInteractions(userId: string, limit: number = 120) {
+        const allSwipes = await this.likeRepository.find({
+            where: { likerId: userId },
+            relations: ['liked'],
+            order: { createdAt: 'DESC' },
+            take: Math.min(limit, 500),
+        });
+
+        const liked: any[] = [];
+        const passed: any[] = [];
+
+        for (const swipe of allSwipes) {
+            const entry = {
+                userId: swipe.likedId,
+                firstName: swipe.liked?.firstName ?? null,
+                lastName: swipe.liked?.lastName ?? null,
+                action: swipe.isLike ? 'like' : 'pass',
+                type: swipe.type,
+                complimentMessage: swipe.complimentMessage ?? null,
+                createdAt: swipe.createdAt,
+            };
+            if (swipe.isLike) {
+                liked.push(entry);
+            } else {
+                passed.push(entry);
+            }
+        }
+
+        return { liked, passed, total: allSwipes.length };
+    }
+
+    async getLikesSent(userId: string) {
+        const likes = await this.likeRepository.find({
+            where: { likerId: userId, isLike: true },
+            relations: ['liked'],
+            order: { createdAt: 'DESC' },
+            take: 100,
+        });
+
+        return {
+            count: likes.length,
+            users: likes.map((l) => ({
+                userId: l.likedId,
+                firstName: l.liked?.firstName ?? null,
+                lastName: l.liked?.lastName ?? null,
+                type: l.type,
+                complimentMessage: l.complimentMessage ?? null,
+                createdAt: l.createdAt,
+            })),
         };
     }
 

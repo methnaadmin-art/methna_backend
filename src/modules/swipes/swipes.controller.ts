@@ -4,6 +4,7 @@ import {
     Get,
     Param,
     Body,
+    Query,
     UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -37,8 +38,23 @@ export class SwipesController {
         return this.swipesService.rewind(userId);
     }
 
+    @Get('interactions')
+    @ApiOperation({ summary: 'Get all my sent interactions (liked + passed users)' })
+    async getInteractions(
+        @CurrentUser('sub') userId: string,
+        @Query('limit') limit?: number,
+    ) {
+        return this.swipesService.getInteractions(userId, limit || 120);
+    }
+
+    @Get('likes-sent')
+    @ApiOperation({ summary: 'Get users I have liked' })
+    async getLikesSent(@CurrentUser('sub') userId: string) {
+        return this.swipesService.getLikesSent(userId);
+    }
+
     @Get('who-liked-me')
-    @ApiOperation({ summary: 'See who liked you (premium: full list, free: count only)' })
+    @ApiOperation({ summary: 'See who liked you (premium: full profiles, free: blurred teaser + count)' })
     async getWhoLikedMe(@CurrentUser('sub') userId: string) {
         return this.swipesService.getWhoLikedMe(userId);
     }
