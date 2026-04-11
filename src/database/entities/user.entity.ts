@@ -204,7 +204,7 @@ export class User {
     @Column({ type: 'text', nullable: true })
     internalAdminNote: string | null;
 
-    @Column({ nullable: true })
+    @Column({ type: 'varchar', nullable: true })
     updatedByAdminId: string | null;
 
     @Column({ default: false })
