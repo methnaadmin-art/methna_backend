@@ -72,13 +72,13 @@ export class Conversation {
     @Column({ default: false })
     isLocked: boolean;
 
-    @Column({ nullable: true })
+    @Column({ type: 'varchar', nullable: true })
     lockReason: string | null;
 
     @Column({ default: false })
     isFlagged: boolean;
 
-    @Column({ nullable: true })
+    @Column({ type: 'varchar', nullable: true })
     flagReason: string | null;
 
     @OneToMany('Message', (message: Message) => message.conversation)

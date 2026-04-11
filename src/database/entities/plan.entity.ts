@@ -67,7 +67,7 @@ export class Plan {
     @Column({ type: 'enum', enum: BillingCycle, default: BillingCycle.MONTHLY })
     billingCycle: BillingCycle;
 
-    @Column({ nullable: true })
+    @Column({ type: 'varchar', nullable: true })
     stripePriceId: string | null;
 
     @Column({ default: 30 })

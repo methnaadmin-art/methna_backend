@@ -46,7 +46,7 @@ export class Subscription {
     @JoinColumn({ name: 'planId' })
     planEntity: Plan | null;
 
-    @Column({ nullable: true })
+    @Column({ type: 'varchar', nullable: true })
     planId: string | null;
 
     /** @deprecated Legacy enum column — use planEntity.code for dynamic plans. */
@@ -62,16 +62,16 @@ export class Subscription {
     @Column({ type: 'timestamp', nullable: true })
     endDate: Date | null;
 
-    @Column({ nullable: true })
+    @Column({ type: 'varchar', nullable: true })
     paymentReference: string | null;
 
-    @Column({ nullable: true })
+    @Column({ type: 'varchar', nullable: true })
     stripeSubscriptionId: string | null;
 
-    @Column({ nullable: true })
+    @Column({ type: 'varchar', nullable: true })
     stripeCheckoutSessionId: string | null;
 
-    @Column({ nullable: true })
+    @Column({ type: 'varchar', nullable: true })
     stripeCustomerId: string | null;
 
     @Column({ type: 'enum', enum: BillingCycle, nullable: true })
