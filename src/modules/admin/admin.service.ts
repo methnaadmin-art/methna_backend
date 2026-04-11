@@ -11,22 +11,24 @@ import {
 } from '../../database/entities/user.entity';
 import { Report, ReportStatus } from '../../database/entities/report.entity';
 import { Profile } from '../../database/entities/profile.entity';
-import { Match } from '../../database/entities/match.entity';
+import { Match, MatchStatus } from '../../database/entities/match.entity';
 import { Subscription, SubscriptionPlan, SubscriptionStatus } from '../../database/entities/subscription.entity';
 import { Photo, PhotoModerationStatus } from '../../database/entities/photo.entity';
 import { Like, LikeType } from '../../database/entities/like.entity';
-import { Message } from '../../database/entities/message.entity';
+import { Message, MessageType } from '../../database/entities/message.entity';
 import { Boost } from '../../database/entities/boost.entity';
 import { Notification, NotificationType } from '../../database/entities/notification.entity';
 import { Conversation } from '../../database/entities/conversation.entity';
 import { SupportTicket, TicketStatus } from '../../database/entities/support-ticket.entity';
 import { Ad } from '../../database/entities/ad.entity';
 import { BlockedUser } from '../../database/entities/blocked-user.entity';
+import { RematchRequest, RematchStatus } from '../../database/entities/rematch-request.entity';
 import { Plan } from '../../database/entities/plan.entity';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { RedisService } from '../redis/redis.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { PlansService } from '../plans/plans.service';
 
 @Injectable()
 export class AdminService implements OnModuleInit {
@@ -128,9 +130,12 @@ export class AdminService implements OnModuleInit {
         private readonly blockedUserRepository: Repository<BlockedUser>,
         @InjectRepository(Plan)
         private readonly planRepository: Repository<Plan>,
+        @InjectRepository(RematchRequest)
+        private readonly rematchRepository: Repository<RematchRequest>,
         private readonly redisService: RedisService,
         private readonly notificationsService: NotificationsService,
         private readonly subscriptionsService: SubscriptionsService,
+        private readonly plansService: PlansService,
     ) { }
 
     // â”€â”€â”€ AUTO-SEED ADMIN ON STARTUP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -471,25 +476,62 @@ export class AdminService implements OnModuleInit {
 
     // â”€â”€â”€ CONVERSATIONS (ADMIN VIEW) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    async getConversations(pagination: PaginationDto) {
-        const [conversations, total] = await this.conversationRepository.findAndCount({
-            relations: ['user1', 'user2'],
-            order: { lastMessageAt: 'DESC' },
-            skip: pagination.skip,
-            take: pagination.limit,
-        });
+    async getConversations(pagination: PaginationDto, search?: string) {
+        const qb = this.conversationRepository
+            .createQueryBuilder('c')
+            .leftJoinAndSelect('c.user1', 'user1')
+            .leftJoinAndSelect('c.user2', 'user2')
+            .leftJoinAndSelect('user1.profile', 'profile1')
+            .leftJoinAndSelect('user2.profile', 'profile2')
+            .orderBy('c.lastMessageAt', 'DESC')
+            .skip(pagination.skip)
+            .take(pagination.limit);
+
+        if (search) {
+            qb.andWhere(
+                `(user1.firstName ILIKE :q OR user1.lastName ILIKE :q OR user2.firstName ILIKE :q OR user2.lastName ILIKE :q)`,
+                { q: `%${search}%` },
+            );
+        }
+
+        const [conversations, total] = await qb.getManyAndCount();
         return { conversations, total, page: pagination.page, limit: pagination.limit };
     }
 
-    async getConversationMessages(conversationId: string, pagination: PaginationDto) {
-        const [messages, total] = await this.messageRepository.findAndCount({
-            where: { conversationId },
-            relations: ['sender'],
-            order: { createdAt: 'ASC' },
-            skip: pagination.skip,
-            take: pagination.limit,
-        });
+    async getConversationMessages(conversationId: string, pagination: PaginationDto, search?: string) {
+        const qb = this.messageRepository
+            .createQueryBuilder('m')
+            .leftJoinAndSelect('m.sender', 'sender')
+            .leftJoinAndSelect('sender.profile', 'senderProfile')
+            .where('m.conversationId = :cid', { cid: conversationId })
+            .orderBy('m.createdAt', 'ASC')
+            .skip(pagination.skip)
+            .take(pagination.limit);
+
+        if (search) {
+            qb.andWhere(`m.content ILIKE :q`, { q: `%${search}%` });
+        }
+
+        const [messages, total] = await qb.getManyAndCount();
         return { messages, total, page: pagination.page, limit: pagination.limit };
+    }
+
+    async lockConversation(conversationId: string, isLocked: boolean, lockReason?: string) {
+        const conversation = await this.conversationRepository.findOne({ where: { id: conversationId } });
+        if (!conversation) throw new NotFoundException('Conversation not found');
+        conversation.isLocked = isLocked;
+        conversation.lockReason = isLocked ? (lockReason || null) : null;
+        await this.conversationRepository.save(conversation);
+        return { id: conversationId, isLocked, lockReason: isLocked ? lockReason : null };
+    }
+
+    async flagConversation(conversationId: string, isFlagged: boolean, flagReason?: string) {
+        const conversation = await this.conversationRepository.findOne({ where: { id: conversationId } });
+        if (!conversation) throw new NotFoundException('Conversation not found');
+        conversation.isFlagged = isFlagged;
+        conversation.flagReason = isFlagged ? (flagReason || null) : null;
+        await this.conversationRepository.save(conversation);
+        return { id: conversationId, isFlagged, flagReason: isFlagged ? flagReason : null };
     }
 
     // â”€â”€â”€ SEND NOTIFICATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -502,12 +544,10 @@ export class AdminService implements OnModuleInit {
         conversationId?: string;
         extraData?: Record<string, any>;
         broadcast?: boolean;
+        filters?: Record<string, any>;
     }) {
         if (dto.broadcast) {
-            const users = await this.userRepository.find({
-                where: { status: UserStatus.ACTIVE },
-                select: ['id'],
-            });
+            const users = await this.findFilteredUsers(dto.filters || {});
             const notifications = users.map(u =>
                 this.notificationRepository.create({
                     userId: u.id,
@@ -535,6 +575,46 @@ export class AdminService implements OnModuleInit {
             extraData: dto.extraData,
         });
         return { sent: 1, notification };
+    }
+
+    private async findFilteredUsers(filters: Record<string, any>) {
+        const qb = this.userRepository
+            .createQueryBuilder('u')
+            .leftJoinAndSelect('u.profile', 'p')
+            .leftJoinAndSelect('u.subscription', 's')
+            .where('u.status = :status', { status: UserStatus.ACTIVE });
+
+        if (filters.ageMin) {
+            qb.andWhere(`(p.dateOfBirth IS NULL OR date_part('year', age(p.dateOfBirth)) >= :ageMin)`, { ageMin: filters.ageMin });
+        }
+        if (filters.ageMax) {
+            qb.andWhere(`(p.dateOfBirth IS NULL OR date_part('year', age(p.dateOfBirth)) <= :ageMax)`, { ageMax: filters.ageMax });
+        }
+        if (filters.gender && filters.gender !== 'all') {
+            qb.andWhere('u.gender = :gender', { gender: filters.gender });
+        }
+        if (filters.premiumOnly) {
+            qb.andWhere('s.plan != :freePlan', { freePlan: 'free' });
+            qb.andWhere('s.status = :activeStatus', { activeStatus: 'active' });
+        }
+        if (filters.country) {
+            qb.andWhere('p.country ILIKE :country', { country: `%${filters.country}%` });
+        }
+        if (filters.city) {
+            qb.andWhere('p.city ILIKE :city', { city: `%${filters.city}%` });
+        }
+        if (filters.recentOnly && filters.recentDays) {
+            const since = new Date();
+            since.setDate(since.getDate() - Number(filters.recentDays));
+            qb.andWhere('u.lastLoginAt >= :since', { since });
+        }
+
+        return qb.select(['u.id']).getMany();
+    }
+
+    async previewNotificationRecipients(filters: Record<string, any>) {
+        const users = await this.findFilteredUsers(filters);
+        return { recipientCount: users.length, filters };
     }
 
     // â”€â”€â”€ SUPPORT TICKETS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -618,24 +698,19 @@ export class AdminService implements OnModuleInit {
     // â”€â”€â”€ PLAN MANAGEMENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     async getPlans() {
-        return this.planRepository.find({ order: { createdAt: 'ASC' } });
+        return this.plansService.getAllPlans();
     }
 
     async createPlan(dto: Partial<Plan>) {
-        const plan = this.planRepository.create(dto);
-        return this.planRepository.save(plan);
+        return this.plansService.createPlan(dto);
     }
 
     async updatePlan(id: string, dto: Partial<Plan>) {
-        const plan = await this.planRepository.findOne({ where: { id } });
-        if (!plan) throw new NotFoundException('Plan not found');
-        Object.assign(plan, dto);
-        return this.planRepository.save(plan);
+        return this.plansService.updatePlan(id, dto);
     }
 
     async deletePlan(id: string) {
-        const res = await this.planRepository.delete(id);
-        if (res.affected === 0) throw new NotFoundException('Plan not found');
+        return this.plansService.deletePlan(id);
     }
 
     async overrideUserSubscription(userId: string, planId: string, durationDays: number) {
@@ -692,21 +767,165 @@ export class AdminService implements OnModuleInit {
         return { subscriptions, total, page: pagination.page, limit: pagination.limit, counts: { free: freeCount, premium: premiumCount, gold: goldCount } };
     }
 
-    async updateUserStatus(userId: string, status: UserStatus): Promise<User | null> {
+    async updateUserStatus(
+        userId: string,
+        status: UserStatus,
+        options?: {
+            reason?: string;
+            moderationReasonCode?: any;
+            moderationReasonText?: string;
+            actionRequired?: any;
+            supportMessage?: string;
+            isUserVisible?: boolean;
+            expiresAt?: string;
+            internalAdminNote?: string;
+            updatedByAdminId?: string;
+        },
+    ): Promise<User | null> {
         const user = await this.userRepository.findOne({
             where: { id: userId },
             select: { id: true },
         });
         if (!user) throw new NotFoundException('User not found');
 
-        await this.userRepository.update(userId, { status });
+        const updateData: Partial<User> = {
+            status,
+            statusReason: options?.reason || null,
+            moderationReasonCode: options?.moderationReasonCode || null,
+            moderationReasonText: options?.moderationReasonText || null,
+            actionRequired: options?.actionRequired || null,
+            supportMessage: options?.supportMessage || null,
+            isUserVisible: options?.isUserVisible !== undefined ? options.isUserVisible : true,
+            moderationExpiresAt: options?.expiresAt ? new Date(options.expiresAt) : null,
+            internalAdminNote: options?.internalAdminNote || null,
+            updatedByAdminId: options?.updatedByAdminId || null,
+        };
 
-        if (status !== UserStatus.ACTIVE) {
+        // When status is ACTIVE, clear all moderation fields
+        if (status === UserStatus.ACTIVE) {
+            updateData.statusReason = null;
+            updateData.moderationReasonCode = null;
+            updateData.moderationReasonText = null;
+            updateData.actionRequired = null;
+            updateData.supportMessage = null;
+            updateData.moderationExpiresAt = null;
+            updateData.internalAdminNote = null;
+        }
+
+        await this.userRepository.update(userId, updateData);
+
+        // Invalidate cached user status so the guard picks up the new status immediately
+        await this.redisService.del(`user_status:${userId}`);
+
+        if (status === UserStatus.BANNED) {
             await this.redisService.invalidateAllUserSessions(userId);
+        }
+
+        // When a user is BANNED or CLOSED, clean up all their presence in the system
+        if (status === UserStatus.BANNED || status === UserStatus.CLOSED) {
+            await this.deactivateUserPresence(userId, status === UserStatus.BANNED ? 'banned' : 'account_closed');
         }
 
         const updatedUser = await this.userRepository.findOne({ where: { id: userId } });
         return updatedUser ? this.normalizeUserState(updatedUser) : null;
+    }
+
+    /**
+     * When a user is BANNED or CLOSED, remove them from all public visibility:
+     * - Close all active matches
+     * - Lock all active conversations + insert system message
+     * - Invalidate pending likes sent/received
+     * - Cancel pending rematch requests
+     * - Invalidate caches for all affected users
+     */
+    private async deactivateUserPresence(userId: string, reason: string): Promise<void> {
+        this.logger.log(`Deactivating presence for user ${userId} (reason: ${reason})`);
+
+        const lockReason = reason === 'banned'
+            ? 'This conversation is no longer available.'
+            : 'This user has closed their account.';
+
+        // 1. Close all active matches involving this user
+        const activeMatches = await this.matchRepository.find({
+            where: [
+                { user1Id: userId, status: MatchStatus.ACTIVE },
+                { user2Id: userId, status: MatchStatus.ACTIVE },
+            ],
+        });
+        if (activeMatches.length > 0) {
+            for (const match of activeMatches) {
+                match.status = MatchStatus.CLOSED;
+            }
+            await this.matchRepository.save(activeMatches);
+            this.logger.log(`Closed ${activeMatches.length} matches for user ${userId}`);
+        }
+
+        // 2. Lock all active conversations involving this user + insert system message
+        const activeConversations = await this.conversationRepository.find({
+            where: [
+                { user1Id: userId, isActive: true },
+                { user2Id: userId, isActive: true },
+            ],
+        });
+        for (const conv of activeConversations) {
+            conv.isActive = false;
+            conv.isLocked = true;
+            conv.lockReason = lockReason;
+            await this.conversationRepository.save(conv);
+
+            // Insert a system message so the other user sees the notice
+            const systemMsg = this.messageRepository.create({
+                conversationId: conv.id,
+                matchId: conv.matchId,
+                senderId: userId,
+                content: lockReason,
+                type: MessageType.SYSTEM,
+            });
+            await this.messageRepository.save(systemMsg);
+        }
+        this.logger.log(`Locked ${activeConversations.length} conversations for user ${userId}`);
+
+        // 3. Invalidate pending likes FROM this user (they should not appear in anyone's "who liked me")
+        await this.likeRepository.delete({ likerId: userId, isLike: true });
+
+        // 4. Invalidate pending likes RECEIVED by this user (no longer actionable)
+        // We keep them in DB for audit but mark them as passes so they don't trigger matches
+        await this.likeRepository.update(
+            { likedId: userId, isLike: true },
+            { isLike: false, type: LikeType.PASS },
+        );
+
+        // 5. Cancel pending rematch requests involving this user
+        await this.rematchRepository.update(
+            { requesterId: userId, status: RematchStatus.PENDING },
+            { status: RematchStatus.EXPIRED },
+        );
+        await this.rematchRepository.update(
+            { targetId: userId, status: RematchStatus.PENDING },
+            { status: RematchStatus.EXPIRED },
+        );
+
+        // 6. Invalidate caches for the banned/closed user AND all their matched users
+        const affectedUserIds = new Set<string>([userId]);
+        for (const match of activeMatches) {
+            affectedUserIds.add(match.user1Id === userId ? match.user2Id : match.user1Id);
+        }
+        for (const conv of activeConversations) {
+            affectedUserIds.add(conv.user1Id === userId ? conv.user2Id : conv.user1Id);
+        }
+
+        await Promise.all([...affectedUserIds].flatMap(id => [
+            this.redisService.del(`excludeIds:${id}`),
+            this.redisService.del(`discovery:${id}`),
+            this.redisService.del(`suggestions:${id}`),
+            this.redisService.del(`search:${id}:*`),
+            this.redisService.del(`matches:${id}`),
+            this.redisService.del(`conversations:${id}`),
+            this.redisService.del(`premium:${id}`),
+            this.redisService.del(`user_status:${id}`),
+        ]));
+
+        this.logger.log(`Deactivated presence for user ${userId}: ${activeMatches.length} matches closed, ${activeConversations.length} conversations locked, caches invalidated for ${affectedUserIds.size} users`);
     }
 
     async searchUsers(query: string, pagination: PaginationDto) {
@@ -1129,10 +1348,29 @@ export class AdminService implements OnModuleInit {
                 return 'not_uploaded';
         }
     }
+
+    async getUserSubscriptionHistory(userId: string) {
+        const subscriptions = await this.subscriptionRepository.find({
+            where: { userId },
+            relations: ['plan'],
+            order: { createdAt: 'DESC' },
+        });
+        return {
+            subscriptions: subscriptions.map(s => ({
+                id: s.id,
+                userId: s.userId,
+                planId: s.planId,
+                planCode: (s as any).plan?.code || s.planId,
+                planName: (s as any).plan?.name || s.planId,
+                billingCycle: (s as any).plan?.billingCycle || 'monthly',
+                status: s.status,
+                startDate: s.startDate,
+                endDate: s.endDate,
+                stripeSubscriptionId: s.stripeSubscriptionId || null,
+                stripePriceId: (s as any).plan?.stripePriceId || null,
+                createdAt: s.createdAt,
+            })),
+        };
+    }
 }
-
-
-
-
-
 

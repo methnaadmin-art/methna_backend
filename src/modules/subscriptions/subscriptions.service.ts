@@ -13,6 +13,7 @@ import {
 } from '../../database/entities/subscription.entity';
 import { User } from '../../database/entities/user.entity';
 import { RedisService } from '../redis/redis.service';
+import { Plan } from '../../database/entities/plan.entity';
 
 @Injectable()
 export class SubscriptionsService {
@@ -24,6 +25,8 @@ export class SubscriptionsService {
         private readonly subscriptionRepository: Repository<Subscription>,
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
+        @InjectRepository(Plan)
+        private readonly planRepository: Repository<Plan>,
         private readonly redisService: RedisService,
     ) { }
 
@@ -133,7 +136,17 @@ export class SubscriptionsService {
         return state.isPremium;
     }
 
-    async getPlanFeatures(plan: SubscriptionPlan) {
+    async getPlanFeatures(plan: SubscriptionPlan | string) {
+        // Try dynamic plan from DB first
+        const planCode = typeof plan === 'string' ? plan : plan;
+        const planEntity = await this.planRepository.findOne({
+            where: { code: planCode },
+        });
+        if (planEntity?.entitlements) {
+            return planEntity.entitlements;
+        }
+
+        // Legacy fallback
         const features = {
             [SubscriptionPlan.FREE]: {
                 dailySwipes: 25,
@@ -144,7 +157,7 @@ export class SubscriptionsService {
                 price: 0,
             },
             [SubscriptionPlan.PREMIUM]: {
-                dailySwipes: -1, // unlimited
+                dailySwipes: -1,
                 seeWhoLikedYou: true,
                 advancedFilters: true,
                 unlimitedMessages: true,
@@ -160,7 +173,7 @@ export class SubscriptionsService {
                 price: 19.99,
             },
         };
-        return features[plan];
+        return features[plan as SubscriptionPlan];
     }
 
     async setManualPremium(
@@ -213,14 +226,15 @@ export class SubscriptionsService {
     async expirePremiums(now: Date = new Date()): Promise<string[]> {
         const expiredSubscriptions = await this.subscriptionRepository.find({
             where: { status: SubscriptionStatus.ACTIVE },
-            select: ['id', 'userId', 'endDate', 'plan'],
+            select: ['id', 'userId', 'endDate', 'plan', 'planId'],
         });
 
         const expiredUserIds = new Set<string>();
 
         for (const subscription of expiredSubscriptions) {
+            const isNonFree = subscription.planId !== null || subscription.plan !== SubscriptionPlan.FREE;
             if (
-                subscription.plan !== SubscriptionPlan.FREE &&
+                isNonFree &&
                 subscription.endDate &&
                 new Date(subscription.endDate) <= now
             ) {
@@ -251,27 +265,42 @@ export class SubscriptionsService {
     async syncUserPremiumState(
         userId: string,
     ): Promise<{ isPremium: boolean; premiumStartDate: Date | null; premiumExpiryDate: Date | null }> {
+        // Check both ACTIVE and PAST_DUE (grace period while Stripe retries payment)
         const activeSubscription = await this.subscriptionRepository.findOne({
-            where: { userId, status: SubscriptionStatus.ACTIVE },
+            where: [
+                { userId, status: SubscriptionStatus.ACTIVE },
+                { userId, status: SubscriptionStatus.PAST_DUE },
+            ],
             order: { endDate: 'DESC', createdAt: 'DESC' },
         });
 
         const now = new Date();
 
+        // A subscription is considered premium if:
+        // - It has a planId (dynamic plan), OR
+        // - Its plan enum is not FREE
+        const isPremiumPlan = (sub: Subscription) =>
+            sub.planId !== null ||
+            (sub.plan !== SubscriptionPlan.FREE);
+
         if (
             activeSubscription &&
-            activeSubscription.plan !== SubscriptionPlan.FREE &&
+            isPremiumPlan(activeSubscription) &&
             (!activeSubscription.startDate || new Date(activeSubscription.startDate) <= now) &&
             (!activeSubscription.endDate || new Date(activeSubscription.endDate) > now)
         ) {
             const startDate = activeSubscription.startDate ? new Date(activeSubscription.startDate) : now;
             const expiryDate = activeSubscription.endDate ? new Date(activeSubscription.endDate) : null;
 
-            await this.updateUserPremiumState(userId, true, startDate, expiryDate);
+            // PAST_DUE subscriptions still get premium access (grace period)
+            const isPremium = activeSubscription.status === SubscriptionStatus.ACTIVE ||
+                              activeSubscription.status === SubscriptionStatus.PAST_DUE;
+
+            await this.updateUserPremiumState(userId, isPremium, startDate, expiryDate);
             await this.invalidatePremiumCaches(userId);
 
             return {
-                isPremium: true,
+                isPremium,
                 premiumStartDate: startDate,
                 premiumExpiryDate: expiryDate,
             };
@@ -279,7 +308,7 @@ export class SubscriptionsService {
 
         if (
             activeSubscription &&
-            activeSubscription.plan !== SubscriptionPlan.FREE &&
+            isPremiumPlan(activeSubscription) &&
             activeSubscription.startDate &&
             new Date(activeSubscription.startDate) > now
         ) {
@@ -364,6 +393,7 @@ export class SubscriptionsService {
             this.redisService.del(`premium:${userId}`),
             this.redisService.del(`plan:${userId}`),
             this.redisService.del(`features:${userId}`),
+            this.redisService.del(`entitlements:${userId}`),
         ]);
     }
 }

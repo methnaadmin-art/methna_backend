@@ -45,8 +45,10 @@ export class MatchesController {
         @CurrentUser('sub') userId: string,
         @Query('radius') radius?: number,
         @Query('limit') limit?: number,
+        @Query('country') country?: string,
+        @Query('city') city?: string,
     ) {
-        return this.matchesService.getNearbyUsers(userId, radius || 50, limit || 30);
+        return this.matchesService.getNearbyUsers(userId, radius || 50, limit || 30, country, city);
     }
 
     @Get('discover')

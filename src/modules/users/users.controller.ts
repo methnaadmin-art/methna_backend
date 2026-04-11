@@ -2,6 +2,7 @@ import {
     Controller,
     Get,
     Patch,
+    Post,
     Delete,
     Param,
     Body,
@@ -34,6 +35,19 @@ export class UsersController {
         @Body() updateData: any,
     ) {
         return this.usersService.updateMe(userId, updateData);
+    }
+
+    @Get('me/status')
+    @ApiOperation({ summary: 'Get current user moderation status + reason' })
+    async getMyStatus(@CurrentUser('sub') userId: string) {
+        return this.usersService.getModerationStatus(userId);
+    }
+
+    @Post('me/close')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Close account — deactivates presence, locks chats, removes from all feeds' })
+    async closeAccount(@CurrentUser('sub') userId: string) {
+        return this.usersService.closeAccount(userId);
     }
 
     @Delete('me')

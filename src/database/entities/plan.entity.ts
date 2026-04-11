@@ -5,23 +5,70 @@ import {
     CreateDateColumn,
     UpdateDateColumn,
     OneToMany,
+    Index,
 } from 'typeorm';
 import { Subscription } from './subscription.entity';
-import { FeatureFlag } from '../../modules/monetization/monetization.service';
+
+/** Feature entitlements stored as JSONB on each plan. */
+export interface PlanEntitlements {
+    // Numeric limits (-1 = unlimited)
+    dailyLikes?: number;
+    dailyCompliments?: number;
+    monthlyRewinds?: number;
+    weeklyBoosts?: number;
+
+    // Boolean feature flags
+    unlimitedLikes?: boolean;
+    unlimitedRewinds?: boolean;
+    advancedFilters?: boolean;
+    seeWhoLikesYou?: boolean;
+    readReceipts?: boolean;
+    typingIndicators?: boolean;
+    invisibleMode?: boolean;
+    passportMode?: boolean;
+    premiumBadge?: boolean;
+    hideAds?: boolean;
+    rematch?: boolean;
+    videoChat?: boolean;
+    superLike?: boolean;
+    profileBoostPriority?: boolean;
+    priorityMatching?: boolean;
+    improvedVisits?: boolean;
+}
+
+export enum BillingCycle {
+    MONTHLY = 'monthly',
+    YEARLY = 'yearly',
+    WEEKLY = 'weekly',
+    ONE_TIME = 'one_time',
+}
 
 @Entity('plans')
 export class Plan {
     @PrimaryGeneratedColumn('uuid')
     id: string;
 
+    @Index({ unique: true })
     @Column({ unique: true })
-    name: string; // 'BASIC', 'GOLD', 'PLATINUM'
+    code: string; // Machine-readable: 'free', 'premium', 'gold'
+
+    @Column()
+    name: string; // Display name: 'Free', 'Premium', 'Elite'
+
+    @Column({ type: 'text', nullable: true })
+    description: string | null;
 
     @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
     price: number;
-    
+
+    @Column({ default: 'usd' })
+    currency: string;
+
+    @Column({ type: 'enum', enum: BillingCycle, default: BillingCycle.MONTHLY })
+    billingCycle: BillingCycle;
+
     @Column({ nullable: true })
-    stripePriceId: string; // Optional reference to external gateway
+    stripePriceId: string | null;
 
     @Column({ default: 30 })
     durationDays: number;
@@ -29,12 +76,26 @@ export class Plan {
     @Column({ default: true })
     isActive: boolean;
 
-    @Column({ type: 'jsonb', default: [] })
-    features: FeatureFlag[];
+    @Column({ default: true })
+    isVisible: boolean; // Whether to show in mobile app
 
-    // Limits configuration
+    @Column({ type: 'int', default: 0 })
+    sortOrder: number;
+
+    /** All feature entitlements as a single JSONB column.
+     *  This is the source of truth for what a plan includes.
+     *  Numeric limits use -1 for unlimited. Boolean flags default to false.
+     */
+    @Column({ type: 'jsonb', default: '{}' })
+    entitlements: PlanEntitlements;
+
+    // Legacy feature flags array (kept for backward compat)
+    @Column({ type: 'jsonb', default: [] })
+    features: string[];
+
+    // Legacy limit columns (kept for backward compat, migrated from entitlements)
     @Column({ type: 'int', default: 10 })
-    dailyLikesLimit: number; // -1 for unlimited
+    dailyLikesLimit: number;
 
     @Column({ type: 'int', default: 0 })
     dailySuperLikesLimit: number;

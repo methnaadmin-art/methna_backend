@@ -12,7 +12,7 @@ import { BlockedUser } from '../../database/entities/blocked-user.entity';
 import { Like } from '../../database/entities/like.entity';
 import { Match, MatchStatus } from '../../database/entities/match.entity';
 import { UserPreference } from '../../database/entities/user-preference.entity';
-import { SearchFiltersDto } from './dto/search.dto';
+import { SearchFiltersDto, SearchSortBy } from './dto/search.dto';
 import { RedisService } from '../redis/redis.service';
 import { CloudinaryService } from '../photos/cloudinary.service';
 
@@ -177,6 +177,7 @@ export class SearchService {
             hasUserLocation,
         );
 
+        // Always compute distance when user has location (needed for ranking + response)
         if (hasUserLocation) {
             query.addSelect(
                 `(6371 * acos(LEAST(1.0, cos(radians(:orderLat)) * cos(radians(profile.latitude)) * cos(radians(profile.longitude) - radians(:orderLng)) + sin(radians(:orderLat)) * sin(radians(profile.latitude)))))`,
@@ -184,9 +185,24 @@ export class SearchService {
             );
             query.setParameter('orderLat', currentProfile.latitude);
             query.setParameter('orderLng', currentProfile.longitude);
+        }
+
+        // SQL-level ordering depends on sortBy
+        const effectiveSortBy = filters.sortBy ?? SearchSortBy.DISTANCE;
+        if (effectiveSortBy === SearchSortBy.DISTANCE && hasUserLocation) {
             query.orderBy('distance', 'ASC');
-        } else {
+        } else if (effectiveSortBy === SearchSortBy.NEWEST) {
+            query.orderBy('profile.createdAt', 'DESC');
+        } else if (effectiveSortBy === SearchSortBy.ACTIVITY) {
             query.orderBy('profile.activityScore', 'DESC');
+        } else {
+            // COMPATIBILITY or default — use activity as initial SQL sort,
+            // then re-rank in-memory by compatibility
+            if (hasUserLocation) {
+                query.orderBy('distance', 'ASC');
+            } else {
+                query.orderBy('profile.activityScore', 'DESC');
+            }
         }
 
         query.take(candidateFetchLimit);
@@ -300,6 +316,38 @@ export class SearchService {
                 };
             })
             .sort((a, b) => {
+                // ─── Sort priority based on sortBy param ───
+                if (effectiveSortBy === SearchSortBy.DISTANCE) {
+                    // Distance-first: nearest to farthest
+                    const distA = a.distanceKm ?? Infinity;
+                    const distB = b.distanceKm ?? Infinity;
+                    if (distA !== distB) return distA - distB;
+                    // Tiebreak: compatibility, then activity
+                    if (b.compatibilityScore !== a.compatibilityScore) {
+                        return b.compatibilityScore - a.compatibilityScore;
+                    }
+                    return (b.profile.activityScore ?? 0) - (a.profile.activityScore ?? 0);
+                }
+
+                if (effectiveSortBy === SearchSortBy.NEWEST) {
+                    const dateA = a.profile.createdAt?.getTime() ?? 0;
+                    const dateB = b.profile.createdAt?.getTime() ?? 0;
+                    if (dateB !== dateA) return dateB - dateA;
+                    const distA = a.distanceKm ?? Infinity;
+                    const distB = b.distanceKm ?? Infinity;
+                    return distA - distB;
+                }
+
+                if (effectiveSortBy === SearchSortBy.ACTIVITY) {
+                    if ((b.profile.activityScore ?? 0) !== (a.profile.activityScore ?? 0)) {
+                        return (b.profile.activityScore ?? 0) - (a.profile.activityScore ?? 0);
+                    }
+                    const distA = a.distanceKm ?? Infinity;
+                    const distB = b.distanceKm ?? Infinity;
+                    return distA - distB;
+                }
+
+                // COMPATIBILITY (default fallback)
                 if (b.compatibilityScore !== a.compatibilityScore) {
                     return b.compatibilityScore - a.compatibilityScore;
                 }

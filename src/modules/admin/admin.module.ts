@@ -17,6 +17,7 @@ import { SupportTicket } from '../../database/entities/support-ticket.entity';
 import { Ad } from '../../database/entities/ad.entity';
 import { BlockedUser } from '../../database/entities/blocked-user.entity';
 import { Plan } from '../../database/entities/plan.entity';
+import { RematchRequest } from '../../database/entities/rematch-request.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
@@ -24,7 +25,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
     imports: [
         TypeOrmModule.forFeature([
             User, Report, Profile, Match, Subscription, Photo, Like, Message,
-            Boost, Notification, Conversation, SupportTicket, Ad, BlockedUser, Plan,
+            Boost, Notification, Conversation, SupportTicket, Ad, BlockedUser, Plan, RematchRequest,
         ]),
         NotificationsModule,
         SubscriptionsModule,

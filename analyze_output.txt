@@ -1,0 +1,23 @@
+﻿warning - This 'onError' handler must return a value assignable to 'Map<String, dynamic>', but ends without returning a value - lib\app\controllers\home_controller.dart:170:53 - body_might_complete_normally_catch_error
+warning - This 'onError' handler must return a value assignable to 'TrialManager', but ends without returning a value - lib\app\controllers\home_controller.dart:178:42 - body_might_complete_normally_catch_error
+
+flutter : 2 issues found. 
+(ran in 67.5s)
+Au caractère Ligne:1 : 44
++ ... 
+SOFT\Desktop\methna_app" 
+; flutter analyze 
+--no-preamble 2>&1 | 
+Out-F ...
++                         
+       ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
+    + CategoryInfo        
+      : NotSpecifi    ed: 
+(2 issues foun    d. (ran 
+in 67.5s):    String) [], 
+Remote    Exception
+    + FullyQualifiedEr    
+rorId : NativeComm    
+andError
+ 

@@ -944,6 +944,9 @@ export class AuthService {
                 return 'Account suspended, contact support';
             case UserStatus.DEACTIVATED:
                 return 'Account suspended, contact support';
+            // LIMITED and SHADOW_SUSPENDED users CAN log in
+            case UserStatus.LIMITED:
+            case UserStatus.SHADOW_SUSPENDED:
             case UserStatus.ACTIVE:
             default:
                 return null;

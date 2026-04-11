@@ -161,7 +161,7 @@ export class MonetizationService {
         if (cached) return cached;
 
         const effectivePlan = await this.getEffectivePlan(userId);
-        const features = effectivePlan?.features || DEFAULT_FREE_FEATURES;
+        const features: FeatureFlag[] = (effectivePlan?.features || DEFAULT_FREE_FEATURES) as FeatureFlag[];
 
         await this.redisService.setJson(cacheKey, features, 3600);
         return features;

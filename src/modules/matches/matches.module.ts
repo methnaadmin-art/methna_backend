@@ -8,10 +8,12 @@ import { Profile } from '../../database/entities/profile.entity';
 import { UserPreference } from '../../database/entities/user-preference.entity';
 import { BlockedUser } from '../../database/entities/blocked-user.entity';
 import { Photo } from '../../database/entities/photo.entity';
+import { Conversation } from '../../database/entities/conversation.entity';
+import { User } from '../../database/entities/user.entity';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Match, Like, Profile, UserPreference, BlockedUser, Photo]),
+        TypeOrmModule.forFeature([Match, Like, Profile, UserPreference, BlockedUser, Photo, Conversation, User]),
     ],
     controllers: [MatchesController],
     providers: [MatchesService],

@@ -18,6 +18,7 @@ import { RedisService } from '../redis/redis.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MonetizationService, FeatureFlag } from '../monetization/monetization.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { User, UserStatus } from '../../database/entities/user.entity';
 
 const FREE_DAILY_SWIPE_LIMIT = 10;
 const FREE_DAILY_SUPER_LIKE_LIMIT = 0;
@@ -41,6 +42,8 @@ export class SwipesService {
         private readonly conversationRepository: Repository<Conversation>,
         @InjectRepository(RematchRequest)
         private readonly rematchRepository: Repository<RematchRequest>,
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
         private readonly redisService: RedisService,
         private readonly notificationsService: NotificationsService,
         private readonly monetizationService: MonetizationService,
@@ -52,6 +55,27 @@ export class SwipesService {
 
         if (userId === targetUserId) {
             throw new BadRequestException('Cannot swipe on yourself');
+        }
+
+        // Shadow-suspended users: silently drop positive interactions.
+        // They see the swipe succeed, but no like/match is actually created.
+        const user = await this.userRepository.findOne({ where: { id: userId }, select: ['id', 'status'] });
+        if (user?.status === UserStatus.SHADOW_SUSPENDED && action !== SwipeAction.PASS) {
+            // Pretend the swipe succeeded — return a fake success response
+            this.logger.debug(`Shadow-suspended user ${userId} swipe silently dropped`);
+            return { success: true, isMatch: false, action, targetUserId };
+        }
+
+        // Banned/closed/deactivated users cannot interact at all
+        const blockedStatuses = [UserStatus.BANNED, UserStatus.CLOSED, UserStatus.DEACTIVATED];
+        if (blockedStatuses.includes(user?.status as UserStatus)) {
+            throw new ForbiddenException('Your account is not active. You cannot perform this action.');
+        }
+
+        // Cannot swipe on a banned/closed/deactivated target user
+        const targetUser = await this.userRepository.findOne({ where: { id: targetUserId }, select: ['id', 'status'] });
+        if (targetUser && blockedStatuses.includes(targetUser.status as UserStatus)) {
+            throw new BadRequestException('This user is no longer available.');
         }
 
         // Validate compliment action has a message
@@ -142,6 +166,12 @@ export class SwipesService {
             take: 50,
         });
 
+        // Filter out likes from banned/closed/deactivated users
+        const invisibleStatuses = [UserStatus.BANNED, UserStatus.CLOSED, UserStatus.DEACTIVATED];
+        const visibleLikes = likes.filter(l =>
+            !l.liker || !invisibleStatuses.includes(l.liker.status as UserStatus),
+        );
+
         // Filter out users that are already matched
         const matchedUserIds = new Set<string>();
         const activeMatches = await this.matchRepository.find({
@@ -153,7 +183,7 @@ export class SwipesService {
         for (const m of activeMatches) {
             matchedUserIds.add(m.user1Id === userId ? m.user2Id : m.user1Id);
         }
-        const filteredLikes = likes.filter(l => !matchedUserIds.has(l.likerId));
+        const filteredLikes = visibleLikes.filter(l => !matchedUserIds.has(l.likerId));
 
         if (!isPremium) {
             // Non-premium: return anonymized data for blurred card display

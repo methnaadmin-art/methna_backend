@@ -61,6 +61,14 @@ export default () => {
         maxAttempts: parseInt(process.env.OTP_MAX_ATTEMPTS || '5', 10),
     },
 
+    stripe: {
+        secretKey: process.env.STRIPE_SECRET_KEY || '',
+        publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+        webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+        pricePremium: process.env.STRIPE_PRICE_PREMIUM || '',
+        priceGold: process.env.STRIPE_PRICE_GOLD || '',
+    },
+
     throttle: {
         ttl: parseInt(process.env.THROTTLE_TTL || '60', 10),
         limit: parseInt(process.env.THROTTLE_LIMIT || '100', 10),

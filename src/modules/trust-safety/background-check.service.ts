@@ -9,6 +9,7 @@ import {
     ContentFlagStatus,
     ContentFlagType,
 } from '../../database/entities/content-flag.entity';
+import { RedisService } from '../redis/redis.service';
 
 export enum BackgroundCheckStatus {
     NOT_STARTED = 'not_started',
@@ -30,12 +31,23 @@ export interface BackgroundCheckResult {
 export class BackgroundCheckService {
     private readonly logger = new Logger(BackgroundCheckService.name);
 
+    private bgStatusKey(userId: string): string {
+        return `bg_check_status:${userId}`;
+    }
+    private bgCheckIdKey(userId: string): string {
+        return `bg_check_id:${userId}`;
+    }
+    private bgCompletedAtKey(userId: string): string {
+        return `bg_check_completed:${userId}`;
+    }
+
     constructor(
         private readonly configService: ConfigService,
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
         @InjectRepository(ContentFlag)
         private readonly contentFlagRepository: Repository<ContentFlag>,
+        private readonly redisService: RedisService,
     ) { }
 
     /**
@@ -58,11 +70,9 @@ export class BackgroundCheckService {
 
         if (!apiKey) {
             this.logger.warn('Background check API key not configured. Queuing manual review workflow.');
-            await this.userRepository.update(userId, {
-                backgroundCheckStatus: BackgroundCheckStatus.PENDING,
-                backgroundCheckCheckId: checkId,
-                backgroundCheckCompletedAt: null as any,
-            } as any);
+            await this.redisService.set(this.bgStatusKey(userId), BackgroundCheckStatus.PENDING, 0);
+            await this.redisService.set(this.bgCheckIdKey(userId), checkId, 0);
+            await this.redisService.del(this.bgCompletedAtKey(userId));
 
             await this.contentFlagRepository.save({
                 userId,
@@ -87,11 +97,9 @@ export class BackgroundCheckService {
         }
 
         try {
-            await this.userRepository.update(userId, {
-                backgroundCheckStatus: BackgroundCheckStatus.IN_PROGRESS,
-                backgroundCheckCheckId: checkId,
-                backgroundCheckCompletedAt: null as any,
-            } as any);
+            await this.redisService.set(this.bgStatusKey(userId), BackgroundCheckStatus.IN_PROGRESS, 0);
+            await this.redisService.set(this.bgCheckIdKey(userId), checkId, 0);
+            await this.redisService.del(this.bgCompletedAtKey(userId));
 
             this.logger.log(`Background check queued for provider handoff for user ${userId}`);
             return {
@@ -100,9 +108,7 @@ export class BackgroundCheckService {
             };
         } catch (error) {
             this.logger.error(`Background check initiation failed for user ${userId}`, (error as Error).message);
-            await this.userRepository.update(userId, {
-                backgroundCheckStatus: BackgroundCheckStatus.ERROR,
-            } as any);
+            await this.redisService.set(this.bgStatusKey(userId), BackgroundCheckStatus.ERROR, 0);
             return {
                 status: BackgroundCheckStatus.ERROR,
                 details: { error: (error as Error).message },
@@ -128,10 +134,10 @@ export class BackgroundCheckService {
             BackgroundCheckStatus.FAILED,
         ].includes(checkStatus);
 
-        await this.userRepository.update(userId, {
-            backgroundCheckStatus: checkStatus,
-            backgroundCheckCompletedAt: isTerminalStatus ? new Date() : null as any,
-        } as any);
+        await this.redisService.set(this.bgStatusKey(userId), checkStatus, 0);
+        if (isTerminalStatus) {
+            await this.redisService.set(this.bgCompletedAtKey(userId), new Date().toISOString(), 0);
+        }
 
         this.logger.log(`Background check updated for user ${userId}: ${checkStatus}`);
     }
@@ -140,20 +146,14 @@ export class BackgroundCheckService {
      * Get the background check status for a user.
      */
     async getCheckStatus(userId: string): Promise<BackgroundCheckResult> {
-        const user = await this.userRepository.findOne({
-            where: { id: userId },
-            select: [
-                'id',
-                'backgroundCheckStatus' as any,
-                'backgroundCheckCheckId' as any,
-                'backgroundCheckCompletedAt' as any,
-            ],
-        });
+        const storedStatus = await this.redisService.get(this.bgStatusKey(userId));
+        const storedCheckId = await this.redisService.get(this.bgCheckIdKey(userId));
+        const storedCompletedAt = await this.redisService.get(this.bgCompletedAtKey(userId));
 
         return {
-            status: (user as any)?.backgroundCheckStatus || BackgroundCheckStatus.NOT_STARTED,
-            checkId: (user as any)?.backgroundCheckCheckId || undefined,
-            completedAt: (user as any)?.backgroundCheckCompletedAt || undefined,
+            status: (storedStatus as BackgroundCheckStatus) || BackgroundCheckStatus.NOT_STARTED,
+            checkId: storedCheckId || undefined,
+            completedAt: storedCompletedAt ? new Date(storedCompletedAt) : undefined,
         };
     }
 

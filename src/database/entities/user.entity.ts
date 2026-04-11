@@ -20,11 +20,39 @@ export enum UserRole {
 
 export enum UserStatus {
     ACTIVE = 'active',
-    REJECTED = 'rejected',
+    LIMITED = 'limited',
     SUSPENDED = 'suspended',
+    SHADOW_SUSPENDED = 'shadow_suspended',
     BANNED = 'banned',
+    REJECTED = 'rejected',
     DEACTIVATED = 'deactivated',
+    CLOSED = 'closed',
     PENDING_VERIFICATION = 'pending_verification',
+}
+
+export enum ModerationReasonCode {
+    IDENTITY_VERIFICATION_FAILED = 'IDENTITY_VERIFICATION_FAILED',
+    SELFIE_VERIFICATION_FAILED = 'SELFIE_VERIFICATION_FAILED',
+    MARRIAGE_DOCUMENT_REQUIRED = 'MARRIAGE_DOCUMENT_REQUIRED',
+    INAPPROPRIATE_LANGUAGE = 'INAPPROPRIATE_LANGUAGE',
+    HARASSMENT_REPORT = 'HARASSMENT_REPORT',
+    MULTIPLE_USER_REPORTS = 'MULTIPLE_USER_REPORTS',
+    FAKE_PROFILE_SUSPECTED = 'FAKE_PROFILE_SUSPECTED',
+    SPAM_BEHAVIOR = 'SPAM_BEHAVIOR',
+    POLICY_VIOLATION = 'POLICY_VIOLATION',
+    UNDER_REVIEW = 'UNDER_REVIEW',
+    OTHER = 'OTHER',
+}
+
+export enum ActionRequired {
+    REUPLOAD_IDENTITY_DOCUMENT = 'REUPLOAD_IDENTITY_DOCUMENT',
+    RETAKE_SELFIE = 'RETAKE_SELFIE',
+    UPLOAD_MARRIAGE_DOCUMENT = 'UPLOAD_MARRIAGE_DOCUMENT',
+    CONTACT_SUPPORT = 'CONTACT_SUPPORT',
+    WAIT_FOR_REVIEW = 'WAIT_FOR_REVIEW',
+    NO_ACTION = 'NO_ACTION',
+    VERIFY_PHONE = 'VERIFY_PHONE',
+    VERIFY_EMAIL = 'VERIFY_EMAIL',
 }
 
 export enum VerificationStatus {
@@ -151,6 +179,33 @@ export class User {
 
     @Column({ type: 'enum', enum: UserStatus, default: UserStatus.PENDING_VERIFICATION })
     status: UserStatus;
+
+    @Column({ type: 'text', nullable: true })
+    statusReason: string | null;
+
+    @Column({ type: 'enum', enum: ModerationReasonCode, nullable: true })
+    moderationReasonCode: ModerationReasonCode | null;
+
+    @Column({ type: 'text', nullable: true })
+    moderationReasonText: string | null;
+
+    @Column({ type: 'enum', enum: ActionRequired, nullable: true })
+    actionRequired: ActionRequired | null;
+
+    @Column({ type: 'text', nullable: true })
+    supportMessage: string | null;
+
+    @Column({ default: true })
+    isUserVisible: boolean;
+
+    @Column({ type: 'timestamptz', nullable: true })
+    moderationExpiresAt: Date | null;
+
+    @Column({ type: 'text', nullable: true })
+    internalAdminNote: string | null;
+
+    @Column({ nullable: true })
+    updatedByAdminId: string | null;
 
     @Column({ default: false })
     isPremium: boolean;

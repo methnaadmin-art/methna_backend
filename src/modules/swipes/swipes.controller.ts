@@ -13,16 +13,19 @@ import { SwipesService } from './swipes.service';
 import { CreateSwipeDto } from './dto/swipe.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { ModerationGuard } from '../../common/guards/moderation.guard';
+import { SetModerationLevel } from '../../common/decorators/moderation.decorator';
 
 @ApiTags('swipes')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ModerationGuard)
 @Controller('swipes')
 export class SwipesController {
     constructor(private readonly swipesService: SwipesService) { }
 
     @Post()
     @Throttle({ default: { ttl: 60000, limit: 30 } })
+    @SetModerationLevel('suspended')
     @ApiOperation({ summary: 'Swipe on a user (like, super_like, compliment, pass)' })
     async swipe(
         @CurrentUser('sub') userId: string,

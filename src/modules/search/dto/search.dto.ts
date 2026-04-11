@@ -8,10 +8,18 @@ import {
     Min,
     Max,
     IsArray,
+    IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Gender, MaritalStatus, ReligiousLevel, EducationLevel, PrayerFrequency, MarriageIntention, LivingSituation } from '../../../database/entities/profile.entity';
+
+export enum SearchSortBy {
+    DISTANCE = 'distance',
+    COMPATIBILITY = 'compatibility',
+    ACTIVITY = 'activity',
+    NEWEST = 'newest',
+}
 
 export class SearchFiltersDto {
     @ApiPropertyOptional({ minimum: 18 })
@@ -144,6 +152,12 @@ export class SearchFiltersDto {
     @IsInt()
     @Min(1)
     page?: number = 1;
+
+    @ApiPropertyOptional({ description: 'Sort priority: distance (nearest first), compatibility, activity, newest', enum: ['distance', 'compatibility', 'activity', 'newest'], default: 'distance' })
+    @IsOptional()
+    @IsString()
+    @IsIn(['distance', 'compatibility', 'activity', 'newest'])
+    sortBy?: SearchSortBy = SearchSortBy.DISTANCE;
 
     @ApiPropertyOptional({ default: 20 })
     @IsOptional()

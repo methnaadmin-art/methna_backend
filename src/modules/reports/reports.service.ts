@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Report, ReportReason } from '../../database/entities/report.entity';
 import { BlockedUser } from '../../database/entities/blocked-user.entity';
+import { Match, MatchStatus } from '../../database/entities/match.entity';
 import { CreateReportDto, UpdateReportStatusDto } from './dto/report.dto';
 import { RedisService } from '../redis/redis.service';
 
@@ -17,6 +18,8 @@ export class ReportsService {
         private readonly reportRepository: Repository<Report>,
         @InjectRepository(BlockedUser)
         private readonly blockedUserRepository: Repository<BlockedUser>,
+        @InjectRepository(Match)
+        private readonly matchRepository: Repository<Match>,
     ) { }
 
     // ─── User Reports ──────────────────────────────────────
@@ -91,7 +94,7 @@ export class ReportsService {
             where: { blockerId: userId, blockedId },
         });
         if (existing) {
-            throw new BadRequestException('User already blocked');
+            return; // Already blocked — idempotent success
         }
 
         const block = this.blockedUserRepository.create({
@@ -99,6 +102,20 @@ export class ReportsService {
             blockedId,
         });
         await this.blockedUserRepository.save(block);
+
+        // Auto-unmatch: set all active matches between these users to UNMATCHED
+        const activeMatches = await this.matchRepository.find({
+            where: [
+                { user1Id: userId, user2Id: blockedId, status: MatchStatus.ACTIVE },
+                { user1Id: blockedId, user2Id: userId, status: MatchStatus.ACTIVE },
+            ],
+        });
+        for (const match of activeMatches) {
+            match.status = MatchStatus.UNMATCHED;
+        }
+        if (activeMatches.length > 0) {
+            await this.matchRepository.save(activeMatches);
+        }
     }
 
     async unblockUser(userId: string, blockedId: string): Promise<void> {

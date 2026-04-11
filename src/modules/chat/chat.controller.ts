@@ -12,11 +12,13 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { ModerationGuard } from '../../common/guards/moderation.guard';
+import { SetModerationLevel } from '../../common/decorators/moderation.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @ApiTags('chat')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ModerationGuard)
 @Controller('chat')
 export class ChatController {
     constructor(private readonly chatService: ChatService) { }
@@ -50,6 +52,7 @@ export class ChatController {
     }
 
     @Post('conversations/:conversationId/messages')
+    @SetModerationLevel('limited')
     @ApiOperation({ summary: 'Send a message via HTTP (fallback for socket)' })
     async sendMessage(
         @CurrentUser('sub') userId: string,

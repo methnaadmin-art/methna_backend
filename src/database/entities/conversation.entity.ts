@@ -69,6 +69,18 @@ export class Conversation {
     @Column({ default: true })
     isActive: boolean;
 
+    @Column({ default: false })
+    isLocked: boolean;
+
+    @Column({ nullable: true })
+    lockReason: string | null;
+
+    @Column({ default: false })
+    isFlagged: boolean;
+
+    @Column({ nullable: true })
+    flagReason: string | null;
+
     @OneToMany('Message', (message: Message) => message.conversation)
     messages: Relation<Message[]>;
 

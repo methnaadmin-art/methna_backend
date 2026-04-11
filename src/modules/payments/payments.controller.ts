@@ -1,12 +1,13 @@
-import { Controller, Get, Post, Body, Headers, UseGuards, Request, RawBodyRequest, Req } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Headers, UseGuards, Request, Req, RawBodyRequest, Logger } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiBody, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { PaymentsService, CreatePaymentIntentDto, PaymentProvider } from './payments.service';
-import { SubscriptionPlan } from '../../database/entities/subscription.entity';
+import { PaymentsService, CreateCheckoutSessionDto, PaymentProvider } from './payments.service';
 
 @ApiTags('payments')
 @Controller('payments')
 export class PaymentsController {
+    private readonly logger = new Logger(PaymentsController.name);
+
     constructor(private readonly paymentsService: PaymentsService) { }
 
     @Get('pricing')
@@ -16,28 +17,53 @@ export class PaymentsController {
 
     @ApiBearerAuth()
     @UseGuards(JwtAuthGuard)
+    @Post('create-checkout-session')
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                planCode: { type: 'string', description: 'Plan code from DB (e.g. premium, gold)' },
+                provider: { type: 'string', enum: Object.values(PaymentProvider) },
+            },
+            required: ['planCode', 'provider'],
+        },
+    })
+    async createCheckoutSession(@Request() req, @Body() dto: CreateCheckoutSessionDto) {
+        return this.paymentsService.createCheckoutSession(req.user.id, dto);
+    }
+
+    // Legacy endpoint kept for backward compat
+    @ApiBearerAuth()
+    @UseGuards(JwtAuthGuard)
     @Post('create-intent')
     @ApiBody({
         schema: {
             type: 'object',
             properties: {
-                plan: { type: 'string', enum: Object.values(SubscriptionPlan) },
+                planCode: { type: 'string' },
                 provider: { type: 'string', enum: Object.values(PaymentProvider) },
-                currency: { type: 'string', default: 'usd' },
             },
-            required: ['plan', 'provider'],
+            required: ['planCode', 'provider'],
         },
     })
-    async createPaymentIntent(@Request() req, @Body() dto: CreatePaymentIntentDto) {
-        return this.paymentsService.createPaymentIntent(req.user.id, dto);
+    async createPaymentIntent(@Request() req, @Body() dto: CreateCheckoutSessionDto) {
+        return this.paymentsService.createCheckoutSession(req.user.id, dto);
     }
 
     @Post('webhook/stripe')
+    @ApiExcludeEndpoint()
     async stripeWebhook(
-        @Body() payload: any,
+        @Req() req: RawBodyRequest<any>,
         @Headers('stripe-signature') signature: string,
     ) {
-        await this.paymentsService.handleStripeWebhook(payload, signature);
+        const rawBody = req.rawBody ?? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
+
+        if (!signature) {
+            this.logger.warn('Stripe webhook received without signature header');
+            return { received: false, error: 'Missing stripe-signature header' };
+        }
+
+        await this.paymentsService.handleStripeWebhook(rawBody, signature);
         return { received: true };
     }
 }

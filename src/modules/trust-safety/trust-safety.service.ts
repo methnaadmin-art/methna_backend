@@ -173,6 +173,8 @@ export class TrustSafetyService {
         return {
             message: 'Marriage certificate uploaded. It will be reviewed by our team.',
             status: VerificationStatus.PENDING,
+            marriageCertUrl: result.secure_url,
+            certificateUrl: result.secure_url,
             documentUrl: result.secure_url,
         };
     }
@@ -213,7 +215,8 @@ export class TrustSafetyService {
             selfieVerified: user?.selfieVerified ?? false,
             selfieUploaded: !!verification.selfie.url,
             selfieStatus,
-            verification,
+            selfieUrl: verification.selfie.url || user?.selfieUrl || null,
+            selfieRejectionReason: verification.selfie.rejectionReason || null,
             idDocumentUploaded: !!(idDocUrl || user?.documentUrl),
             idDocumentStatus,
             documentUrl: user?.documentUrl || idDocUrl || null,
@@ -224,6 +227,7 @@ export class TrustSafetyService {
             marriageCertUploaded: !!marriageCertUrl,
             marriageCertStatus,
             marriageCertUrl,
+            marriageCertRejectionReason: verification.marital_status.rejectionReason || null,
             trustScore: user?.trustScore ?? 100,
         };
     }

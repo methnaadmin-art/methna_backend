@@ -12,7 +12,8 @@ import { Profile } from '../../database/entities/profile.entity';
 import { UserPreference } from '../../database/entities/user-preference.entity';
 import { BlockedUser } from '../../database/entities/blocked-user.entity';
 import { Photo } from '../../database/entities/photo.entity';
-import { User } from '../../database/entities/user.entity';
+import { User, UserStatus } from '../../database/entities/user.entity';
+import { Conversation } from '../../database/entities/conversation.entity';
 import { RedisService } from '../redis/redis.service';
 import { CloudinaryService } from '../photos/cloudinary.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
@@ -34,6 +35,8 @@ export class MatchesService {
         private readonly blockedUserRepository: Repository<BlockedUser>,
         @InjectRepository(Photo)
         private readonly photoRepository: Repository<Photo>,
+        @InjectRepository(Conversation)
+        private readonly conversationRepository: Repository<Conversation>,
         private readonly redisService: RedisService,
     ) { }
 
@@ -79,6 +82,7 @@ export class MatchesService {
                     lastName: otherUser.lastName,
                     photo: photoMap.get(otherUserId) || null,
                     isOnline: onlineMap.get(otherUserId) || false,
+                    status: otherUser.status,
                 },
             };
         });
@@ -101,7 +105,7 @@ export class MatchesService {
 
     // ─── NEARBY USERS RADAR ─────────────────────────────────
 
-    async getNearbyUsers(userId: string, radiusKm: number = 50, limit: number = 30) {
+    async getNearbyUsers(userId: string, radiusKm: number = 50, limit: number = 30, country?: string, city?: string) {
         const profile = await this.profileRepository.findOne({ where: { userId } });
         if (!profile || !profile.latitude || !profile.longitude) {
             return [];
@@ -136,9 +140,17 @@ export class MatchesService {
             })
             // Distance filter inline (replaces invalid HAVING without GROUP BY)
             .andWhere(`${distanceExpr} <= :radius`, { radius: radiusKm })
-            .setParameters({ lat: profile.latitude, lng: profile.longitude })
-            .orderBy('distance', 'ASC')
-            .take(limit);
+            .setParameters({ lat: profile.latitude, lng: profile.longitude });
+
+        // Apply country/city filters (case-insensitive exact match)
+        if (country) {
+            query.andWhere('LOWER(profile.country) = LOWER(:country)', { country: country.trim() });
+        }
+        if (city) {
+            query.andWhere('LOWER(profile.city) = LOWER(:city)', { city: city.trim() });
+        }
+
+        query.orderBy('distance', 'ASC').take(limit);
 
         const results = await query.getRawAndEntities();
 

@@ -72,6 +72,8 @@ export class ChatService {
             where: [
                 { user1Id: userId, isActive: true },
                 { user2Id: userId, isActive: true },
+                { user1Id: userId, isLocked: true },
+                { user2Id: userId, isLocked: true },
             ],
             relations: ['user1', 'user2'],
             order: { lastMessageAt: 'DESC' },
@@ -113,6 +115,8 @@ export class ChatService {
                 lastMessageSenderId: conv.lastMessageSenderId,
                 unreadCount,
                 isMuted,
+                isLocked: conv.isLocked ?? false,
+                lockReason: conv.lockReason ?? null,
             };
         });
 
@@ -152,6 +156,11 @@ export class ChatService {
         type: MessageType = MessageType.TEXT,
     ): Promise<Message> {
         const conversation = await this.verifyConversationParticipant(senderId, conversationId);
+
+        // Reject messages to locked conversations (banned/closed user)
+        if (conversation.isLocked) {
+            throw new ForbiddenException(conversation.lockReason || 'This conversation is no longer available.');
+        }
 
         // Check if either user has blocked the other
         const recipientId = conversation.user1Id === senderId ? conversation.user2Id : conversation.user1Id;
@@ -399,10 +408,11 @@ export class ChatService {
         userId: string,
         conversationId: string,
     ): Promise<Conversation> {
+        // Allow access to both active and locked conversations (locked = read-only)
         const conversation = await this.conversationRepository.findOne({
             where: [
-                { id: conversationId, user1Id: userId, isActive: true },
-                { id: conversationId, user2Id: userId, isActive: true },
+                { id: conversationId, user1Id: userId },
+                { id: conversationId, user2Id: userId },
             ],
         });
 

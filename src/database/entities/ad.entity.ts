@@ -64,6 +64,18 @@ export class Ad {
     @Column({ nullable: true })
     targetPlan: string;
 
+    @Column({ nullable: true })
+    targetCountry: string;
+
+    @Column({ nullable: true })
+    targetCity: string;
+
+    @Column({ type: 'int', default: 1 })
+    showEveryNUsers: number;
+
+    @Column({ type: 'int', default: 1 })
+    weight: number;
+
     @CreateDateColumn()
     createdAt: Date;
 

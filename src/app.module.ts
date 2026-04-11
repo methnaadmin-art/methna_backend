@@ -26,10 +26,13 @@ import { JobsModule } from './modules/jobs/jobs.module';
 import { ProfileViewsModule } from './modules/profile-views/profile-views.module';
 import { SuccessStoriesModule } from './modules/success-stories/success-stories.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { PlansModule } from './modules/plans/plans.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { SupportModule } from './modules/support/support.module';
 import { DailyInsightsModule } from './modules/daily-insights/daily-insights.module';
 import { ContentModule } from './modules/content/content.module';
+import { ModerationModule } from './common/moderation.module';
+import { AdsModule } from './modules/ads/ads.module';
 import configuration from './config/configuration';
 
 @Module({
@@ -79,10 +82,13 @@ import configuration from './config/configuration';
         ProfileViewsModule,
         SuccessStoriesModule,
         PaymentsModule,
+        PlansModule,
         CategoriesModule,
         SupportModule,
         DailyInsightsModule,
         ContentModule,
+        ModerationModule,
+        AdsModule,
     ],
 })
 export class AppModule { }

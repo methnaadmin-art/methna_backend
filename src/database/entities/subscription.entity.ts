@@ -9,21 +9,24 @@ import {
     Index,
 } from 'typeorm';
 import { User } from './user.entity';
-import { Plan } from './plan.entity';
+import { Plan, BillingCycle } from './plan.entity';
 
+/** @deprecated Use Plan.code from planEntity instead. Kept for DB backward compat. */
 export enum SubscriptionPlan {
     FREE = 'free',
     PREMIUM = 'premium',
     GOLD = 'gold',
 }
 
-/** UI alias — use SubscriptionPlan.GOLD in code, display "Elite" in the frontend */
+/** @deprecated Use Plan.code instead. */
 export const ELITE_PLAN = SubscriptionPlan.GOLD;
 
 export enum SubscriptionStatus {
     ACTIVE = 'active',
     CANCELLED = 'cancelled',
     EXPIRED = 'expired',
+    PAST_DUE = 'past_due',
+    TRIAL = 'trial',
 }
 
 @Entity('subscriptions')
@@ -41,29 +44,38 @@ export class Subscription {
 
     @ManyToOne(() => Plan, plan => plan.subscriptions, { onDelete: 'SET NULL', nullable: true })
     @JoinColumn({ name: 'planId' })
-    planEntity: Plan;
+    planEntity: Plan | null;
 
     @Column({ nullable: true })
-    planId: string;
+    planId: string | null;
 
+    /** @deprecated Legacy enum column — use planEntity.code for dynamic plans. */
     @Column({ type: 'enum', enum: SubscriptionPlan, default: SubscriptionPlan.FREE })
     plan: SubscriptionPlan;
 
     @Column({ type: 'enum', enum: SubscriptionStatus, default: SubscriptionStatus.ACTIVE })
     status: SubscriptionStatus;
 
-    @Column({ nullable: true })
-    startDate: Date;
+    @Column({ type: 'timestamp', nullable: true })
+    startDate: Date | null;
+
+    @Column({ type: 'timestamp', nullable: true })
+    endDate: Date | null;
 
     @Column({ nullable: true })
-    endDate: Date;
+    paymentReference: string | null;
 
     @Column({ nullable: true })
-    paymentReference: string;
+    stripeSubscriptionId: string | null;
 
-    // Stripe Subscription ID
     @Column({ nullable: true })
-    stripeSubscriptionId: string;
+    stripeCheckoutSessionId: string | null;
+
+    @Column({ nullable: true })
+    stripeCustomerId: string | null;
+
+    @Column({ type: 'enum', enum: BillingCycle, nullable: true })
+    billingCycle: BillingCycle | null;
 
     @CreateDateColumn()
     createdAt: Date;

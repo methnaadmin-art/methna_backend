@@ -19,7 +19,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserRole, UserStatus } from '../../database/entities/user.entity';
+import { UserRole, UserStatus, ModerationReasonCode, ActionRequired } from '../../database/entities/user.entity';
 import { ReportStatus } from '../../database/entities/report.entity';
 import { PhotoModerationStatus } from '../../database/entities/photo.entity';
 import { LikeType } from '../../database/entities/like.entity';
@@ -42,6 +42,46 @@ class UpdateUserStatusDto {
     @ApiProperty({ enum: UserStatus })
     @IsEnum(UserStatus)
     status: UserStatus;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    reason?: string;
+
+    @ApiPropertyOptional({ enum: ModerationReasonCode })
+    @IsOptional()
+    @IsEnum(ModerationReasonCode)
+    moderationReasonCode?: ModerationReasonCode;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    moderationReasonText?: string;
+
+    @ApiPropertyOptional({ enum: ActionRequired })
+    @IsOptional()
+    @IsEnum(ActionRequired)
+    actionRequired?: ActionRequired;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    supportMessage?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsBoolean()
+    isUserVisible?: boolean;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsDateString()
+    expiresAt?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    internalAdminNote?: string;
 }
 
 class ResolveReportDto {
@@ -83,6 +123,7 @@ class SendNotificationDto {
     @ApiPropertyOptional() @IsOptional() @IsString() conversationId?: string;
     @ApiPropertyOptional({ type: Object }) @IsOptional() @IsObject() extraData?: Record<string, any>;
     @ApiPropertyOptional() @IsOptional() @IsBoolean() broadcast?: boolean;
+    @ApiPropertyOptional({ type: Object }) @IsOptional() @IsObject() filters?: Record<string, any>;
 }
 
 class ReplyTicketDto {
@@ -165,6 +206,12 @@ export class AdminController {
         return this.adminService.getUserActivity(userId);
     }
 
+    @Get('users/:id/subscription-history')
+    @ApiOperation({ summary: 'Get user subscription history' })
+    async getUserSubscriptionHistory(@Param('id') userId: string) {
+        return this.adminService.getUserSubscriptionHistory(userId);
+    }
+
     @Patch('users/:id')
     @Put('users/:id')
     @ApiOperation({ summary: 'Update user fields' })
@@ -187,7 +234,17 @@ export class AdminController {
             targetUserId: userId,
             newStatus: dto.status,
         }).catch(() => {});
-        return this.adminService.updateUserStatus(userId, dto.status);
+        return this.adminService.updateUserStatus(userId, dto.status, {
+            reason: dto.reason,
+            moderationReasonCode: dto.moderationReasonCode,
+            moderationReasonText: dto.moderationReasonText,
+            actionRequired: dto.actionRequired,
+            supportMessage: dto.supportMessage,
+            isUserVisible: dto.isUserVisible,
+            expiresAt: dto.expiresAt,
+            internalAdminNote: dto.internalAdminNote,
+            updatedByAdminId: adminId,
+        });
     }
 
     @Roles(UserRole.ADMIN)
@@ -371,18 +428,56 @@ export class AdminController {
     // â”€â”€â”€ CONVERSATIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     @Get('conversations')
-    @ApiOperation({ summary: 'View all conversations' })
-    async getConversations(@Query() pagination: PaginationDto) {
-        return this.adminService.getConversations(pagination);
+    @ApiOperation({ summary: 'View all conversations with optional search' })
+    async getConversations(
+        @Query() pagination: PaginationDto,
+        @Query('search') search?: string,
+    ) {
+        return this.adminService.getConversations(pagination, search);
     }
 
     @Get('conversations/:id/messages')
-    @ApiOperation({ summary: 'View messages in a conversation' })
+    @ApiOperation({ summary: 'View messages in a conversation with optional search' })
     async getConversationMessages(
         @Param('id') conversationId: string,
         @Query() pagination: PaginationDto,
+        @Query('search') search?: string,
     ) {
-        return this.adminService.getConversationMessages(conversationId, pagination);
+        return this.adminService.getConversationMessages(conversationId, pagination, search);
+    }
+
+    @Patch('conversations/:id/lock')
+    @ApiOperation({ summary: 'Lock or unlock a conversation' })
+    async lockConversation(
+        @CurrentUser('sub') adminId: string,
+        @Param('id') conversationId: string,
+        @Body() dto: { isLocked: boolean; lockReason?: string },
+    ) {
+        this.redisService.appendAuditLog({
+            type: 'admin',
+            adminId,
+            action: dto.isLocked ? 'lock_conversation' : 'unlock_conversation',
+            targetUserId: conversationId,
+            details: dto.lockReason || '',
+        }).catch(() => {});
+        return this.adminService.lockConversation(conversationId, dto.isLocked, dto.lockReason);
+    }
+
+    @Patch('conversations/:id/flag')
+    @ApiOperation({ summary: 'Flag or unflag a conversation' })
+    async flagConversation(
+        @CurrentUser('sub') adminId: string,
+        @Param('id') conversationId: string,
+        @Body() dto: { isFlagged: boolean; flagReason?: string },
+    ) {
+        this.redisService.appendAuditLog({
+            type: 'admin',
+            adminId,
+            action: dto.isFlagged ? 'flag_conversation' : 'unflag_conversation',
+            targetUserId: conversationId,
+            details: dto.flagReason || '',
+        }).catch(() => {});
+        return this.adminService.flagConversation(conversationId, dto.isFlagged, dto.flagReason);
     }
 
     // â”€â”€â”€ REPORTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -437,6 +532,12 @@ export class AdminController {
             broadcast: dto.broadcast ?? false,
         }).catch(() => {});
         return this.adminService.sendNotification(dto);
+    }
+
+    @Post('notifications/preview')
+    @ApiOperation({ summary: 'Preview recipient count for filtered broadcast' })
+    async previewNotificationRecipients(@Body() filters: Record<string, any>) {
+        return this.adminService.previewNotificationRecipients(filters);
     }
 
     // â”€â”€â”€ SUPPORT TICKETS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

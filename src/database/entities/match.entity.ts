@@ -14,6 +14,7 @@ import { User } from './user.entity';
 export enum MatchStatus {
     ACTIVE = 'active',
     UNMATCHED = 'unmatched',
+    CLOSED = 'closed',
 }
 
 @Entity('matches')
