@@ -7,6 +7,7 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import dataSource from './database/data-source';
 
 async function bootstrap() {
     const logger = new Logger('Bootstrap');
@@ -104,6 +105,22 @@ async function bootstrap() {
     }
 
     await app.listen(port, '0.0.0.0');
+
+    // Run pending migrations after app is ready
+    try {
+        if (!dataSource.isInitialized) {
+            await dataSource.initialize();
+        }
+        const migrations = await dataSource.runMigrations({ transaction: 'all' });
+        if (migrations.length > 0) {
+            logger.log(`✅ Ran ${migrations.length} migration(s): ${migrations.map(m => m.name).join(', ')}`);
+        } else {
+            logger.log('✅ Database migrations up to date');
+        }
+    } catch (err) {
+        logger.error('❌ Migration run failed — continuing anyway', err);
+    }
+
     logger.log(`🚀 Wafaa API running on http://0.0.0.0:${port}/${apiPrefix}`);
     logger.log(`📚 Swagger docs at http://0.0.0.0:${port}/api/docs`);
 }
