@@ -51,7 +51,7 @@ function sanitizeDatabaseUrl(url?: string) {
                     ...connectionConfig,
                     ssl: { rejectUnauthorized: false },
                     autoLoadEntities: true,
-                    synchronize: !isProduction, // Disable in production — use migrations instead
+                    synchronize: true, // Temporarily enabled to sync missing columns — will disable after deploy
                     logging: !isProduction ? ['error', 'warn', 'query'] : ['error'],
                     entities: [__dirname + '/entities/**/*.entity{.ts,.js}'],
                     retryAttempts: 5,
