@@ -18,6 +18,7 @@ import { Plan } from '../../database/entities/plan.entity';
 export class SubscriptionsService {
     private readonly logger = new Logger(SubscriptionsService.name);
     private hasLoggedMissingPremiumColumns = false;
+    private hasLoggedMissingPlanCodeColumn = false;
 
     constructor(
         @InjectRepository(Subscription)
@@ -68,11 +69,24 @@ export class SubscriptionsService {
     }
 
     async getMySubscription(userId: string): Promise<Subscription> {
-        let sub = await this.subscriptionRepository.findOne({
-            where: { userId },
-            order: { createdAt: 'DESC' },
-            relations: ['planEntity'],
-        });
+        let sub: Subscription | null;
+        try {
+            sub = await this.subscriptionRepository.findOne({
+                where: { userId },
+                order: { createdAt: 'DESC' },
+                relations: ['planEntity'],
+            });
+        } catch (error) {
+            if (!this.isMissingPlanCodeColumnError(error)) {
+                throw error;
+            }
+
+            this.logMissingPlanCodeColumnWarning('getMySubscription');
+            sub = await this.subscriptionRepository.findOne({
+                where: { userId },
+                order: { createdAt: 'DESC' },
+            });
+        }
 
         if (!sub) {
             const freePlan = await this.planRepository.findOne({
@@ -241,11 +255,24 @@ export class SubscriptionsService {
     }
 
     async expirePremiums(now: Date = new Date()): Promise<string[]> {
-        const expiredSubscriptions = await this.subscriptionRepository.find({
-            where: { status: SubscriptionStatus.ACTIVE },
-            select: ['id', 'userId', 'endDate', 'plan', 'planId'],
-            relations: ['planEntity'],
-        });
+        let expiredSubscriptions: Subscription[];
+        try {
+            expiredSubscriptions = await this.subscriptionRepository.find({
+                where: { status: SubscriptionStatus.ACTIVE },
+                select: ['id', 'userId', 'endDate', 'plan', 'planId'],
+                relations: ['planEntity'],
+            });
+        } catch (error) {
+            if (!this.isMissingPlanCodeColumnError(error)) {
+                throw error;
+            }
+
+            this.logMissingPlanCodeColumnWarning('expirePremiums');
+            expiredSubscriptions = await this.subscriptionRepository.find({
+                where: { status: SubscriptionStatus.ACTIVE },
+                select: ['id', 'userId', 'endDate', 'plan', 'planId'],
+            });
+        }
 
         const expiredUserIds = new Set<string>();
 
@@ -285,14 +312,30 @@ export class SubscriptionsService {
         userId: string,
     ): Promise<{ isPremium: boolean; premiumStartDate: Date | null; premiumExpiryDate: Date | null }> {
         // Check both ACTIVE and PAST_DUE (grace period while Stripe retries payment)
-        const activeSubscription = await this.subscriptionRepository.findOne({
-            where: [
-                { userId, status: SubscriptionStatus.ACTIVE },
-                { userId, status: SubscriptionStatus.PAST_DUE },
-            ],
-            order: { endDate: 'DESC', createdAt: 'DESC' },
-            relations: ['planEntity'],
-        });
+        let activeSubscription: Subscription | null;
+        try {
+            activeSubscription = await this.subscriptionRepository.findOne({
+                where: [
+                    { userId, status: SubscriptionStatus.ACTIVE },
+                    { userId, status: SubscriptionStatus.PAST_DUE },
+                ],
+                order: { endDate: 'DESC', createdAt: 'DESC' },
+                relations: ['planEntity'],
+            });
+        } catch (error) {
+            if (!this.isMissingPlanCodeColumnError(error)) {
+                throw error;
+            }
+
+            this.logMissingPlanCodeColumnWarning('syncUserPremiumState');
+            activeSubscription = await this.subscriptionRepository.findOne({
+                where: [
+                    { userId, status: SubscriptionStatus.ACTIVE },
+                    { userId, status: SubscriptionStatus.PAST_DUE },
+                ],
+                order: { endDate: 'DESC', createdAt: 'DESC' },
+            });
+        }
 
         const now = new Date();
 
@@ -393,6 +436,17 @@ export class SubscriptionsService {
         return [{ id: planRef, ...extra }, byCode];
     }
 
+    private logMissingPlanCodeColumnWarning(context: string): void {
+        if (this.hasLoggedMissingPlanCodeColumn) {
+            return;
+        }
+
+        this.hasLoggedMissingPlanCodeColumn = true;
+        this.logger.warn(
+            `plans.code column is missing in the database. Falling back to legacy subscriptions.plan in ${context}. Run migrations to restore dynamic plan support.`,
+        );
+    }
+
     private isUuid(value: string): boolean {
         return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
     }
@@ -411,6 +465,24 @@ export class SubscriptionsService {
             message.includes('isPremium') ||
             message.includes('premiumStartDate') ||
             message.includes('premiumExpiryDate')
+        );
+    }
+
+    private isMissingPlanCodeColumnError(error: unknown): boolean {
+        if (!error || typeof error !== 'object') {
+            return false;
+        }
+
+        const message = String((error as { message?: unknown }).message ?? '');
+        if (!message.toLowerCase().includes('does not exist')) {
+            return false;
+        }
+
+        return (
+            message.includes('Subscription__Subscription_planEntity.code') ||
+            message.includes('planEntity.code') ||
+            message.includes('p.code') ||
+            message.includes('relation "plans"')
         );
     }
 

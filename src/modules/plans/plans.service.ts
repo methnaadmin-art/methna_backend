@@ -21,6 +21,7 @@ import { RedisService } from '../redis/redis.service';
 @Injectable()
 export class PlansService {
     private readonly logger = new Logger(PlansService.name);
+    private hasLoggedMissingPlanCodeColumn = false;
 
     constructor(
         @InjectRepository(Plan)
@@ -147,14 +148,7 @@ export class PlansService {
         }>(cacheKey);
         if (cached) return cached;
 
-        const sub = await this.subscriptionRepository.findOne({
-            where: [
-                { userId, status: SubscriptionStatus.ACTIVE },
-                { userId, status: SubscriptionStatus.PAST_DUE },
-            ],
-            order: { createdAt: 'DESC' },
-            relations: ['planEntity'],
-        });
+        const sub = await this.findLatestSubscriptionForEntitlements(userId);
 
         // Check expiry
         if (sub && sub.endDate && new Date(sub.endDate) < new Date()) {
@@ -176,9 +170,7 @@ export class PlansService {
 
         // Fallback to free plan
         if (!plan) {
-            plan = await this.planRepository.findOne({
-                where: { code: 'free', isActive: true },
-            });
+            plan = await this.findFreePlanForEntitlements();
         }
 
         // Ultimate fallback: create a default free entitlements
@@ -318,6 +310,75 @@ export class PlansService {
                 this.redisService.del(`features:${s.userId}`),
                 this.redisService.del(`premium:${s.userId}`),
             ]),
+        );
+    }
+
+    private async findLatestSubscriptionForEntitlements(userId: string): Promise<Subscription | null> {
+        try {
+            return await this.subscriptionRepository.findOne({
+                where: [
+                    { userId, status: SubscriptionStatus.ACTIVE },
+                    { userId, status: SubscriptionStatus.PAST_DUE },
+                ],
+                order: { createdAt: 'DESC' },
+                relations: ['planEntity'],
+            });
+        } catch (error) {
+            if (!this.isMissingPlanCodeColumnError(error)) {
+                throw error;
+            }
+
+            this.logMissingPlanCodeColumnWarning('resolveUserEntitlements:subscription');
+            return this.subscriptionRepository.findOne({
+                where: [
+                    { userId, status: SubscriptionStatus.ACTIVE },
+                    { userId, status: SubscriptionStatus.PAST_DUE },
+                ],
+                order: { createdAt: 'DESC' },
+            });
+        }
+    }
+
+    private async findFreePlanForEntitlements(): Promise<Plan | null> {
+        try {
+            return await this.planRepository.findOne({
+                where: { code: 'free', isActive: true },
+            });
+        } catch (error) {
+            if (!this.isMissingPlanCodeColumnError(error)) {
+                throw error;
+            }
+
+            this.logMissingPlanCodeColumnWarning('resolveUserEntitlements:free-plan');
+            return null;
+        }
+    }
+
+    private logMissingPlanCodeColumnWarning(context: string): void {
+        if (this.hasLoggedMissingPlanCodeColumn) {
+            return;
+        }
+
+        this.hasLoggedMissingPlanCodeColumn = true;
+        this.logger.warn(
+            `plans.code column is missing in the database. Falling back to legacy subscription plan behavior in ${context}. Run migrations to restore dynamic plan support.`,
+        );
+    }
+
+    private isMissingPlanCodeColumnError(error: unknown): boolean {
+        if (!error || typeof error !== 'object') {
+            return false;
+        }
+
+        const message = String((error as { message?: unknown }).message ?? '');
+        if (!message.toLowerCase().includes('does not exist')) {
+            return false;
+        }
+
+        return (
+            message.includes('planEntity.code') ||
+            message.includes('Subscription__Subscription_planEntity.code') ||
+            message.includes('column "code" of relation "plans" does not exist')
         );
     }
 }
