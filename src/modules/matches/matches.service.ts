@@ -101,6 +101,15 @@ export class MatchesService {
 
         match.status = MatchStatus.UNMATCHED;
         await this.matchRepository.save(match);
+
+        // Delete the associated conversation so it disappears for BOTH users
+        const conversation = await this.conversationRepository.findOne({
+            where: { matchId: match.id },
+        });
+        if (conversation) {
+            await this.conversationRepository.remove(conversation);
+            this.logger.log(`Deleted conversation ${conversation.id} for unmatched match ${matchId}`);
+        }
     }
 
     // ─── NEARBY USERS RADAR ─────────────────────────────────
