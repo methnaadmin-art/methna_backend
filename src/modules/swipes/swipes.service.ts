@@ -156,7 +156,10 @@ export class SwipesService {
     // ??? WHO LIKED ME (premium feature) ?????????????????????
 
     async getWhoLikedMe(userId: string) {
-        const isPremium = await this.isPremiumUser(userId);
+        const canSeeWhoLikedYou = await this.monetizationService.hasFeature(
+            userId,
+            FeatureFlag.SEE_WHO_LIKED,
+        );
 
         const likes = await this.likeRepository.find({
             where: { likedId: userId, isLike: true },
@@ -184,7 +187,7 @@ export class SwipesService {
         }
         const filteredLikes = visibleLikes.filter(l => !matchedUserIds.has(l.likerId));
 
-        if (!isPremium) {
+        if (!canSeeWhoLikedYou) {
             // Non-premium: return anonymized data for blurred card display
             const photos = filteredLikes.length > 0
                 ? await this.profileRepository
@@ -463,10 +466,13 @@ export class SwipesService {
         action: SwipeAction,
         complimentMessage?: string,
     ): Promise<void> {
-        const recipientIsPremium = await this.isPremiumUser(targetUserId);
+        const canSeeWhoLikedYou = await this.monetizationService.hasFeature(
+            targetUserId,
+            FeatureFlag.SEE_WHO_LIKED,
+        );
         const likeKind = this.mapSwipeActionToNotificationKind(action);
-        const title = recipientIsPremium ? 'New like' : 'Someone liked you';
-        const body = recipientIsPremium
+        const title = canSeeWhoLikedYou ? 'New like' : 'Someone liked you';
+        const body = canSeeWhoLikedYou
             ? (action === SwipeAction.COMPLIMENT && complimentMessage
                 ? complimentMessage
                 : 'Open Methna to see who is interested in you.')
@@ -474,13 +480,13 @@ export class SwipesService {
 
         await this.notificationsService.createNotification(targetUserId, {
             type: 'like',
-            userId: recipientIsPremium ? likerId : '',
+            userId: canSeeWhoLikedYou ? likerId : '',
             title,
             body,
             extraData: {
                 likeKind,
                 complimentMessage: complimentMessage || undefined,
-                isAnonymousLike: !recipientIsPremium,
+                isAnonymousLike: !canSeeWhoLikedYou,
             },
         });
     }
