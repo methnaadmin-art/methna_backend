@@ -47,6 +47,8 @@ export default () => {
 
     resend: {
         apiKey: process.env.RESEND_API_KEY || '',
+        agreementTemplateId: process.env.RESEND_AGREEMENT_TEMPLATE_ID || 'agreement-confirmation',
+        agreementDelayMs: parseInt(process.env.RESEND_AGREEMENT_DELAY_MS || '120000', 10),
     },
 
     firebase: {

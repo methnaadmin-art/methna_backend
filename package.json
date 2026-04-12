@@ -49,6 +49,7 @@
     "nodemailer": "^6.9.8",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "pdfkit": "^0.18.0",
     "pg": "^8.11.3",
     "reflect-metadata": "^0.2.1",
     "resend": "^6.9.4",

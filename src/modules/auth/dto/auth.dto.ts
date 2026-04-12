@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, MaxLength, IsOptional, Length, Matches } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, IsOptional, Length, Matches, IsBoolean, Equals } from 'class-validator';
 import { Match as MatchValidator } from '../../../common/decorators/match.decorator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -46,6 +46,22 @@ export class RegisterDto {
     @IsString()
     @Matches(/^\+?[0-9]{8,15}$/, { message: 'Phone number must be between 8 and 15 digits and can start with +' })
     phone?: string;
+
+    @ApiProperty({
+        example: true,
+        description: 'Must be true to confirm user agreed to Terms of Service',
+    })
+    @IsBoolean()
+    @Equals(true, { message: 'You must agree to the Terms of Service' })
+    agreeToTerms: boolean;
+
+    @ApiProperty({
+        example: true,
+        description: 'Must be true to confirm user agreed to Privacy Policy',
+    })
+    @IsBoolean()
+    @Equals(true, { message: 'You must agree to the Privacy Policy' })
+    agreeToPrivacyPolicy: boolean;
 }
 
 export class VerifyOtpDto {

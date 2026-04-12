@@ -50,7 +50,21 @@ export class AuthService {
     // ─── REGISTRATION WITH OTP ──────────────────────────────
 
     async register(registerDto: RegisterDto) {
-        const { email, password, firstName, lastName, phone, username } = registerDto;
+        const {
+            email,
+            password,
+            firstName,
+            lastName,
+            phone,
+            username,
+            agreeToTerms,
+            agreeToPrivacyPolicy,
+        } = registerDto;
+
+        if (!agreeToTerms || !agreeToPrivacyPolicy) {
+            throw new BadRequestException('You must agree to the Terms of Service and Privacy Policy');
+        }
+
         this.logger.log(`[OTP] Register request for ${email}`);
 
         const existingUser = await this.userRepository.findOne({
@@ -91,10 +105,17 @@ export class AuthService {
                     this.logger.error(`[OTP] ❌ Email FAILED for ${email}: ${err?.message || err}`);
                 }
 
+                const agreementEmailScheduled =
+                    emailSent && this.mailService.scheduleAgreementConfirmationEmail(email, firstName);
+                if (agreementEmailScheduled) {
+                    this.logger.log(`[AGREEMENT-MAIL] Scheduled terms/privacy PDF send for ${email}`);
+                }
+
                 return {
                     message: 'Registration successful. Please verify your email with the OTP sent.',
                     email,
                     emailSent,
+                    agreementEmailScheduled,
                 };
             }
             throw new ConflictException('Email already registered');
@@ -164,10 +185,17 @@ export class AuthService {
             this.logger.error(`[OTP] ❌ Email FAILED for ${email}: ${err?.message || err}`);
         }
 
+        const agreementEmailScheduled =
+            emailSent && this.mailService.scheduleAgreementConfirmationEmail(email, firstName);
+        if (agreementEmailScheduled) {
+            this.logger.log(`[AGREEMENT-MAIL] Scheduled terms/privacy PDF send for ${email}`);
+        }
+
         return {
             message: 'Registration successful. Please verify your email with the OTP sent.',
             email,
             emailSent,
+            agreementEmailScheduled,
         };
     }
 
@@ -329,9 +357,16 @@ export class AuthService {
             this.logger.error(`[OTP] ❌ Resend email FAILED for ${email}: ${err?.message || err}`);
         }
 
+        const agreementEmailScheduled =
+            emailSent && this.mailService.scheduleAgreementConfirmationEmail(email, user.firstName);
+        if (agreementEmailScheduled) {
+            this.logger.log(`[AGREEMENT-MAIL] Scheduled terms/privacy PDF send for ${email} after OTP resend`);
+        }
+
         return {
             message: 'New OTP sent to your email',
             emailSent,
+            agreementEmailScheduled,
         };
     }
 
