@@ -56,7 +56,10 @@ export class PaymentsController {
         @Req() req: RawBodyRequest<any>,
         @Headers('stripe-signature') signature: string,
     ) {
-        const rawBody = req.rawBody ?? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
+        // NestJS rawBody: true stores raw body as a Buffer on req.rawBody
+        const rawBody = req.rawBody
+            ? (Buffer.isBuffer(req.rawBody) ? req.rawBody.toString('utf8') : req.rawBody)
+            : (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
 
         if (!signature) {
             this.logger.warn('Stripe webhook received without signature header');

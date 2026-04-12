@@ -109,8 +109,20 @@ export class PaymentsService {
             throw new ServiceUnavailableException('Stripe is not configured on the server.');
         }
 
+        // Resolve stripePriceId: DB first, then env var STRIPE_PRICE_<CODE>
         if (!plan.stripePriceId) {
-            this.logger.error(`No Stripe Price ID configured for plan ${plan.code}`);
+            const envKey = `STRIPE_PRICE_${plan.code.toUpperCase()}`;
+            const envPriceId = this.configService.get<string>(envKey);
+            if (envPriceId) {
+                plan.stripePriceId = envPriceId;
+                // Persist to DB so future lookups skip env resolution
+                await this.planRepository.update(plan.id, { stripePriceId: envPriceId });
+                this.logger.log(`Resolved Stripe Price ID for plan ${plan.code} from env var ${envKey}`);
+            }
+        }
+
+        if (!plan.stripePriceId) {
+            this.logger.error(`No Stripe Price ID configured for plan ${plan.code}. Set it in the DB or via env var STRIPE_PRICE_${plan.code.toUpperCase()}`);
             throw new ServiceUnavailableException(`Stripe pricing not configured for plan: ${plan.code}`);
         }
 

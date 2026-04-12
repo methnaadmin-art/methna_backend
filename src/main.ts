@@ -12,28 +12,10 @@ import dataSource from './database/data-source';
 async function bootstrap() {
     const logger = new Logger('Bootstrap');
     const app = await NestFactory.create(AppModule, {
-        // Buffer raw body so Stripe webhook signature verification works.
-        // Without this, NestJS parses JSON before we can verify the signature.
-        bodyParser: true,
+        // NestJS built-in rawBody support: stores the raw request body as a
+        // Buffer on req.rawBody so Stripe webhook signature verification works.
+        rawBody: true,
     });
-
-    // Expose raw body on request for Stripe webhook signature verification.
-    // Stripe sends to /webhook/stripe (no api prefix), so we capture raw body
-    // on both the prefixed and non-prefixed paths.
-    const stripeWebhookPaths = [
-        '/webhook/stripe',
-        '/api/v1/payments/webhook/stripe',
-    ];
-    for (const path of stripeWebhookPaths) {
-        app.use(path, (req: any, _res: any, next: any) => {
-            const chunks: Buffer[] = [];
-            req.on('data', (chunk: Buffer) => chunks.push(chunk));
-            req.on('end', () => {
-                req.rawBody = Buffer.concat(chunks).toString('utf8');
-                next();
-            });
-        });
-    }
 
     const configService = app.get(ConfigService);
     const port = configService.get<number>('PORT', 3000);
