@@ -39,7 +39,7 @@ export interface PaymentResult {
 export class PaymentsService {
     private readonly logger = new Logger(PaymentsService.name);
 
-    private stripe: Stripe;
+    private stripe!: Stripe;
 
     constructor(
         private readonly configService: ConfigService,
@@ -383,6 +383,12 @@ export class PaymentsService {
             return;
         }
 
+        const targetUser = await this.userRepository.findOne({ where: { id: finalUserId } });
+        if (!targetUser) {
+            this.logger.warn(`checkout.session.completed references missing userId ${finalUserId}. Session: ${session.id}`);
+            return;
+        }
+
         // Load plan from DB using planId or planCode
         let planEntity: Plan | null = null;
         if (planId) {
@@ -489,6 +495,12 @@ export class PaymentsService {
 
         if (!finalUserId) {
             this.logger.warn(`Stripe object succeeded but unable to find user metadata. Object ID: ${stripeObject.id}`);
+            return;
+        }
+
+        const targetUser = await this.userRepository.findOne({ where: { id: finalUserId } });
+        if (!targetUser) {
+            this.logger.warn(`Stripe object ${stripeObject.id} references missing userId ${finalUserId}`);
             return;
         }
 
