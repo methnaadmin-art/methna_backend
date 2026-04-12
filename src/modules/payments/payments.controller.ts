@@ -1,4 +1,18 @@
-import { Controller, Get, Post, Body, Headers, UseGuards, Request, Req, RawBodyRequest, Logger } from '@nestjs/common';
+import {
+    Controller,
+    Get,
+    Post,
+    Body,
+    Headers,
+    UseGuards,
+    Request,
+    Req,
+    RawBodyRequest,
+    Logger,
+    HttpCode,
+    HttpException,
+    InternalServerErrorException,
+} from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiBody, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PaymentsService, CreateCheckoutSessionDto, PaymentProvider } from './payments.service';
@@ -51,6 +65,7 @@ export class PaymentsController {
     }
 
     @Post('webhook/stripe')
+    @HttpCode(200)
     @ApiExcludeEndpoint()
     async stripeWebhook(
         @Req() req: RawBodyRequest<any>,
@@ -61,12 +76,33 @@ export class PaymentsController {
             ? (Buffer.isBuffer(req.rawBody) ? req.rawBody.toString('utf8') : req.rawBody)
             : (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
 
+        const requestId = String(
+            req.headers['x-railway-request-id'] ||
+            req.headers['x-request-id'] ||
+            `stripe_${Date.now()}`,
+        );
+
+        this.logger.log(
+            `[PaymentsController] requestId=${requestId} signaturePresent=${!!signature} payloadBytes=${Buffer.byteLength(rawBody || '', 'utf8')}`,
+        );
+
         if (!signature) {
-            this.logger.warn('Stripe webhook received without signature header');
-            return { received: false, error: 'Missing stripe-signature header' };
+            this.logger.warn(`[PaymentsController] requestId=${requestId} missing stripe-signature header`);
+            return { received: false, error: 'Missing stripe-signature header', requestId };
         }
 
-        await this.paymentsService.handleStripeWebhook(rawBody, signature);
-        return { received: true };
+        try {
+            await this.paymentsService.handleStripeWebhook(rawBody, signature, requestId);
+            return { received: true, requestId };
+        } catch (err) {
+            if (err instanceof HttpException) {
+                throw err;
+            }
+            this.logger.error(
+                `[PaymentsController] requestId=${requestId} unhandled error: ${(err as Error).message}`,
+                (err as Error).stack,
+            );
+            throw new InternalServerErrorException('Unhandled Stripe webhook controller error');
+        }
     }
 }

@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, ServiceUnavailableException, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -52,9 +52,14 @@ export class PaymentsService {
         private readonly subscriptionsService: SubscriptionsService,
         private readonly redisService: RedisService,
     ) {
-        const stripeKey = this.configService.get<string>('STRIPE_SECRET_KEY') || this.configService.get<string>('stripe.secretKey');
+        const stripeKey = this.normalizeConfigValue(
+            this.configService.get<string>('STRIPE_SECRET_KEY') ||
+            this.configService.get<string>('stripe.secretKey'),
+        );
         if (stripeKey) {
             this.stripe = new Stripe(stripeKey, { apiVersion: '2023-10-16' as any });
+        } else {
+            this.logger.warn('STRIPE_SECRET_KEY is missing or empty. Stripe webhook verification and checkout are disabled.');
         }
     }
 
@@ -112,7 +117,7 @@ export class PaymentsService {
         // Resolve stripePriceId: DB first, then env var STRIPE_PRICE_<CODE>
         if (!plan.stripePriceId) {
             const envKey = `STRIPE_PRICE_${plan.code.toUpperCase()}`;
-            const envPriceId = this.configService.get<string>(envKey);
+            const envPriceId = this.normalizeConfigValue(this.configService.get<string>(envKey));
             if (envPriceId) {
                 plan.stripePriceId = envPriceId;
                 // Persist to DB so future lookups skip env resolution
@@ -137,8 +142,12 @@ export class PaymentsService {
             }
             if (!customerId) throw new BadRequestException('Failed to initialize Stripe customer');
 
-            const successUrl = this.configService.get<string>('STRIPE_SUCCESS_URL') || 'methna://payment-success';
-            const cancelUrl = this.configService.get<string>('STRIPE_CANCEL_URL') || 'methna://payment-cancel';
+            const successUrl =
+                this.normalizeConfigValue(this.configService.get<string>('STRIPE_SUCCESS_URL')) ||
+                'methna://payment-success';
+            const cancelUrl =
+                this.normalizeConfigValue(this.configService.get<string>('STRIPE_CANCEL_URL')) ||
+                'methna://payment-cancel';
 
             // Determine checkout mode based on billing cycle
             const isOneTime = plan.billingCycle === 'one_time';
@@ -234,12 +243,20 @@ export class PaymentsService {
 
     // ─── WEBHOOK HANDLER (Stripe) ────────────────────────────
 
-    async handleStripeWebhook(rawBody: string, signature: string): Promise<void> {
-        const endpointSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET');
+    async handleStripeWebhook(rawBody: string, signature: string, requestId: string = 'n/a'): Promise<void> {
+        const endpointSecret = this.normalizeConfigValue(
+            this.configService.get<string>('STRIPE_WEBHOOK_SECRET'),
+        );
+
+        this.logger.log(
+            `[StripeWebhook] requestId=${requestId} received signed event payloadBytes=${Buffer.byteLength(rawBody || '', 'utf8')}`,
+        );
 
         if (!this.stripe || !endpointSecret) {
-            this.logger.error('Stripe webhook received but STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET is not configured — rejecting');
-            throw new BadRequestException('Stripe webhook is not configured on the server');
+            this.logger.error(
+                `[StripeWebhook] requestId=${requestId} rejected: STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET not configured`,
+            );
+            throw new ServiceUnavailableException('Stripe webhook is not configured on the server');
         }
 
         let event: Stripe.Event;
@@ -250,48 +267,80 @@ export class PaymentsService {
                 signature,
                 endpointSecret,
             );
-            this.logger.log(`Stripe webhook verified: event=${event.type} id=${event.id}`);
+            this.logger.log(
+                `[StripeWebhook] requestId=${requestId} signature verified event=${event.type} id=${event.id}`,
+            );
         } catch (err) {
-            this.logger.error(`Webhook signature verification failed.`, (err as Error).message);
+            this.logger.warn(
+                `[StripeWebhook] requestId=${requestId} signature verification failed: ${(err as Error).message}`,
+            );
             throw new BadRequestException('Webhook signature verification failed');
         }
 
         // Idempotency: skip if we already processed this event
         const eventId = event.id;
         if (eventId) {
-            const alreadyProcessed = await this.isEventProcessed(eventId);
-            if (alreadyProcessed) {
-                this.logger.log(`Stripe event ${eventId} already processed — skipping`);
-                return;
+            try {
+                const alreadyProcessed = await this.isEventProcessed(eventId);
+                if (alreadyProcessed) {
+                    this.logger.log(
+                        `[StripeWebhook] requestId=${requestId} duplicate event id=${eventId} skipped`,
+                    );
+                    return;
+                }
+            } catch (err) {
+                this.logger.error(
+                    `[StripeWebhook] requestId=${requestId} idempotency read failed for event=${eventId}: ${(err as Error).message}`,
+                );
             }
         }
 
-        switch (event.type) {
-            case 'checkout.session.completed':
-                await this.handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
-                break;
-            case 'invoice.paid':
-                await this.handlePaymentSuccess(event.data.object as Stripe.Invoice);
-                break;
-            case 'payment_intent.succeeded':
-                await this.handlePaymentSuccess(event.data.object as Stripe.PaymentIntent);
-                break;
-            case 'invoice.payment_failed':
-            case 'payment_intent.payment_failed':
-                await this.handlePaymentFailure(event.data.object);
-                break;
-            case 'customer.subscription.deleted':
-            case 'customer.subscription.updated':
-                await this.handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
-                break;
-            default:
-                this.logger.log(`Unhandled Stripe event: ${event.type}`);
+        try {
+            switch (event.type) {
+                case 'checkout.session.completed':
+                    await this.handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
+                    break;
+                case 'invoice.paid':
+                    await this.handlePaymentSuccess(event.data.object as Stripe.Invoice);
+                    break;
+                case 'payment_intent.succeeded':
+                    await this.handlePaymentSuccess(event.data.object as Stripe.PaymentIntent);
+                    break;
+                case 'invoice.payment_failed':
+                case 'payment_intent.payment_failed':
+                    await this.handlePaymentFailure(event.data.object);
+                    break;
+                case 'customer.subscription.deleted':
+                case 'customer.subscription.updated':
+                    await this.handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+                    break;
+                default:
+                    this.logger.log(
+                        `[StripeWebhook] requestId=${requestId} unsupported event=${event.type} id=${eventId ?? 'n/a'} acknowledged`,
+                    );
+            }
+        } catch (err) {
+            this.logger.error(
+                `[StripeWebhook] requestId=${requestId} handler failure event=${event.type} id=${eventId ?? 'n/a'}: ${(err as Error).message}`,
+                (err as Error).stack,
+            );
+            throw new InternalServerErrorException('Stripe webhook handler failed');
         }
 
         // Mark event as processed
         if (eventId) {
-            await this.markEventProcessed(eventId);
+            try {
+                await this.markEventProcessed(eventId);
+            } catch (err) {
+                this.logger.error(
+                    `[StripeWebhook] requestId=${requestId} idempotency write failed for event=${eventId}: ${(err as Error).message}`,
+                );
+            }
         }
+
+        this.logger.log(
+            `[StripeWebhook] requestId=${requestId} processed event=${event.type} id=${eventId ?? 'n/a'}`,
+        );
     }
 
     private async isEventProcessed(eventId: string): Promise<boolean> {
@@ -378,7 +427,7 @@ export class PaymentsService {
         }
 
         if (existingSub) {
-            existingSub.plan = planEntity.code as any; // legacy compat
+            existingSub.plan = this.toLegacyPlanToken(planEntity.code) as any; // legacy compat
             existingSub.planId = planEntity.id;
             existingSub.planEntity = planEntity;
             existingSub.status = SubscriptionStatus.ACTIVE;
@@ -393,7 +442,7 @@ export class PaymentsService {
         } else {
             existingSub = this.subscriptionRepository.create({
                 userId: finalUserId,
-                plan: planEntity.code as any, // legacy compat
+                plan: this.toLegacyPlanToken(planEntity.code) as any, // legacy compat
                 planId: planEntity.id,
                 planEntity,
                 status: SubscriptionStatus.ACTIVE,
@@ -459,7 +508,7 @@ export class PaymentsService {
         });
         if (existingSub) {
             if (planEntity) {
-                existingSub.plan = planEntity.code as any;
+                existingSub.plan = this.toLegacyPlanToken(planEntity.code) as any;
                 existingSub.planId = planEntity.id;
                 existingSub.planEntity = planEntity;
             }
@@ -472,7 +521,7 @@ export class PaymentsService {
         } else if (planEntity) {
             existingSub = this.subscriptionRepository.create({
                 userId: finalUserId,
-                plan: planEntity.code as any,
+                plan: this.toLegacyPlanToken(planEntity.code) as any,
                 planId: planEntity.id,
                 planEntity,
                 status: SubscriptionStatus.ACTIVE,
@@ -578,6 +627,24 @@ export class PaymentsService {
             providers: Object.values(PaymentProvider),
         };
     }
-}
 
+    private normalizeConfigValue(value?: string): string {
+        if (!value) {
+            return '';
+        }
+        const trimmed = value.trim();
+        return trimmed.replace(/^"|"$/g, '').replace(/^'|'$/g, '').trim();
+    }
+
+    private toLegacyPlanToken(planCode: string): string {
+        const normalized = (planCode || '').trim().toLowerCase();
+        if (normalized === 'free' || normalized === 'premium' || normalized === 'gold') {
+            return normalized;
+        }
+        if (normalized.includes('free')) {
+            return 'free';
+        }
+        return 'premium';
+    }
+}
 
