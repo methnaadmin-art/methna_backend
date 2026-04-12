@@ -348,9 +348,9 @@ export class ChatService {
                     FROM blocked_users blocked
                     WHERE (
                         blocked."blockerId" = :userId
-                        AND blocked."blockedId" = user.id
+                        AND blocked."blockedId" = "user"."id"
                     ) OR (
-                        blocked."blockerId" = user.id
+                        blocked."blockerId" = "user"."id"
                         AND blocked."blockedId" = :userId
                     )
                 )`,
@@ -360,7 +360,7 @@ export class ChatService {
                 `EXISTS (
                     SELECT 1
                     FROM photos approved_photo
-                    WHERE approved_photo."userId" = user.id
+                    WHERE approved_photo."userId" = "user"."id"
                     AND approved_photo."moderationStatus" = :approvedPhotoStatus
                 )`,
                 { approvedPhotoStatus: 'approved' },

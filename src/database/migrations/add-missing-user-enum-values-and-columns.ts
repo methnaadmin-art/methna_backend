@@ -72,32 +72,40 @@ export class AddMissingUserEnumValuesAndColumns1715000000000 implements Migratio
         await queryRunner.query(`ALTER TABLE "ads" ADD COLUMN IF NOT EXISTS "targetCity" character varying NULL`);
         await queryRunner.query(`ALTER TABLE "ads" ADD COLUMN IF NOT EXISTS "showEveryNUsers" integer NOT NULL DEFAULT 1`);
 
-        // ─── Plans table (may not exist yet) ──────────────────
+        // ─── Plans table: create if not exists, then add any missing columns ──
         await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS "plans" (
                 "id" uuid NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
                 "code" character varying NOT NULL UNIQUE,
                 "name" character varying NOT NULL,
-                "description" text NULL,
-                "price" decimal(10,2) NOT NULL DEFAULT 0,
-                "currency" character varying NOT NULL DEFAULT 'usd',
-                "billingCycle" character varying NOT NULL DEFAULT 'monthly',
-                "stripePriceId" character varying NULL,
-                "durationDays" integer NOT NULL DEFAULT 30,
-                "isActive" boolean NOT NULL DEFAULT true,
-                "isVisible" boolean NOT NULL DEFAULT true,
-                "sortOrder" integer NOT NULL DEFAULT 0,
-                "entitlements" jsonb NOT NULL DEFAULT '{}',
-                "features" jsonb NOT NULL DEFAULT '[]',
-                "dailyLikesLimit" integer NOT NULL DEFAULT 10,
-                "dailySuperLikesLimit" integer NOT NULL DEFAULT 0,
-                "dailyComplimentsLimit" integer NOT NULL DEFAULT 0,
-                "monthlyRewindsLimit" integer NOT NULL DEFAULT 2,
-                "weeklyBoostsLimit" integer NOT NULL DEFAULT 0,
                 "createdAt" timestamptz NOT NULL DEFAULT now(),
                 "updatedAt" timestamptz NOT NULL DEFAULT now()
             )
         `);
+        await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "description" text NULL`);
+        await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "price" decimal(10,2) NOT NULL DEFAULT 0`);
+        await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "currency" character varying NOT NULL DEFAULT 'usd'`);
+        await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "billingCycle" character varying NOT NULL DEFAULT 'monthly'`);
+        await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "stripePriceId" character varying NULL`);
+        await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "durationDays" integer NOT NULL DEFAULT 30`);
+        await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "isActive" boolean NOT NULL DEFAULT true`);
+        await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "isVisible" boolean NOT NULL DEFAULT true`);
+        await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "sortOrder" integer NOT NULL DEFAULT 0`);
+        await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "entitlements" jsonb NOT NULL DEFAULT '{}'`);
+        await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "features" jsonb NOT NULL DEFAULT '[]'`);
+        await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "dailyLikesLimit" integer NOT NULL DEFAULT 10`);
+        await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "dailySuperLikesLimit" integer NOT NULL DEFAULT 0`);
+        await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "dailyComplimentsLimit" integer NOT NULL DEFAULT 0`);
+        await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "monthlyRewindsLimit" integer NOT NULL DEFAULT 2`);
+        await queryRunner.query(`ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "weeklyBoostsLimit" integer NOT NULL DEFAULT 0`);
+
+        // ─── Subscriptions: add missing columns ──────────────
+        await queryRunner.query(`ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "planId" character varying NULL`);
+        await queryRunner.query(`ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "stripeSubscriptionId" character varying NULL`);
+        await queryRunner.query(`ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "stripeCheckoutSessionId" character varying NULL`);
+        await queryRunner.query(`ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "stripeCustomerId" character varying NULL`);
+        await queryRunner.query(`ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "billingCycle" character varying NULL`);
+        await queryRunner.query(`ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "paymentReference" character varying NULL`);
 
         // ─── ModerationReasonCode enum (create if not exists) ─
         // TypeORM creates this as a PG enum. We need to ensure it exists.
