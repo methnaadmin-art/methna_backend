@@ -4,8 +4,10 @@ import {
     BadRequestException,
     Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import Stripe from 'stripe';
 import {
     Plan,
     PlanEntitlements,
@@ -22,6 +24,7 @@ import { RedisService } from '../redis/redis.service';
 export class PlansService {
     private readonly logger = new Logger(PlansService.name);
     private hasLoggedMissingPlanCodeColumn = false;
+    private stripe: Stripe | null = null;
 
     constructor(
         @InjectRepository(Plan)
@@ -30,10 +33,22 @@ export class PlansService {
         private readonly subscriptionRepository: Repository<Subscription>,
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
+        private readonly configService: ConfigService,
         private readonly redisService: RedisService,
-    ) { }
+    ) {
+        const stripeKey = this.normalizeConfigValue(
+            this.configService.get<string>('STRIPE_SECRET_KEY') ||
+            this.configService.get<string>('stripe.secretKey'),
+        );
 
-    // ─── PUBLIC ENDPOINTS ───────────────────────────────────
+        if (stripeKey) {
+            this.stripe = new Stripe(stripeKey, { apiVersion: '2023-10-16' as any });
+        } else {
+            this.logger.warn('STRIPE_SECRET_KEY is missing. Auto Stripe price creation for plans is disabled.');
+        }
+    }
+
+    // PUBLIC ENDPOINTS
 
     /** Get all active, visible plans for the mobile app. */
     async getPublicPlans(): Promise<Plan[]> {
@@ -62,7 +77,7 @@ export class PlansService {
         return this.planRepository.findOne({ where: { code } });
     }
 
-    // ─── ADMIN CRUD ─────────────────────────────────────────
+    // ADMIN CRUD
 
     async getAllPlans(): Promise<Plan[]> {
         return this.planRepository.find({ order: { sortOrder: 'ASC', price: 'ASC' } });
@@ -72,14 +87,23 @@ export class PlansService {
         // Validate unique code
         if (dto.code) {
             const existing = await this.planRepository.findOne({ where: { code: dto.code } });
-            if (existing) throw new BadRequestException(`Plan code '${dto.code}' already exists`);
+            if (existing) throw new BadRequestException("Plan code '" + dto.code + "' already exists");
         }
 
-        // Sync entitlements → legacy columns for backward compat
+        // Sync entitlements -> legacy columns for backward compat
         const plan = this.planRepository.create(dto);
         this.syncEntitlementsToLegacy(plan);
 
-        const saved = await this.planRepository.save(plan);
+        const saved = await this.planRepository.manager.transaction(async manager => {
+            const planRepo = manager.getRepository(Plan);
+
+            let created = await planRepo.save(plan);
+            await this.ensureStripePriceForPaidPlan(created, { forceRegenerate: false });
+            created = await planRepo.save(created);
+
+            return created;
+        });
+
         await this.invalidatePlansCache();
         this.logger.log(`Plan created: ${saved.code} (${saved.name})`);
         return saved;
@@ -95,8 +119,19 @@ export class PlansService {
             if (existing) throw new BadRequestException(`Plan code '${dto.code}' already exists`);
         }
 
+        const pricingChanged =
+            dto.price !== undefined ||
+            dto.currency !== undefined ||
+            dto.billingCycle !== undefined;
+        const stripePriceIdTouched = Object.prototype.hasOwnProperty.call(dto, 'stripePriceId');
+        const stripePriceExplicitlyProvided = stripePriceIdTouched && !!dto.stripePriceId;
+
         Object.assign(plan, dto);
         this.syncEntitlementsToLegacy(plan);
+
+        await this.ensureStripePriceForPaidPlan(plan, {
+            forceRegenerate: !stripePriceExplicitlyProvided && (pricingChanged || !plan.stripePriceId),
+        });
 
         const saved = await this.planRepository.save(plan);
         await this.invalidatePlansCache();
@@ -132,7 +167,7 @@ export class PlansService {
         this.logger.log(`Plan deleted: ${plan.code}`);
     }
 
-    // ─── ENTITLEMENTS RESOLVER ──────────────────────────────
+    // ENTITLEMENTS RESOLVER
 
     /** Resolve the effective entitlements for a user based on their active subscription. */
     async resolveUserEntitlements(userId: string): Promise<{
@@ -231,7 +266,7 @@ export class PlansService {
         return typeof value === 'number' ? value : 0;
     }
 
-    // ─── HELPERS ────────────────────────────────────────────
+    // HELPERS
 
     /** Merge entitlements JSONB with legacy columns (legacy takes precedence if set). */
     private mergeEntitlements(plan: Plan): PlanEntitlements {
@@ -261,7 +296,7 @@ export class PlansService {
         return ent;
     }
 
-    /** Sync entitlements JSONB → legacy columns for backward compatibility. */
+    /** Sync entitlements JSONB -> legacy columns for backward compatibility. */
     private syncEntitlementsToLegacy(plan: Plan): void {
         const ent = plan.entitlements || {};
         if (ent.dailyLikes !== undefined) plan.dailyLikesLimit = ent.dailyLikes;
@@ -290,6 +325,109 @@ export class PlansService {
         if (ent.videoChat) featureFlags.push('video_chat');
         if (ent.typingIndicators) featureFlags.push('typing_indicators');
         plan.features = featureFlags;
+    }
+
+    private async ensureStripePriceForPaidPlan(
+        plan: Plan,
+        options: { forceRegenerate: boolean },
+    ): Promise<void> {
+        const numericPrice = Number(plan.price ?? 0);
+        if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+            return;
+        }
+
+        if (plan.stripePriceId && !options.forceRegenerate) {
+            return;
+        }
+
+        if (!this.stripe) {
+            throw new BadRequestException(
+                'Stripe is not configured on the server. Set STRIPE_SECRET_KEY or provide Stripe Price ID manually.',
+            );
+        }
+
+        plan.stripePriceId = await this.createStripePriceForPlan(plan, numericPrice);
+    }
+
+    private async createStripePriceForPlan(plan: Plan, numericPrice: number): Promise<string> {
+        if (!this.stripe) {
+            throw new BadRequestException('Stripe client is not initialized');
+        }
+
+        const currency = String(plan.currency || 'usd').toLowerCase();
+        const unitAmount = Math.round(numericPrice * 100);
+        if (unitAmount <= 0) {
+            throw new BadRequestException('Plan price must be greater than zero for Stripe pricing');
+        }
+
+        const interval = this.mapBillingCycleToStripeInterval(plan.billingCycle);
+
+        try {
+            const product = await this.stripe.products.create({
+                name: plan.name,
+                description: plan.description || undefined,
+                metadata: {
+                    planId: plan.id,
+                    planCode: plan.code,
+                },
+            });
+
+            const priceParams: Stripe.PriceCreateParams = {
+                currency,
+                unit_amount: unitAmount,
+                product: product.id,
+                metadata: {
+                    planId: plan.id,
+                    planCode: plan.code,
+                },
+            };
+
+            if (interval) {
+                priceParams.recurring = { interval };
+            }
+
+            const stripePrice = await this.stripe.prices.create(priceParams);
+            this.logger.log(`Auto-created Stripe price ${stripePrice.id} for plan ${plan.code}`);
+            return stripePrice.id;
+        } catch (error) {
+            this.logger.error(
+                `Failed auto-creating Stripe price for plan ${plan.code}: ${(error as Error).message}`,
+            );
+            throw new BadRequestException(
+                `Unable to auto-create Stripe price for plan '${plan.code}'. Verify Stripe keys and try again.`,
+            );
+        }
+    }
+
+    private mapBillingCycleToStripeInterval(
+        cycle?: BillingCycle,
+    ): Stripe.PriceCreateParams.Recurring.Interval | null {
+        switch (cycle) {
+            case BillingCycle.WEEKLY:
+                return 'week';
+            case BillingCycle.YEARLY:
+                return 'year';
+            case BillingCycle.ONE_TIME:
+                return null;
+            case BillingCycle.MONTHLY:
+            default:
+                return 'month';
+        }
+    }
+
+    private normalizeConfigValue(value?: string | null): string | null {
+        if (!value) return null;
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        const withoutSingleQuotes =
+            trimmed.startsWith("'") && trimmed.endsWith("'")
+                ? trimmed.slice(1, -1)
+                : trimmed;
+        const withoutDoubleQuotes =
+            withoutSingleQuotes.startsWith('"') && withoutSingleQuotes.endsWith('"')
+                ? withoutSingleQuotes.slice(1, -1)
+                : withoutSingleQuotes;
+        return withoutDoubleQuotes.trim() || null;
     }
 
     private async invalidatePlansCache(): Promise<void> {
