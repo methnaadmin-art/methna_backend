@@ -9,7 +9,6 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { MonetizationService } from './monetization.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { SubscriptionPlan } from '../../database/entities/subscription.entity';
 
 @ApiTags('monetization')
 @ApiBearerAuth()

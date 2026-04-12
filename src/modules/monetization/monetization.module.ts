@@ -7,11 +7,13 @@ import { Subscription } from '../../database/entities/subscription.entity';
 import { Boost } from '../../database/entities/boost.entity';
 import { Plan } from '../../database/entities/plan.entity';
 import { RedisModule } from '../redis/redis.module';
+import { PlansModule } from '../plans/plans.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([User, Subscription, Boost, Plan]),
         RedisModule,
+        PlansModule,
     ],
     controllers: [MonetizationController],
     providers: [MonetizationService],

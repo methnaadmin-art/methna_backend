@@ -441,7 +441,7 @@ export class AuthService {
         this.logger.log(`User logged in: ${identifier} from ${clientIp}`);
 
         return {
-            status: UserStatus.ACTIVE,
+            status: this.getAuthResponseStatus(user.status),
             message: 'Login successful',
             user: this.sanitizeUser(await this.usersService.getMe(user.id)),
             accessToken: tokens.accessToken,
@@ -552,7 +552,7 @@ export class AuthService {
         this.logger.log(`[GoogleSignIn] User authenticated: ${email} from ${clientIp}`);
 
         return {
-            status: UserStatus.ACTIVE,
+            status: this.getAuthResponseStatus(user.status),
             message: 'Login successful',
             user: this.sanitizeUser(await this.usersService.getMe(user.id)),
             accessToken: tokens.accessToken,

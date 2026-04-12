@@ -6,7 +6,7 @@ import { User, UserStatus } from '../../database/entities/user.entity';
 import { Match } from '../../database/entities/match.entity';
 import { Like, LikeType } from '../../database/entities/like.entity';
 import { Message } from '../../database/entities/message.entity';
-import { Subscription, SubscriptionPlan } from '../../database/entities/subscription.entity';
+import { Subscription, SubscriptionStatus } from '../../database/entities/subscription.entity';
 import { ProfileView } from '../../database/entities/profile-view.entity';
 
 @Injectable()
@@ -166,12 +166,16 @@ export class AnalyticsService {
             this.getMatchesOverTime(30),
             this.userRepository.count(),
             this.userRepository.count({ where: { status: UserStatus.ACTIVE } }),
-            this.subscriptionRepository.count({
-                where: [
-                    { plan: SubscriptionPlan.PREMIUM, status: 'active' as any },
-                    { plan: SubscriptionPlan.GOLD, status: 'active' as any },
-                ],
-            }),
+            this.subscriptionRepository
+                .createQueryBuilder('subscription')
+                .leftJoin('subscription.planEntity', 'planEntity')
+                .where('subscription.status IN (:...statuses)', {
+                    statuses: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE],
+                })
+                .andWhere("COALESCE(planEntity.code, subscription.plan, 'free') != :freePlan", {
+                    freePlan: 'free',
+                })
+                .getCount(),
             this.messageRepository.count(),
         ]);
 

@@ -9,6 +9,12 @@ import { RedisService } from '../../redis/redis.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+    private static readonly ALLOWED_AUTH_STATUSES = new Set<UserStatus>([
+        UserStatus.ACTIVE,
+        UserStatus.LIMITED,
+        UserStatus.SHADOW_SUSPENDED,
+    ]);
+
     constructor(
         configService: ConfigService,
         @InjectRepository(User)
@@ -42,7 +48,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             select: ['id', 'email', 'role', 'status', 'firstName', 'lastName'],
         });
 
-        if (!user || user.status !== UserStatus.ACTIVE) {
+        if (!user || !JwtStrategy.ALLOWED_AUTH_STATUSES.has(user.status)) {
             throw new UnauthorizedException('Invalid or inactive account');
         }
 
@@ -50,6 +56,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             sub: user.id,
             email: user.email,
             role: user.role,
+            status: user.status,
             firstName: user.firstName,
             lastName: user.lastName,
             jti: payload.jti,

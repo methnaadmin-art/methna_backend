@@ -13,6 +13,7 @@ import { Subscription } from './subscription.entity';
 export interface PlanEntitlements {
     // Numeric limits (-1 = unlimited)
     dailyLikes?: number;
+    dailySuperLikes?: number;
     dailyCompliments?: number;
     monthlyRewinds?: number;
     weeklyBoosts?: number;

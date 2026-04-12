@@ -50,8 +50,8 @@ export class Subscription {
     planId: string | null;
 
     /** @deprecated Legacy enum column — use planEntity.code for dynamic plans. */
-    @Column({ type: 'enum', enum: SubscriptionPlan, default: SubscriptionPlan.FREE })
-    plan: SubscriptionPlan;
+    @Column({ type: 'varchar', default: SubscriptionPlan.FREE })
+    plan: string;
 
     @Column({ type: 'enum', enum: SubscriptionStatus, default: SubscriptionStatus.ACTIVE })
     status: SubscriptionStatus;

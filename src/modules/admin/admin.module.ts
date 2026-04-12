@@ -20,6 +20,7 @@ import { Plan } from '../../database/entities/plan.entity';
 import { RematchRequest } from '../../database/entities/rematch-request.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { ChatModule } from '../chat/chat.module';
 
 @Module({
     imports: [
@@ -29,6 +30,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
         ]),
         NotificationsModule,
         SubscriptionsModule,
+        ChatModule,
     ],
     controllers: [AdminController],
     providers: [AdminService],

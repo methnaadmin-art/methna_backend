@@ -2,6 +2,7 @@ import {
     Injectable,
     NotFoundException,
     ForbiddenException,
+    BadRequestException,
     Inject,
     forwardRef,
 } from '@nestjs/common';
@@ -46,8 +47,21 @@ export class ChatService {
     }
 
     async findOrCreateConversation(user1Id: string, user2Id: string): Promise<Conversation> {
+        if (user1Id === user2Id) {
+            throw new BadRequestException('Cannot create a conversation with yourself');
+        }
+
         // Enforce consistent ordering of IDs to avoid duplicates
         const [id1, id2] = [user1Id, user2Id].sort();
+
+        const activeMatch = await this.matchRepository.findOne({
+            where: { user1Id: id1, user2Id: id2, status: MatchStatus.ACTIVE },
+            select: ['id'],
+        });
+
+        if (!activeMatch) {
+            throw new ForbiddenException('Messaging is only available for active matches');
+        }
 
         let conversation = await this.conversationRepository.findOne({
             where: { user1Id: id1, user2Id: id2, isActive: true },
@@ -57,11 +71,15 @@ export class ChatService {
             conversation = this.conversationRepository.create({
                 user1Id: id1,
                 user2Id: id2,
+                matchId: activeMatch.id,
                 isActive: true,
                 user1UnreadCount: 0,
                 user2UnreadCount: 0,
             });
             conversation = await this.conversationRepository.save(conversation);
+        } else if (!conversation.matchId) {
+            await this.conversationRepository.update(conversation.id, { matchId: activeMatch.id });
+            conversation.matchId = activeMatch.id;
         }
 
         return conversation;
@@ -172,6 +190,29 @@ export class ChatService {
         });
         if (isBlocked) {
             throw new ForbiddenException('Cannot send messages to this user');
+        }
+
+        const activeMatch = conversation.matchId
+            ? await this.matchRepository.findOne({
+                where: { id: conversation.matchId, status: MatchStatus.ACTIVE },
+                select: ['id'],
+            })
+            : await this.matchRepository.findOne({
+                where: {
+                    user1Id: [conversation.user1Id, conversation.user2Id].sort()[0],
+                    user2Id: [conversation.user1Id, conversation.user2Id].sort()[1],
+                    status: MatchStatus.ACTIVE,
+                },
+                select: ['id'],
+            });
+
+        if (!activeMatch) {
+            throw new ForbiddenException('Messaging requires an active match');
+        }
+
+        if (!conversation.matchId) {
+            await this.conversationRepository.update(conversation.id, { matchId: activeMatch.id });
+            conversation.matchId = activeMatch.id;
         }
 
         const safeContent = content.trim();
@@ -455,6 +496,10 @@ export class ChatService {
         if (Object.keys(update).length > 0) {
             await this.userRepository.update(userId, update);
         }
+    }
+
+    decryptMessageContent(content: string | null | undefined): string {
+        return this.decryptContent(content);
     }
 
     private encryptContent(content: string | null | undefined): string {

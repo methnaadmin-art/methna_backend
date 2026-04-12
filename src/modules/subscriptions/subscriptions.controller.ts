@@ -12,14 +12,29 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SubscriptionsService } from './subscriptions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { SubscriptionPlan } from '../../database/entities/subscription.entity';
+import { IsInt, IsOptional, IsString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 class CreateSubscriptionDto {
-    @ApiProperty({ enum: SubscriptionPlan })
-    @IsEnum(SubscriptionPlan)
-    plan: SubscriptionPlan;
+    @ApiPropertyOptional({ description: 'Dynamic plan id from the plans table' })
+    @IsOptional()
+    @IsString()
+    planId?: string;
+
+    @ApiPropertyOptional({ description: 'Dynamic plan code from the plans table' })
+    @IsOptional()
+    @IsString()
+    planCode?: string;
+
+    @ApiPropertyOptional({ description: 'Backward-compatible alias for planCode' })
+    @IsOptional()
+    @IsString()
+    plan?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsInt()
+    durationDays?: number;
 
     @ApiPropertyOptional()
     @IsOptional()
@@ -48,7 +63,8 @@ export class SubscriptionsController {
     ) {
         return this.subscriptionsService.createSubscription(
             userId,
-            dto.plan,
+            dto.planId || dto.planCode || dto.plan || '',
+            dto.durationDays,
             dto.paymentReference,
         );
     }
@@ -63,12 +79,6 @@ export class SubscriptionsController {
     @Get('plans')
     @ApiOperation({ summary: 'Get all plan features' })
     async getPlans() {
-        const plans = await Promise.all(
-            Object.values(SubscriptionPlan).map(async (plan) => ({
-                plan,
-                features: await this.subscriptionsService.getPlanFeatures(plan),
-            })),
-        );
-        return plans;
+        return this.subscriptionsService.getPublicPlans();
     }
 }

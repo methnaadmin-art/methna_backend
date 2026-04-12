@@ -199,6 +199,7 @@ export class PlansService {
                 sortOrder: 0,
                 entitlements: {
                     dailyLikes: 10,
+                    dailySuperLikes: 0,
                     dailyCompliments: 0,
                     monthlyRewinds: 2,
                     weeklyBoosts: 0,
@@ -248,6 +249,9 @@ export class PlansService {
         if (plan.dailyLikesLimit !== undefined && ent.dailyLikes === undefined) {
             ent.dailyLikes = plan.dailyLikesLimit;
         }
+        if (plan.dailySuperLikesLimit !== undefined && ent.dailySuperLikes === undefined) {
+            ent.dailySuperLikes = plan.dailySuperLikesLimit;
+        }
         if (plan.dailyComplimentsLimit !== undefined && ent.dailyCompliments === undefined) {
             ent.dailyCompliments = plan.dailyComplimentsLimit;
         }
@@ -269,6 +273,7 @@ export class PlansService {
     private syncEntitlementsToLegacy(plan: Plan): void {
         const ent = plan.entitlements || {};
         if (ent.dailyLikes !== undefined) plan.dailyLikesLimit = ent.dailyLikes;
+        if (ent.dailySuperLikes !== undefined) plan.dailySuperLikesLimit = ent.dailySuperLikes;
         if (ent.dailyCompliments !== undefined) plan.dailyComplimentsLimit = ent.dailyCompliments;
         if (ent.monthlyRewinds !== undefined) plan.monthlyRewindsLimit = ent.monthlyRewinds;
         if (ent.weeklyBoosts !== undefined) plan.weeklyBoostsLimit = ent.weeklyBoosts;
@@ -278,7 +283,7 @@ export class PlansService {
         if (ent.unlimitedLikes || ent.dailyLikes === -1) featureFlags.push('unlimited_likes');
         if (ent.advancedFilters) featureFlags.push('advanced_filters');
         if (ent.seeWhoLikesYou) featureFlags.push('see_who_liked');
-        if (ent.superLike) featureFlags.push('super_like');
+        if (ent.superLike || ent.dailySuperLikes === -1 || (ent.dailySuperLikes ?? 0) > 0) featureFlags.push('super_like');
         if (ent.profileBoostPriority || ent.weeklyBoosts === -1 || (ent.weeklyBoosts ?? 0) > 0) featureFlags.push('profile_boost');
         if (ent.readReceipts) featureFlags.push('read_receipts');
         if (ent.priorityMatching) featureFlags.push('priority_matching');
@@ -306,7 +311,13 @@ export class PlansService {
         });
         if (subs.length === 0) return;
 
-        const keys = subs.map(s => `entitlements:${s.userId}`);
-        await Promise.all(keys.map(k => this.redisService.del(k)));
+        await Promise.all(
+            subs.flatMap(s => [
+                this.redisService.del(`entitlements:${s.userId}`),
+                this.redisService.del(`plan:${s.userId}`),
+                this.redisService.del(`features:${s.userId}`),
+                this.redisService.del(`premium:${s.userId}`),
+            ]),
+        );
     }
 }

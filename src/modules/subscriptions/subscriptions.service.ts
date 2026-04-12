@@ -8,7 +8,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
     Subscription,
-    SubscriptionPlan,
     SubscriptionStatus,
 } from '../../database/entities/subscription.entity';
 import { User } from '../../database/entities/user.entity';
@@ -44,10 +43,18 @@ export class SubscriptionsService {
         const now = new Date();
         const endDate = new Date(now);
         endDate.setDate(endDate.getDate() + days);
+        const planEntity = await this.planRepository.findOne({
+            where: [
+                { code: 'trial', isActive: true },
+                { code: 'premium', isActive: true },
+            ],
+        });
 
         const subscription = this.subscriptionRepository.create({
             userId,
-            plan: SubscriptionPlan.PREMIUM, // Default trial to premium
+            plan: planEntity?.code ?? 'trial',
+            planId: planEntity?.id ?? null,
+            planEntity: planEntity ?? null,
             status: SubscriptionStatus.ACTIVE,
             startDate: now,
             endDate,
@@ -64,13 +71,19 @@ export class SubscriptionsService {
         let sub = await this.subscriptionRepository.findOne({
             where: { userId },
             order: { createdAt: 'DESC' },
+            relations: ['planEntity'],
         });
 
         if (!sub) {
+            const freePlan = await this.planRepository.findOne({
+                where: { code: 'free', isActive: true },
+            });
             // Create default free subscription
             sub = this.subscriptionRepository.create({
                 userId,
-                plan: SubscriptionPlan.FREE,
+                plan: freePlan?.code ?? 'free',
+                planId: freePlan?.id ?? null,
+                planEntity: freePlan ?? null,
                 status: SubscriptionStatus.ACTIVE,
             });
             await this.subscriptionRepository.save(sub);
@@ -81,11 +94,20 @@ export class SubscriptionsService {
 
     async createSubscription(
         userId: string,
-        plan: SubscriptionPlan,
+        planRef: string,
+        durationDays?: number,
         paymentReference?: string,
     ): Promise<Subscription> {
-        if (plan === SubscriptionPlan.FREE) {
-            throw new BadRequestException('Cannot subscribe to free plan');
+        const normalizedPlanRef = (planRef || '').trim();
+        if (!normalizedPlanRef) throw new BadRequestException('planId or planCode is required');
+
+        const planEntity = await this.planRepository.findOne({
+            where: this.planLookupWhere(normalizedPlanRef, { isActive: true, isVisible: true }),
+        });
+        if (!planEntity) throw new BadRequestException('Plan not found, inactive, or hidden');
+
+        if (Number(planEntity.price) > 0) {
+            throw new BadRequestException('Paid plans must be activated through checkout/webhook.');
         }
 
         // Cancel existing active subscription
@@ -97,11 +119,13 @@ export class SubscriptionsService {
         // Create new subscription
         const now = new Date();
         const endDate = new Date(now);
-        endDate.setMonth(endDate.getMonth() + 1); // 1 month subscription
+        endDate.setDate(endDate.getDate() + (durationDays || planEntity.durationDays || 30));
 
         const subscription = this.subscriptionRepository.create({
             userId,
-            plan,
+            plan: planEntity.code,
+            planId: planEntity.id,
+            planEntity,
             status: SubscriptionStatus.ACTIVE,
             startDate: now,
             endDate,
@@ -111,10 +135,17 @@ export class SubscriptionsService {
         const saved = await this.subscriptionRepository.save(subscription);
 
         // Invalidate premium cache so swipe limits update immediately
-        await this.updateUserPremiumState(userId, true, now, endDate);
+        await this.updateUserPremiumState(userId, planEntity.code !== 'free', now, endDate);
         await this.invalidatePremiumCaches(userId);
 
         return saved;
+    }
+
+    async getPublicPlans(): Promise<Plan[]> {
+        return this.planRepository.find({
+            where: { isActive: true, isVisible: true },
+            order: { sortOrder: 'ASC', price: 'ASC' },
+        });
     }
 
     async cancelSubscription(userId: string): Promise<void> {
@@ -136,44 +167,21 @@ export class SubscriptionsService {
         return state.isPremium;
     }
 
-    async getPlanFeatures(plan: SubscriptionPlan | string) {
-        // Try dynamic plan from DB first
-        const planCode = typeof plan === 'string' ? plan : plan;
+    async getPlanFeatures(plan: string) {
+        const planCode = (plan || '').trim();
         const planEntity = await this.planRepository.findOne({
-            where: { code: planCode },
+            where: this.planLookupWhere(planCode),
         });
         if (planEntity?.entitlements) {
             return planEntity.entitlements;
         }
 
-        // Legacy fallback
-        const features = {
-            [SubscriptionPlan.FREE]: {
-                dailySwipes: 25,
-                seeWhoLikedYou: false,
-                advancedFilters: false,
-                unlimitedMessages: true,
-                profileBoost: false,
-                price: 0,
-            },
-            [SubscriptionPlan.PREMIUM]: {
-                dailySwipes: -1,
-                seeWhoLikedYou: true,
-                advancedFilters: true,
-                unlimitedMessages: true,
-                profileBoost: false,
-                price: 9.99,
-            },
-            [SubscriptionPlan.GOLD]: {
-                dailySwipes: -1,
-                seeWhoLikedYou: true,
-                advancedFilters: true,
-                unlimitedMessages: true,
-                profileBoost: true,
-                price: 19.99,
-            },
+        return {
+            dailyLikes: 10,
+            dailyCompliments: 0,
+            monthlyRewinds: 2,
+            weeklyBoosts: 0,
         };
-        return features[plan as SubscriptionPlan];
     }
 
     async setManualPremium(
@@ -191,9 +199,18 @@ export class SubscriptionsService {
             { status: SubscriptionStatus.CANCELLED },
         );
 
+        const planEntity = await this.planRepository.findOne({
+            where: [
+                { code: 'premium', isActive: true },
+                { code: 'gold', isActive: true },
+            ],
+        });
+
         const subscription = this.subscriptionRepository.create({
             userId,
-            plan: SubscriptionPlan.PREMIUM,
+            plan: planEntity?.code ?? 'premium',
+            planId: planEntity?.id ?? null,
+            planEntity: planEntity ?? null,
             status: SubscriptionStatus.ACTIVE,
             startDate,
             endDate: expiryDate,
@@ -227,12 +244,14 @@ export class SubscriptionsService {
         const expiredSubscriptions = await this.subscriptionRepository.find({
             where: { status: SubscriptionStatus.ACTIVE },
             select: ['id', 'userId', 'endDate', 'plan', 'planId'],
+            relations: ['planEntity'],
         });
 
         const expiredUserIds = new Set<string>();
 
         for (const subscription of expiredSubscriptions) {
-            const isNonFree = subscription.planId !== null || subscription.plan !== SubscriptionPlan.FREE;
+            const planCode = subscription.planEntity?.code ?? subscription.plan ?? 'free';
+            const isNonFree = planCode !== 'free';
             if (
                 isNonFree &&
                 subscription.endDate &&
@@ -272,16 +291,13 @@ export class SubscriptionsService {
                 { userId, status: SubscriptionStatus.PAST_DUE },
             ],
             order: { endDate: 'DESC', createdAt: 'DESC' },
+            relations: ['planEntity'],
         });
 
         const now = new Date();
 
-        // A subscription is considered premium if:
-        // - It has a planId (dynamic plan), OR
-        // - Its plan enum is not FREE
         const isPremiumPlan = (sub: Subscription) =>
-            sub.planId !== null ||
-            (sub.plan !== SubscriptionPlan.FREE);
+            (sub.planEntity?.code ?? sub.plan ?? 'free') !== 'free';
 
         if (
             activeSubscription &&
@@ -369,6 +385,16 @@ export class SubscriptionsService {
 
             throw error;
         }
+    }
+
+    private planLookupWhere(planRef: string, extra: Record<string, any> = {}): Record<string, any>[] {
+        const byCode = { code: planRef, ...extra };
+        if (!this.isUuid(planRef)) return [byCode];
+        return [{ id: planRef, ...extra }, byCode];
+    }
+
+    private isUuid(value: string): boolean {
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
     }
 
     private isMissingPremiumColumnsError(error: unknown): boolean {

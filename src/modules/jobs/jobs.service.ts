@@ -11,7 +11,7 @@ import { Like } from '../../database/entities/like.entity';
 import { Match, MatchStatus } from '../../database/entities/match.entity';
 import { Message } from '../../database/entities/message.entity';
 import { Conversation } from '../../database/entities/conversation.entity';
-import { Subscription, SubscriptionPlan, SubscriptionStatus } from '../../database/entities/subscription.entity';
+import { Subscription, SubscriptionStatus } from '../../database/entities/subscription.entity';
 import { RematchRequest, RematchStatus } from '../../database/entities/rematch-request.entity';
 import { RedisService } from '../redis/redis.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
@@ -229,14 +229,17 @@ export class JobsService {
     async boostPremiumVisibility(): Promise<void> {
         this.logger.log('Boosting premium user visibility...');
 
-        // Find premium/gold users with active subscriptions
-        const premiumSubs = await this.subscriptionRepository.find({
-            where: [
-                { plan: SubscriptionPlan.PREMIUM, status: SubscriptionStatus.ACTIVE },
-                { plan: SubscriptionPlan.GOLD, status: SubscriptionStatus.ACTIVE },
-            ],
-            select: ['userId'],
-        });
+        const premiumSubs = await this.subscriptionRepository
+            .createQueryBuilder('subscription')
+            .leftJoin('subscription.planEntity', 'planEntity')
+            .select('subscription.userId', 'userId')
+            .where('subscription.status IN (:...statuses)', {
+                statuses: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE],
+            })
+            .andWhere("COALESCE(planEntity.code, subscription.plan, 'free') != :freePlan", {
+                freePlan: 'free',
+            })
+            .getRawMany<{ userId: string }>();
 
         const premiumUserIds = premiumSubs.map(s => s.userId);
         if (premiumUserIds.length === 0) return;

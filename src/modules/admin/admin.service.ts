@@ -12,7 +12,7 @@ import {
 import { Report, ReportStatus } from '../../database/entities/report.entity';
 import { Profile } from '../../database/entities/profile.entity';
 import { Match, MatchStatus } from '../../database/entities/match.entity';
-import { Subscription, SubscriptionPlan, SubscriptionStatus } from '../../database/entities/subscription.entity';
+import { Subscription, SubscriptionStatus } from '../../database/entities/subscription.entity';
 import { Photo, PhotoModerationStatus } from '../../database/entities/photo.entity';
 import { Like, LikeType } from '../../database/entities/like.entity';
 import { Message, MessageType } from '../../database/entities/message.entity';
@@ -29,6 +29,7 @@ import { RedisService } from '../redis/redis.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { PlansService } from '../plans/plans.service';
+import { ChatService } from '../chat/chat.service';
 
 @Injectable()
 export class AdminService implements OnModuleInit {
@@ -136,6 +137,7 @@ export class AdminService implements OnModuleInit {
         private readonly notificationsService: NotificationsService,
         private readonly subscriptionsService: SubscriptionsService,
         private readonly plansService: PlansService,
+        private readonly chatService: ChatService,
     ) { }
 
     // â”€â”€â”€ AUTO-SEED ADMIN ON STARTUP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -193,7 +195,14 @@ export class AdminService implements OnModuleInit {
             );
         }
         if (plan) {
-            qb.innerJoin('subscriptions', 'sub', 'sub.userId = user.id AND sub.plan = :plan AND sub.status = :subStatus', { plan, subStatus: 'active' });
+            qb.innerJoin(
+                'subscriptions',
+                'sub',
+                'sub."userId" = user.id AND sub.status = :subStatus',
+                { subStatus: SubscriptionStatus.ACTIVE },
+            );
+            qb.leftJoin('plans', 'planEntity', 'planEntity.id = sub."planId"');
+            qb.andWhere('(planEntity.code = :plan OR sub.plan = :plan)', { plan });
         }
 
         qb.orderBy('user.createdAt', 'DESC')
@@ -227,6 +236,7 @@ export class AdminService implements OnModuleInit {
         const subscription = await this.subscriptionRepository.findOne({
             where: { userId },
             order: { createdAt: 'DESC' },
+            relations: ['planEntity'],
         });
 
         // Compute premium display fields
@@ -385,17 +395,60 @@ export class AdminService implements OnModuleInit {
 
     // â”€â”€â”€ UPDATE USER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    async updateUser(userId: string, dto: Partial<User>) {
+    async updateUser(userId: string, dto: Partial<User> & Record<string, any>) {
         const user = await this.userRepository.findOne({ where: { id: userId } });
         if (!user) throw new NotFoundException('User not found');
 
-        delete (dto as any).password;
-        delete (dto as any).id;
-        if (dto.verification !== undefined) {
-            dto.verification = normalizeVerificationState(dto.verification);
+        const incoming: Record<string, any> = { ...dto };
+        delete incoming.password;
+        delete incoming.id;
+
+        const nestedProfile = incoming.profile && typeof incoming.profile === 'object'
+            ? incoming.profile
+            : null;
+        delete incoming.profile;
+
+        const profileFields = new Set([
+            'bio', 'gender', 'dateOfBirth', 'maritalStatus', 'religiousLevel',
+            'ethnicity', 'nationality', 'nationalities', 'sect', 'prayerFrequency',
+            'dietary', 'alcohol', 'hijabStatus', 'company', 'familyValues',
+            'height', 'weight', 'livingSituation', 'jobTitle', 'education',
+            'educationDetails', 'familyPlans', 'communicationStyle',
+            'marriageIntention', 'secondWifePreference', 'intentMode',
+            'vaccinationStatus', 'bloodType', 'healthNotes', 'workoutFrequency',
+            'sleepSchedule', 'socialMediaUsage', 'hasPets', 'petPreference',
+            'interests', 'languages', 'favoriteMusic', 'favoriteMovies',
+            'favoriteBooks', 'travelPreferences', 'hasChildren', 'numberOfChildren',
+            'wantsChildren', 'willingToRelocate', 'city', 'country', 'latitude',
+            'longitude', 'aboutPartner', 'showAge', 'showDistance',
+            'showOnlineStatus', 'showLastSeen', 'profileCompletionPercentage',
+            'activityScore', 'isComplete',
+        ]);
+
+        const profileUpdate: Record<string, any> = {};
+        if (nestedProfile) Object.assign(profileUpdate, nestedProfile);
+        for (const field of profileFields) {
+            if (incoming[field] !== undefined) {
+                profileUpdate[field] = incoming[field];
+                delete incoming[field];
+            }
         }
-        Object.assign(user, dto);
+
+        if (incoming.verification !== undefined) {
+            incoming.verification = normalizeVerificationState(incoming.verification);
+        }
+        Object.assign(user, incoming);
         const savedUser = await this.userRepository.save(user);
+
+        if (Object.keys(profileUpdate).length > 0) {
+            const profile = await this.profileRepository.findOne({ where: { userId } });
+            if (!profile) {
+                throw new BadRequestException('Cannot update profile fields because this user has no profile yet.');
+            }
+            Object.assign(profile, profileUpdate);
+            await this.profileRepository.save(profile);
+        }
+
         return this.normalizeUserState(savedUser);
     }
 
@@ -499,6 +552,31 @@ export class AdminService implements OnModuleInit {
     }
 
     async getConversationMessages(conversationId: string, pagination: PaginationDto, search?: string) {
+        const normalizedSearch = search?.trim().toLowerCase();
+        if (normalizedSearch) {
+            const skip = pagination.skip || 0;
+            const limit = pagination.limit || 20;
+            const allMessages = await this.messageRepository.find({
+                where: { conversationId },
+                relations: ['sender', 'sender.profile'],
+                order: { createdAt: 'ASC' },
+            });
+
+            const filtered = allMessages
+                .map(message => {
+                    message.content = this.chatService.decryptMessageContent(message.content);
+                    return message;
+                })
+                .filter(message => (message.content || '').toLowerCase().includes(normalizedSearch));
+
+            return {
+                messages: filtered.slice(skip, skip + limit),
+                total: filtered.length,
+                page: pagination.page,
+                limit,
+            };
+        }
+
         const qb = this.messageRepository
             .createQueryBuilder('m')
             .leftJoinAndSelect('m.sender', 'sender')
@@ -508,11 +586,10 @@ export class AdminService implements OnModuleInit {
             .skip(pagination.skip)
             .take(pagination.limit);
 
-        if (search) {
-            qb.andWhere(`m.content ILIKE :q`, { q: `%${search}%` });
-        }
-
         const [messages, total] = await qb.getManyAndCount();
+        messages.forEach(message => {
+            message.content = this.chatService.decryptMessageContent(message.content);
+        });
         return { messages, total, page: pagination.page, limit: pagination.limit };
     }
 
@@ -548,22 +625,18 @@ export class AdminService implements OnModuleInit {
     }) {
         if (dto.broadcast) {
             const users = await this.findFilteredUsers(dto.filters || {});
-            const notifications = users.map(u =>
-                this.notificationRepository.create({
-                    userId: u.id,
-                    type: (dto.type as NotificationType) || NotificationType.SYSTEM,
+            const results = await Promise.allSettled(
+                users.map(u => this.notificationsService.createNotification(u.id, {
+                    type: dto.type || NotificationType.SYSTEM,
                     title: dto.title,
                     body: dto.body,
-                    data: this.buildNotificationPayload(
-                        dto.type || NotificationType.SYSTEM,
-                        u.id,
-                        dto.conversationId,
-                        dto.extraData || {},
-                    ),
-                }),
+                    conversationId: dto.conversationId,
+                    extraData: dto.extraData,
+                })),
             );
-            await this.notificationRepository.save(notifications);
-            return { sent: notifications.length, broadcast: true };
+            const sent = results.filter(result => result.status === 'fulfilled').length;
+            const failed = results.length - sent;
+            return { sent, failed, broadcast: true };
         }
 
         if (!dto.userId) throw new BadRequestException('userId required for non-broadcast');
@@ -581,7 +654,7 @@ export class AdminService implements OnModuleInit {
         const qb = this.userRepository
             .createQueryBuilder('u')
             .leftJoinAndSelect('u.profile', 'p')
-            .leftJoinAndSelect('u.subscription', 's')
+            .leftJoin('subscriptions', 's', 's."userId" = u.id')
             .where('u.status = :status', { status: UserStatus.ACTIVE });
 
         if (filters.ageMin) {
@@ -594,8 +667,11 @@ export class AdminService implements OnModuleInit {
             qb.andWhere('u.gender = :gender', { gender: filters.gender });
         }
         if (filters.premiumOnly) {
-            qb.andWhere('s.plan != :freePlan', { freePlan: 'free' });
-            qb.andWhere('s.status = :activeStatus', { activeStatus: 'active' });
+            qb.leftJoin('plans', 'sp', 'sp.id = s."planId"');
+            qb.andWhere('s.status IN (:...premiumStatuses)', {
+                premiumStatuses: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE],
+            });
+            qb.andWhere("COALESCE(sp.code, s.plan, 'free') != :freePlan", { freePlan: 'free' });
         }
         if (filters.country) {
             qb.andWhere('p.country ILIKE :country', { country: `%${filters.country}%` });
@@ -668,19 +744,24 @@ export class AdminService implements OnModuleInit {
 
     async createAd(dto: Partial<Ad>) {
         const ad = this.adRepository.create(dto);
-        return this.adRepository.save(ad);
+        const saved = await this.adRepository.save(ad);
+        await this.redisService.delByPattern('ads:feed:*');
+        return saved;
     }
 
     async updateAd(id: string, dto: Partial<Ad>) {
         const ad = await this.adRepository.findOne({ where: { id } });
         if (!ad) throw new NotFoundException('Ad not found');
         Object.assign(ad, dto);
-        return this.adRepository.save(ad);
+        const saved = await this.adRepository.save(ad);
+        await this.redisService.delByPattern('ads:feed:*');
+        return saved;
     }
 
     async deleteAd(id: string) {
         const res = await this.adRepository.delete(id);
         if (res.affected === 0) throw new NotFoundException('Ad not found');
+        await this.redisService.delByPattern('ads:feed:*');
     }
 
     // â”€â”€â”€ BOOSTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -731,6 +812,7 @@ export class AdminService implements OnModuleInit {
 
         const sub = this.subscriptionRepository.create({
             userId,
+            plan: planEntity.code,
             planId: planEntity.id,
             planEntity,
             status: SubscriptionStatus.ACTIVE,
@@ -747,24 +829,33 @@ export class AdminService implements OnModuleInit {
     // â”€â”€â”€ SUBSCRIPTIONS OVERVIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     async getSubscriptions(pagination: PaginationDto, plan?: string) {
-        const where: any = {};
-        if (plan) where.plan = plan;
+        const qb = this.subscriptionRepository
+            .createQueryBuilder('subscription')
+            .leftJoinAndSelect('subscription.user', 'user')
+            .leftJoinAndSelect('subscription.planEntity', 'planEntity')
+            .orderBy('subscription.createdAt', 'DESC')
+            .skip(pagination.skip)
+            .take(pagination.limit);
 
-        const [subscriptions, total] = await this.subscriptionRepository.findAndCount({
-            where,
-            relations: ['user'],
-            order: { createdAt: 'DESC' },
-            skip: pagination.skip,
-            take: pagination.limit,
-        });
+        if (plan) {
+            qb.andWhere('(planEntity.code = :plan OR subscription.plan = :plan)', { plan });
+        }
 
-        const [freeCount, premiumCount, goldCount] = await Promise.all([
-            this.subscriptionRepository.count({ where: { plan: SubscriptionPlan.FREE } }),
-            this.subscriptionRepository.count({ where: { plan: SubscriptionPlan.PREMIUM } }),
-            this.subscriptionRepository.count({ where: { plan: SubscriptionPlan.GOLD } }),
-        ]);
+        const [subscriptions, total] = await qb.getManyAndCount();
+        const countRows = await this.subscriptionRepository
+            .createQueryBuilder('subscription')
+            .leftJoin('subscription.planEntity', 'planEntity')
+            .select("COALESCE(planEntity.code, subscription.plan, 'free')", 'plan')
+            .addSelect('COUNT(*)', 'count')
+            .groupBy("COALESCE(planEntity.code, subscription.plan, 'free')")
+            .getRawMany();
 
-        return { subscriptions, total, page: pagination.page, limit: pagination.limit, counts: { free: freeCount, premium: premiumCount, gold: goldCount } };
+        const counts = countRows.reduce((acc, row) => {
+            acc[row.plan || 'free'] = Number(row.count) || 0;
+            return acc;
+        }, {} as Record<string, number>);
+
+        return { subscriptions, total, page: pagination.page, limit: pagination.limit, counts };
     }
 
     async updateUserStatus(
@@ -1148,9 +1239,12 @@ export class AdminService implements OnModuleInit {
             this.reportRepository.count({ where: { status: ReportStatus.RESOLVED } }),
             this.subscriptionRepository
                 .createQueryBuilder('subscription')
-                .where('subscription.status = :status', { status: SubscriptionStatus.ACTIVE })
-                .andWhere('subscription.plan IN (:...plans)', {
-                    plans: [SubscriptionPlan.PREMIUM, SubscriptionPlan.GOLD],
+                .leftJoin('subscription.planEntity', 'planEntity')
+                .where('subscription.status IN (:...statuses)', {
+                    statuses: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE],
+                })
+                .andWhere("COALESCE(planEntity.code, subscription.plan, 'free') != :freePlan", {
+                    freePlan: 'free',
                 })
                 .select('COUNT(DISTINCT subscription.userId)', 'count')
                 .getRawOne()
@@ -1352,7 +1446,7 @@ export class AdminService implements OnModuleInit {
     async getUserSubscriptionHistory(userId: string) {
         const subscriptions = await this.subscriptionRepository.find({
             where: { userId },
-            relations: ['plan'],
+            relations: ['planEntity'],
             order: { createdAt: 'DESC' },
         });
         return {
@@ -1360,14 +1454,14 @@ export class AdminService implements OnModuleInit {
                 id: s.id,
                 userId: s.userId,
                 planId: s.planId,
-                planCode: (s as any).plan?.code || s.planId,
-                planName: (s as any).plan?.name || s.planId,
-                billingCycle: (s as any).plan?.billingCycle || 'monthly',
+                planCode: s.planEntity?.code || s.plan || 'free',
+                planName: s.planEntity?.name || s.plan || 'Free',
+                billingCycle: s.planEntity?.billingCycle || s.billingCycle || 'monthly',
                 status: s.status,
                 startDate: s.startDate,
                 endDate: s.endDate,
                 stripeSubscriptionId: s.stripeSubscriptionId || null,
-                stripePriceId: (s as any).plan?.stripePriceId || null,
+                stripePriceId: s.planEntity?.stripePriceId || null,
                 createdAt: s.createdAt,
             })),
         };

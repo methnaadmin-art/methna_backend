@@ -80,8 +80,10 @@ export class PaymentsService {
         const { planCode, provider } = dto;
 
         // Load plan from DB — backend is source of truth
-        const plan = await this.planRepository.findOne({ where: { code: planCode, isActive: true } });
-        if (!plan) throw new BadRequestException(`Plan '${planCode}' not found or inactive`);
+        const plan = await this.planRepository.findOne({
+            where: { code: planCode, isActive: true, isVisible: true },
+        });
+        if (!plan) throw new BadRequestException(`Plan '${planCode}' not found, inactive, or hidden`);
         if (plan.price === 0) throw new BadRequestException('Cannot create payment for free plan');
 
         switch (provider) {

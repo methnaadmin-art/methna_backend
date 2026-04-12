@@ -20,8 +20,11 @@ export class AdsController {
 
     @Get('feed')
     @ApiOperation({ summary: 'Get ad cards for feed insertion (separate list)' })
-    async getFeedAds(@Query('limit') limit?: number) {
-        return this.adsService.getFeedAdCards(limit ? Number(limit) : 5);
+    async getFeedAds(
+        @CurrentUser('sub') userId: string,
+        @Query('limit') limit?: number,
+    ) {
+        return this.adsService.getFeedAdCards(userId, limit ? Number(limit) : 5);
     }
 
     @Post(':id/impression')

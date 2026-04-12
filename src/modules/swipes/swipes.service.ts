@@ -20,9 +20,6 @@ import { MonetizationService, FeatureFlag } from '../monetization/monetization.s
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { User, UserStatus } from '../../database/entities/user.entity';
 
-const FREE_DAILY_SWIPE_LIMIT = 10;
-const FREE_DAILY_SUPER_LIKE_LIMIT = 0;
-
 @Injectable()
 export class SwipesService {
     private readonly logger = new Logger(SwipesService.name);
@@ -102,10 +99,12 @@ export class SwipesService {
             throw new BadRequestException('Already swiped on this user');
         }
 
-        // Check limits
-        await this.checkSwipeLimit(userId);
-        if (action === SwipeAction.SUPER_LIKE) {
-            await this.checkSuperLikeLimit(userId);
+        if (action === SwipeAction.LIKE) {
+            await this.monetizationService.useLike(userId);
+        } else if (action === SwipeAction.SUPER_LIKE) {
+            await this.monetizationService.useSuperLike(userId);
+        } else if (action === SwipeAction.COMPLIMENT) {
+            await this.monetizationService.useComplimentCredit(userId);
         }
 
         // Map SwipeAction to LikeType
@@ -445,26 +444,6 @@ export class SwipesService {
         ]);
 
         return savedMatch;
-    }
-
-    private async checkSwipeLimit(userId: string): Promise<void> {
-        if (await this.isPremiumUser(userId)) return;
-
-        const key = `swipes:${userId}:${new Date().toISOString().split('T')[0]}`;
-        const allowed = await this.redisService.checkRateLimit(key, FREE_DAILY_SWIPE_LIMIT, 86400);
-        if (!allowed) {
-            throw new ForbiddenException('Daily swipe limit reached. Upgrade to Premium for unlimited swipes.');
-        }
-    }
-
-    private async checkSuperLikeLimit(userId: string): Promise<void> {
-        if (await this.isPremiumUser(userId)) return;
-
-        const key = `superlike:${userId}:${new Date().toISOString().split('T')[0]}`;
-        const allowed = await this.redisService.checkRateLimit(key, FREE_DAILY_SUPER_LIKE_LIMIT, 86400);
-        if (!allowed) {
-            throw new ForbiddenException('Daily super-like limit reached. Upgrade for more.');
-        }
     }
 
     private async isPremiumUser(userId: string): Promise<boolean> {

@@ -24,6 +24,7 @@ import { PlanEntitlements, BillingCycle } from '../../database/entities/plan.ent
 
 class EntitlementsDto implements PlanEntitlements {
     @ApiPropertyOptional() @IsOptional() @IsInt() dailyLikes?: number;
+    @ApiPropertyOptional() @IsOptional() @IsInt() dailySuperLikes?: number;
     @ApiPropertyOptional() @IsOptional() @IsInt() dailyCompliments?: number;
     @ApiPropertyOptional() @IsOptional() @IsInt() monthlyRewinds?: number;
     @ApiPropertyOptional() @IsOptional() @IsInt() weeklyBoosts?: number;
