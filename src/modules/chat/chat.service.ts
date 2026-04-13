@@ -172,6 +172,7 @@ export class ChatService {
         conversationId: string,
         content: string,
         type: MessageType = MessageType.TEXT,
+        clientMsgId?: string,
     ): Promise<Message> {
         const conversation = await this.verifyConversationParticipant(senderId, conversationId);
 
@@ -252,7 +253,7 @@ export class ChatService {
             status: saved.status,
             createdAt: saved.createdAt,
         };
-        this.chatGateway.broadcastMessage(outboundMessage).catch(err => {
+        this.chatGateway.broadcastMessage(outboundMessage, clientMsgId).catch(err => {
             console.error('Failed to broadcast message:', err);
         });
 

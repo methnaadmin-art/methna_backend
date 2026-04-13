@@ -159,10 +159,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
                 conversationId,
                 msgContent,
                 msgType,
+                clientMsgId,
             );
-
-            // Broadcast the message to participants (including their individual user rooms)
-            await this.broadcastMessage(message, clientMsgId);
 
             return { success: true, messageId: message.id, flagged, clientMsgId };
         } catch (error) {
