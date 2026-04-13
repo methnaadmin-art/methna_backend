@@ -133,7 +133,7 @@ export class GooglePlayBillingService {
             try {
                 const packageName = this.configService.get<string>(
                     'GOOGLE_PLAY_PACKAGE_NAME',
-                    'com.methnapp.app',
+                    'com.methna.app',
                 );
 
                 const response = await this.androidPublisher.purchases.subscriptions.get({
