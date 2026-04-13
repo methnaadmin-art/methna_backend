@@ -31,6 +31,18 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { UsersService } from '../users/users.service';
 import { PaymentsService } from '../payments/payments.service';
 
+type GoogleTokenInfo = {
+    aud?: string;
+    email?: string;
+    email_verified?: boolean | string;
+    name?: string;
+    picture?: string;
+    sub?: string;
+    exp?: string;
+    error?: string;
+    error_description?: string;
+};
+
 @Injectable()
 export class AuthService {
     private readonly logger = new Logger(AuthService.name);
@@ -45,21 +57,13 @@ export class AuthService {
         private readonly subscriptionsService: SubscriptionsService,
         private readonly usersService: UsersService,
         private readonly paymentsService: PaymentsService,
-    ) { }
+    ) {}
 
     // ─── REGISTRATION WITH OTP ──────────────────────────────
 
     async register(registerDto: RegisterDto) {
-        const {
-            email,
-            password,
-            firstName,
-            lastName,
-            phone,
-            username,
-            agreeToTerms,
-            agreeToPrivacyPolicy,
-        } = registerDto;
+        const { email, password, firstName, lastName, phone, username, agreeToTerms, agreeToPrivacyPolicy } =
+            registerDto;
 
         if (!agreeToTerms || !agreeToPrivacyPolicy) {
             throw new BadRequestException('You must agree to the Terms of Service and Privacy Policy');
@@ -126,13 +130,24 @@ export class AuthService {
                 where: { username: username.toLowerCase() },
                 select: ['id', 'username', 'status', 'emailVerified'],
             });
-            if (existingUsername && (existingUsername.status !== UserStatus.PENDING_VERIFICATION || existingUsername.emailVerified)) {
+            if (
+                existingUsername &&
+                (existingUsername.status !== UserStatus.PENDING_VERIFICATION || existingUsername.emailVerified)
+            ) {
                 throw new ConflictException('Username already taken');
             }
             // If the existing username belongs to an unverified user, release it
-            if (existingUsername && existingUsername.status === UserStatus.PENDING_VERIFICATION && !existingUsername.emailVerified) {
-                await this.userRepository.update(existingUsername.id, { username: () => 'NULL' } as any);
-                this.logger.log(`[OTP] Released stale username '${username}' from unverified user ${existingUsername.id}`);
+            if (
+                existingUsername &&
+                existingUsername.status === UserStatus.PENDING_VERIFICATION &&
+                !existingUsername.emailVerified
+            ) {
+                await this.userRepository.update(existingUsername.id, {
+                    username: () => 'NULL',
+                } as any);
+                this.logger.log(
+                    `[OTP] Released stale username '${username}' from unverified user ${existingUsername.id}`,
+                );
             }
         }
 
@@ -142,9 +157,7 @@ export class AuthService {
         const otp = this.generateOtp();
         this.logger.log(`[OTP] Generated OTP for new user ${email}: ${otp}`);
         const hashedOtp = await bcrypt.hash(otp, 10);
-        const otpExpiry = new Date(
-            Date.now() + this.configService.get<number>('otp.expirySeconds', 300) * 1000,
-        );
+        const otpExpiry = new Date(Date.now() + this.configService.get<number>('otp.expirySeconds', 300) * 1000);
 
         const user = this.userRepository.create({
             email,
@@ -208,14 +221,25 @@ export class AuthService {
         const allowed = await this.redisService.checkRateLimit(rateLimitKey, 10, 300);
         if (!allowed) {
             this.logger.warn(`[OTP] Rate limited: ${email}`);
-            throw new HttpException('Too many OTP verification attempts. Try again later.', HttpStatus.TOO_MANY_REQUESTS);
+            throw new HttpException(
+                'Too many OTP verification attempts. Try again later.',
+                HttpStatus.TOO_MANY_REQUESTS,
+            );
         }
 
         const user = await this.userRepository.findOne({
             where: { email },
             select: [
-                'id', 'email', 'firstName', 'lastName', 'role', 'status',
-                'otpCode', 'otpExpiresAt', 'otpAttempts', 'emailVerified',
+                'id',
+                'email',
+                'firstName',
+                'lastName',
+                'role',
+                'status',
+                'otpCode',
+                'otpExpiresAt',
+                'otpAttempts',
+                'emailVerified',
             ],
         });
 
@@ -224,7 +248,9 @@ export class AuthService {
             throw new BadRequestException('User not found');
         }
 
-        this.logger.log(`[OTP] User found: ${email}, status=${user.status}, emailVerified=${user.emailVerified}, hasOtp=${!!user.otpCode}, otpExpiry=${user.otpExpiresAt}, attempts=${user.otpAttempts}`);
+        this.logger.log(
+            `[OTP] User found: ${email}, status=${user.status}, emailVerified=${user.emailVerified}, hasOtp=${!!user.otpCode}, otpExpiry=${user.otpExpiresAt}, attempts=${user.otpAttempts}`,
+        );
 
         if (user.status === UserStatus.ACTIVE && user.emailVerified) {
             throw new BadRequestException('Email already verified');
@@ -239,7 +265,9 @@ export class AuthService {
 
         // Check OTP expiry
         if (!user.otpCode || !user.otpExpiresAt || new Date() > user.otpExpiresAt) {
-            this.logger.warn(`[OTP] Expired for ${email}: otpExpiresAt=${user.otpExpiresAt}, now=${new Date().toISOString()}`);
+            this.logger.warn(
+                `[OTP] Expired for ${email}: otpExpiresAt=${user.otpExpiresAt}, now=${new Date().toISOString()}`,
+            );
             throw new BadRequestException('OTP has expired. Request a new one.');
         }
 
@@ -273,7 +301,10 @@ export class AuthService {
 
         // Stripe Customer Creation
         try {
-            const stripeCustomerId = await this.paymentsService.createCustomer(user.email, `${user.firstName} ${user.lastName}`);
+            const stripeCustomerId = await this.paymentsService.createCustomer(
+                user.email,
+                `${user.firstName} ${user.lastName}`,
+            );
             if (stripeCustomerId) {
                 await this.userRepository.update(user.id, { stripeCustomerId });
                 this.logger.log(`[Stripe] ✅ Created Stripe customer for ${email}`);
@@ -323,20 +354,14 @@ export class AuthService {
         // Check cooldown
         const cooldownSeconds = this.configService.get<number>('otp.cooldownSeconds', 60);
         if (user.otpCooldownUntil && new Date() < user.otpCooldownUntil) {
-            const remaining = Math.ceil(
-                (user.otpCooldownUntil.getTime() - Date.now()) / 1000,
-            );
-            throw new BadRequestException(
-                `Please wait ${remaining} seconds before requesting a new OTP`,
-            );
+            const remaining = Math.ceil((user.otpCooldownUntil.getTime() - Date.now()) / 1000);
+            throw new BadRequestException(`Please wait ${remaining} seconds before requesting a new OTP`);
         }
 
         const otp = this.generateOtp();
         this.logger.log(`[OTP] Generated new OTP for resend ${email}: ${otp}`);
         const hashedOtp = await bcrypt.hash(otp, 10);
-        const otpExpiry = new Date(
-            Date.now() + this.configService.get<number>('otp.expirySeconds', 300) * 1000,
-        );
+        const otpExpiry = new Date(Date.now() + this.configService.get<number>('otp.expirySeconds', 300) * 1000);
         const cooldownUntil = new Date(Date.now() + cooldownSeconds * 1000);
 
         await this.userRepository.update(user.id, {
@@ -386,12 +411,14 @@ export class AuthService {
         const emailRateKey = `login:${normalizedIdentifier || normalizedPhone}`;
         const emailAllowed = await this.redisService.checkRateLimit(emailRateKey, 5, 300);
         if (!emailAllowed) {
-            this.redisService.appendAuditLog({
-                type: 'suspicious',
-                action: 'login_rate_limit_email',
-                email: identifier,
-                ip: clientIp,
-            }).catch(() => {});
+            this.redisService
+                .appendAuditLog({
+                    type: 'suspicious',
+                    action: 'login_rate_limit_email',
+                    email: identifier,
+                    ip: clientIp,
+                })
+                .catch(() => {});
             throw new HttpException('Too many login attempts. Try again in 5 minutes.', HttpStatus.TOO_MANY_REQUESTS);
         }
 
@@ -399,12 +426,17 @@ export class AuthService {
             const ipRateKey = `login_ip:${clientIp}`;
             const ipAllowed = await this.redisService.checkRateLimit(ipRateKey, 20, 300);
             if (!ipAllowed) {
-                this.redisService.appendAuditLog({
-                    type: 'suspicious',
-                    action: 'login_rate_limit_ip',
-                    ip: clientIp,
-                }).catch(() => {});
-                throw new HttpException('Too many login attempts from this IP. Try again later.', HttpStatus.TOO_MANY_REQUESTS);
+                this.redisService
+                    .appendAuditLog({
+                        type: 'suspicious',
+                        action: 'login_rate_limit_ip',
+                        ip: clientIp,
+                    })
+                    .catch(() => {});
+                throw new HttpException(
+                    'Too many login attempts from this IP. Try again later.',
+                    HttpStatus.TOO_MANY_REQUESTS,
+                );
             }
         }
 
@@ -415,40 +447,37 @@ export class AuthService {
                 { phone: identifier },
                 { phone: normalizedPhone },
             ],
-            select: [
-                'id', 'email', 'password', 'firstName', 'lastName',
-                'role', 'status', 'emailVerified',
-            ],
+            select: ['id', 'email', 'password', 'firstName', 'lastName', 'role', 'status', 'emailVerified'],
         });
 
         if (!user) {
-            this.redisService.appendAuditLog({
-                type: 'suspicious',
-                action: 'login_failed_unknown_email',
-                email: identifier,
-                ip: clientIp,
-            }).catch(() => {});
+            this.redisService
+                .appendAuditLog({
+                    type: 'suspicious',
+                    action: 'login_failed_unknown_email',
+                    email: identifier,
+                    ip: clientIp,
+                })
+                .catch(() => {});
             throw new UnauthorizedException('Invalid credentials');
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
-            this.redisService.appendAuditLog({
-                type: 'suspicious',
-                action: 'login_failed_bad_password',
-                userId: user.id,
-                email: identifier,
-                ip: clientIp,
-            }).catch(() => {});
+            this.redisService
+                .appendAuditLog({
+                    type: 'suspicious',
+                    action: 'login_failed_bad_password',
+                    userId: user.id,
+                    email: identifier,
+                    ip: clientIp,
+                })
+                .catch(() => {});
             throw new UnauthorizedException('Invalid credentials');
         }
 
         if (!user.emailVerified && user.status === UserStatus.PENDING_VERIFICATION) {
-            this.throwAuthStatusException(
-                user.status,
-                'Please verify your email first',
-                HttpStatus.UNAUTHORIZED,
-            );
+            this.throwAuthStatusException(user.status, 'Please verify your email first', HttpStatus.UNAUTHORIZED);
         }
 
         const blockedLoginMessage = this.getBlockedLoginMessage(user.status);
@@ -460,18 +489,23 @@ export class AuthService {
 
         const tokens = await this.generateTokens(user);
         await this.updateRefreshToken(user.id, tokens.refreshToken, tokens.familyId);
-        await this.userRepository.update(user.id, { lastLoginAt: new Date(), lastKnownIp: clientIp || undefined });
+        await this.userRepository.update(user.id, {
+            lastLoginAt: new Date(),
+            lastKnownIp: clientIp || undefined,
+        });
 
         // Audit log — successful login with device fingerprint
-        this.redisService.appendAuditLog({
-            type: 'login',
-            userId: user.id,
-            email: user.email,
-            action: 'login_success',
-            familyId: tokens.familyId,
-            ip: clientIp,
-            userAgent,
-        }).catch(() => {});
+        this.redisService
+            .appendAuditLog({
+                type: 'login',
+                userId: user.id,
+                email: user.email,
+                action: 'login_success',
+                familyId: tokens.familyId,
+                ip: clientIp,
+                userAgent,
+            })
+            .catch(() => {});
 
         this.logger.log(`User logged in: ${identifier} from ${clientIp}`);
 
@@ -486,8 +520,49 @@ export class AuthService {
 
     // ─── GOOGLE SIGN-IN ──────────────────────────────────────
 
+    private async verifyGoogleIdToken(idToken: string, expectedEmail: string): Promise<GoogleTokenInfo> {
+        const trimmedToken = idToken?.trim();
+        if (!trimmedToken) {
+            throw new UnauthorizedException('Missing Google ID token');
+        }
+
+        const expectedClientId =
+            this.configService.get<string>('google.webClientId') ||
+            process.env.GOOGLE_WEB_CLIENT_ID ||
+            process.env.GOOGLE_CLIENT_ID ||
+            '';
+        if (!expectedClientId.trim()) {
+            throw new UnauthorizedException('Google Sign-In is not configured on the server');
+        }
+
+        const response = await fetch(
+            `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(trimmedToken)}`,
+        );
+        const payload = (await response.json().catch(() => ({}))) as GoogleTokenInfo;
+        if (!response.ok || payload.error) {
+            throw new UnauthorizedException(payload.error_description || 'Invalid Google token');
+        }
+
+        if (payload.aud !== expectedClientId.trim()) {
+            throw new UnauthorizedException('Invalid Google token audience');
+        }
+
+        const verifiedEmail = payload.email?.trim().toLowerCase();
+        if (!verifiedEmail || verifiedEmail !== expectedEmail.trim().toLowerCase()) {
+            throw new UnauthorizedException('Google token email does not match the requested account');
+        }
+
+        if (payload.email_verified === false || payload.email_verified === 'false') {
+            throw new UnauthorizedException('Google account email is not verified');
+        }
+
+        return payload;
+    }
+
     async googleSignIn(dto: GoogleSignInDto, clientIp?: string, userAgent?: string) {
-        const { email, displayName, photoUrl } = dto;
+        const verifiedGoogle = await this.verifyGoogleIdToken(dto.idToken, dto.email);
+        const email = verifiedGoogle.email!.toLowerCase();
+        const displayName = dto.displayName?.trim() || verifiedGoogle.name;
         this.logger.log(`[GoogleSignIn] Processing for email=${email}`);
 
         // Check if user already exists
@@ -523,13 +598,18 @@ export class AuthService {
             const hashedPassword = await bcrypt.hash(randomPassword, 12);
 
             // Generate unique username from email
-            let baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+            let baseUsername = email
+                .split('@')[0]
+                .toLowerCase()
+                .replace(/[^a-z0-9_]/g, '');
             let username = baseUsername;
             let counter = 1;
-            while (await this.userRepository.findOne({
-                where: { username },
-                select: ['id'],
-            })) {
+            while (
+                await this.userRepository.findOne({
+                    where: { username },
+                    select: ['id'],
+                })
+            ) {
                 username = `${baseUsername}${counter}`;
                 counter++;
             }
@@ -571,18 +651,23 @@ export class AuthService {
         // Generate tokens
         const tokens = await this.generateTokens(user);
         await this.updateRefreshToken(user.id, tokens.refreshToken, tokens.familyId);
-        await this.userRepository.update(user.id, { lastLoginAt: new Date(), lastKnownIp: clientIp || undefined });
+        await this.userRepository.update(user.id, {
+            lastLoginAt: new Date(),
+            lastKnownIp: clientIp || undefined,
+        });
 
         // Audit log
-        this.redisService.appendAuditLog({
-            type: 'login',
-            userId: user.id,
-            email: user.email,
-            action: 'google_signin_success',
-            familyId: tokens.familyId,
-            ip: clientIp,
-            userAgent,
-        }).catch(() => {});
+        this.redisService
+            .appendAuditLog({
+                type: 'login',
+                userId: user.id,
+                email: user.email,
+                action: 'google_signin_success',
+                familyId: tokens.familyId,
+                ip: clientIp,
+                userAgent,
+            })
+            .catch(() => {});
 
         this.logger.log(`[GoogleSignIn] User authenticated: ${email} from ${clientIp}`);
 
@@ -622,9 +707,7 @@ export class AuthService {
         const otp = this.generateOtp();
         this.logger.log(`[OTP] Generated reset OTP for ${email}: ${otp}`);
         const hashedOtp = await bcrypt.hash(otp, 10);
-        const otpExpiry = new Date(
-            Date.now() + this.configService.get<number>('otp.expirySeconds', 300) * 1000,
-        );
+        const otpExpiry = new Date(Date.now() + this.configService.get<number>('otp.expirySeconds', 300) * 1000);
 
         await this.userRepository.update(user.id, {
             resetOtpCode: hashedOtp,
@@ -684,7 +767,10 @@ export class AuthService {
         }
 
         this.logger.log(`[OTP] ✅ Reset OTP verified for ${email}`);
-        return { message: 'OTP verified. You may now reset your password.', verified: true };
+        return {
+            message: 'OTP verified. You may now reset your password.',
+            verified: true,
+        };
     }
 
     async resetPassword(dto: ResetPasswordDto) {
@@ -737,7 +823,9 @@ export class AuthService {
 
         this.logger.log(`[OTP] ✅ Password reset completed for: ${email}`);
 
-        return { message: 'Password reset successfully. Please login with your new password.' };
+        return {
+            message: 'Password reset successfully. Please login with your new password.',
+        };
     }
 
     // ─── TOKEN MANAGEMENT ───────────────────────────────────
@@ -769,11 +857,13 @@ export class AuthService {
             password: hashedPassword,
         });
 
-        this.redisService.appendAuditLog({
-            type: 'login',
-            userId,
-            action: 'password_changed',
-        }).catch(() => {});
+        this.redisService
+            .appendAuditLog({
+                type: 'login',
+                userId,
+                action: 'password_changed',
+            })
+            .catch(() => {});
 
         return { message: 'Password changed successfully' };
     }
@@ -807,24 +897,22 @@ export class AuthService {
             await this.userRepository.update(user.id, { refreshToken: null as any });
 
             // Audit: suspicious activity
-            this.redisService.appendAuditLog({
-                type: 'suspicious',
-                userId: user.id,
-                email: user.email,
-                action: 'refresh_token_reuse',
-                detail: 'Possible token theft — all sessions invalidated',
-                oldFamilyId: payload.familyId,
-            }).catch(() => {});
+            this.redisService
+                .appendAuditLog({
+                    type: 'suspicious',
+                    userId: user.id,
+                    email: user.email,
+                    action: 'refresh_token_reuse',
+                    detail: 'Possible token theft — all sessions invalidated',
+                    oldFamilyId: payload.familyId,
+                })
+                .catch(() => {});
 
             throw new UnauthorizedException('Session compromised. All sessions have been revoked.');
         }
 
         if (!user.emailVerified && user.status === UserStatus.PENDING_VERIFICATION) {
-            this.throwAuthStatusException(
-                user.status,
-                'Please verify your email first',
-                HttpStatus.UNAUTHORIZED,
-            );
+            this.throwAuthStatusException(user.status, 'Please verify your email first', HttpStatus.UNAUTHORIZED);
         }
 
         const blockedLoginMessage = this.getBlockedLoginMessage(user.status);
@@ -840,7 +928,9 @@ export class AuthService {
             if (!familyValid) {
                 this.logger.error(`SECURITY: Invalid token family ${payload.familyId} for user ${user.id}`);
                 await this.redisService.invalidateAllUserSessions(user.id);
-                await this.userRepository.update(user.id, { refreshToken: null as any });
+                await this.userRepository.update(user.id, {
+                    refreshToken: null as any,
+                });
                 throw new UnauthorizedException('Session has been revoked.');
             }
         }
@@ -850,12 +940,14 @@ export class AuthService {
         await this.updateRefreshToken(user.id, tokens.refreshToken, tokens.familyId);
 
         // Audit log
-        this.redisService.appendAuditLog({
-            type: 'login',
-            userId: user.id,
-            action: 'token_refresh',
-            familyId: tokens.familyId,
-        }).catch(() => {});
+        this.redisService
+            .appendAuditLog({
+                type: 'login',
+                userId: user.id,
+                action: 'token_refresh',
+                familyId: tokens.familyId,
+            })
+            .catch(() => {});
 
         return {
             accessToken: tokens.accessToken,
@@ -874,11 +966,13 @@ export class AuthService {
         }
 
         // Audit log
-        this.redisService.appendAuditLog({
-            type: 'login',
-            userId,
-            action: 'logout',
-        }).catch(() => {});
+        this.redisService
+            .appendAuditLog({
+                type: 'login',
+                userId,
+                action: 'logout',
+            })
+            .catch(() => {});
 
         return { message: 'Logged out successfully' };
     }
@@ -887,11 +981,13 @@ export class AuthService {
         await this.redisService.invalidateAllUserSessions(userId);
         await this.userRepository.update(userId, { refreshToken: null as any });
 
-        this.redisService.appendAuditLog({
-            type: 'login',
-            userId,
-            action: 'revoke_all_sessions',
-        }).catch(() => {});
+        this.redisService
+            .appendAuditLog({
+                type: 'login',
+                userId,
+                action: 'revoke_all_sessions',
+            })
+            .catch(() => {});
 
         return { message: 'All sessions revoked' };
     }
@@ -938,14 +1034,22 @@ export class AuthService {
         const accessJti = randomUUID();
         const refreshJti = randomUUID();
 
-        const basePayload = { sub: user.id, email: user.email, role: user.role, familyId };
+        const basePayload = {
+            sub: user.id,
+            email: user.email,
+            role: user.role,
+            familyId,
+        };
 
         const [accessToken, refreshToken] = await Promise.all([
             this.jwtService.signAsync({ ...basePayload, jti: accessJti }),
-            this.jwtService.signAsync({ ...basePayload, jti: refreshJti }, {
-                secret: this.configService.get<string>('jwt.refreshSecret'),
-                expiresIn: this.configService.get<string>('jwt.refreshExpiration'),
-            }),
+            this.jwtService.signAsync(
+                { ...basePayload, jti: refreshJti },
+                {
+                    secret: this.configService.get<string>('jwt.refreshSecret'),
+                    expiresIn: this.configService.get<string>('jwt.refreshExpiration'),
+                },
+            ),
         ]);
 
         // Store token family in Redis (TTL = refresh token TTL, ~7 days)
@@ -963,7 +1067,18 @@ export class AuthService {
     }
 
     private sanitizeUser(user: any) {
-        const { password, refreshToken, otpCode, otpExpiresAt, otpAttempts, otpCooldownUntil, resetOtpCode, resetOtpExpiresAt, resetOtpAttempts, ...sanitized } = user;
+        const {
+            password,
+            refreshToken,
+            otpCode,
+            otpExpiresAt,
+            otpAttempts,
+            otpCooldownUntil,
+            resetOtpCode,
+            resetOtpExpiresAt,
+            resetOtpAttempts,
+            ...sanitized
+        } = user;
         return sanitized;
     }
 
@@ -988,20 +1103,18 @@ export class AuthService {
         }
     }
 
-    private throwAuthStatusException(
-        status: UserStatus,
-        message: string,
-        httpStatus: HttpStatus,
-    ): never {
+    private throwAuthStatusException(status: UserStatus, message: string, httpStatus: HttpStatus): never {
         const normalizedStatus = this.getAuthResponseStatus(status);
 
         this.logger.warn(`Login blocked: status=${normalizedStatus}, reason=${message}`);
-        this.redisService.appendAuditLog({
-            type: 'login',
-            action: 'login_blocked',
-            status: normalizedStatus,
-            detail: message,
-        }).catch(() => {});
+        this.redisService
+            .appendAuditLog({
+                type: 'login',
+                action: 'login_blocked',
+                status: normalizedStatus,
+                detail: message,
+            })
+            .catch(() => {});
 
         throw new HttpException(
             {

@@ -1,4 +1,14 @@
-import { IsEmail, IsString, MinLength, MaxLength, IsOptional, Length, Matches, IsBoolean, Equals } from 'class-validator';
+import {
+    IsEmail,
+    IsString,
+    MinLength,
+    MaxLength,
+    IsOptional,
+    Length,
+    Matches,
+    IsBoolean,
+    Equals,
+} from 'class-validator';
 import { Match as MatchValidator } from '../../../common/decorators/match.decorator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -38,13 +48,17 @@ export class RegisterDto {
     @IsString()
     @MinLength(3)
     @MaxLength(30)
-    @Matches(/^[a-zA-Z0-9_]+$/, { message: 'Username can only contain letters, numbers and underscores' })
+    @Matches(/^[a-zA-Z0-9_]+$/, {
+        message: 'Username can only contain letters, numbers and underscores',
+    })
     username?: string;
 
     @ApiPropertyOptional({ example: '+966501234567' })
     @IsOptional()
     @IsString()
-    @Matches(/^\+?[0-9]{8,15}$/, { message: 'Phone number must be between 8 and 15 digits and can start with +' })
+    @Matches(/^\+?[0-9]{8,15}$/, {
+        message: 'Phone number must be between 8 and 15 digits and can start with +',
+    })
     phone?: string;
 
     @ApiProperty({
@@ -82,12 +96,19 @@ export class ResendOtpDto {
 }
 
 export class LoginDto {
-    @ApiProperty({ example: 'user@example.com', description: 'Email, username, or phone number' })
+    @ApiProperty({
+        example: 'user@example.com',
+        description: 'Email, username, or phone number',
+    })
     @IsOptional()
     @IsString()
     identifier?: string;
 
-    @ApiPropertyOptional({ example: 'user@example.com', deprecated: true, description: 'Deprecated alias for identifier' })
+    @ApiPropertyOptional({
+        example: 'user@example.com',
+        deprecated: true,
+        description: 'Deprecated alias for identifier',
+    })
     @IsOptional()
     @IsString()
     email?: string;
@@ -165,6 +186,21 @@ export class GoogleSignInDto {
     @ApiProperty({ description: 'Google ID token from client' })
     @IsString()
     idToken: string;
+
+    @ApiPropertyOptional({ description: 'Google access token from client' })
+    @IsOptional()
+    @IsString()
+    accessToken?: string;
+
+    @ApiPropertyOptional({ description: 'Google server auth code from client' })
+    @IsOptional()
+    @IsString()
+    serverAuthCode?: string;
+
+    @ApiPropertyOptional({ description: 'Alias for Google server auth code' })
+    @IsOptional()
+    @IsString()
+    authCode?: string;
 
     @ApiProperty({ example: 'user@gmail.com' })
     @IsEmail()
