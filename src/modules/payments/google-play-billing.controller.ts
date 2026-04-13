@@ -34,7 +34,7 @@ export class GooglePlayBillingController {
             properties: {
                 platform: { type: 'string', example: 'android' },
                 provider: { type: 'string', example: 'google_play' },
-                productId: { type: 'string', description: 'Google Play product ID (e.g. com.methna.app.premium_monthly)' },
+                productId: { type: 'string', description: 'Google Play product ID (e.g. com.methnapp.app.premium_monthly)' },
                 purchaseId: { type: 'string', description: 'Google Play order ID (e.g. GPA.1234...)' },
                 purchaseToken: { type: 'string', description: 'Google Play purchase token from verificationData.serverVerificationData' },
                 verificationData: { type: 'string', description: 'Local verification data' },
