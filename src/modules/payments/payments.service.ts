@@ -91,6 +91,8 @@ export class PaymentsService {
         if (!plan) throw new BadRequestException(`Plan '${planCode}' not found, inactive, or hidden`);
         if (plan.price === 0) throw new BadRequestException('Cannot create payment for free plan');
 
+        await this.subscriptionsService.assertPlanCanBeSubscribed(userId, plan.code);
+
         switch (provider) {
             case PaymentProvider.STRIPE:
                 return this.createStripeCheckoutSession(userId, plan);

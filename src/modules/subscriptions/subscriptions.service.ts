@@ -124,6 +124,8 @@ export class SubscriptionsService {
             throw new BadRequestException('Paid plans must be activated through checkout/webhook.');
         }
 
+        await this.assertPlanCanBeSubscribed(userId, planEntity.code);
+
         // Cancel existing active subscription
         await this.subscriptionRepository.update(
             { userId, status: SubscriptionStatus.ACTIVE },
@@ -153,6 +155,34 @@ export class SubscriptionsService {
         await this.invalidatePremiumCaches(userId);
 
         return saved;
+    }
+
+    async assertPlanCanBeSubscribed(userId: string, planCode: string): Promise<void> {
+        const normalizedPlanCode = this.normalizePlanToken(planCode);
+        if (!normalizedPlanCode || normalizedPlanCode === 'free') {
+            return;
+        }
+
+        const activeSubscriptions = await this.subscriptionRepository.find({
+            where: [
+                { userId, status: SubscriptionStatus.ACTIVE },
+                { userId, status: SubscriptionStatus.PAST_DUE },
+                { userId, status: SubscriptionStatus.TRIAL },
+            ],
+            order: { createdAt: 'DESC' },
+            relations: ['planEntity'],
+        });
+
+        const now = new Date();
+        const hasActiveSamePlan = activeSubscriptions.some((subscription) =>
+            this.blocksSamePlanSubscription(subscription, normalizedPlanCode, now),
+        );
+
+        if (hasActiveSamePlan) {
+            throw new BadRequestException(
+                'You already have an active subscription for this plan. Cancel it or wait until it expires before subscribing again.',
+            );
+        }
     }
 
     async getPublicPlans(): Promise<Plan[]> {
@@ -434,6 +464,32 @@ export class SubscriptionsService {
         const byCode = { code: planRef, ...extra };
         if (!this.isUuid(planRef)) return [byCode];
         return [{ id: planRef, ...extra }, byCode];
+    }
+
+    private blocksSamePlanSubscription(subscription: Subscription, normalizedPlanCode: string, now: Date): boolean {
+        const statusBlocks =
+            subscription.status === SubscriptionStatus.ACTIVE ||
+            subscription.status === SubscriptionStatus.PAST_DUE ||
+            subscription.status === SubscriptionStatus.TRIAL;
+        if (!statusBlocks) {
+            return false;
+        }
+
+        if (subscription.endDate && new Date(subscription.endDate) <= now) {
+            return false;
+        }
+
+        const subscriptionPlanCode = this.normalizePlanToken(subscription.planEntity?.code ?? subscription.plan);
+        return subscriptionPlanCode === normalizedPlanCode;
+    }
+
+    private normalizePlanToken(value?: string | null): string {
+        return (value ?? '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_|_$/g, '');
     }
 
     private logMissingPlanCodeColumnWarning(context: string): void {
