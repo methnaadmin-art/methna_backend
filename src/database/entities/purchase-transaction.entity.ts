@@ -31,7 +31,7 @@ export class PurchaseTransaction {
     id: string;
 
     @Index()
-    @Column()
+    @Column({ type: 'uuid' })
     userId: string;
 
     @ManyToOne(() => User, { onDelete: 'CASCADE' })

@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddGooglePlayBillingColumns1715100000000 implements MigrationInterface {
+export class AddGooglePlayBillingColumns1715100000001 implements MigrationInterface {
     public async up(queryRunner: QueryRunner): Promise<void> {
         // Add googleProductId column to plans table
         await queryRunner.query(`
@@ -18,7 +18,7 @@ export class AddGooglePlayBillingColumns1715100000000 implements MigrationInterf
         await queryRunner.query(`
             CREATE TABLE IF NOT EXISTS "purchase_transactions" (
                 "id" uuid NOT NULL DEFAULT gen_random_uuid(),
-                "userId" character varying NOT NULL,
+                "userId" uuid NOT NULL,
                 "planId" uuid NULL,
                 "provider" character varying NOT NULL,
                 "purchaseToken" character varying NULL,
