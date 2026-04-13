@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddGooglePlayBillingColumns1710000000000 implements MigrationInterface {
+export class AddGooglePlayBillingColumns1715100000000 implements MigrationInterface {
     public async up(queryRunner: QueryRunner): Promise<void> {
         // Add googleProductId column to plans table
         await queryRunner.query(`
