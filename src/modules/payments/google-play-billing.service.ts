@@ -163,8 +163,9 @@ export class GooglePlayBillingService {
                     this.logger.error(
                         `Google Play API verification error: ${gError?.message ?? gError}`,
                     );
-                    // On API errors, fall through to token-based trust
-                    isVerified = true;
+                    // On transient API errors, do NOT trust the purchase blindly.
+                    // Mark as pending so the client retries later.
+                    isVerified = false;
                 }
             }
         } else {

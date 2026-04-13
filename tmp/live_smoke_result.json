@@ -1,0 +1,22 @@
+﻿{
+    "base":  "https://web-production-afbe4.up.railway.app/api/v1",
+    "userId":  "1568f741-63b2-4089-8aa2-1af15bf4ad39",
+    "role":  "user",
+    "activePlan":  null,
+    "subscriptionStatus":  null,
+    "activeFeaturesCount":  0,
+    "expectedFromEntitlementsCount":  0,
+    "missingExpectedFeatures":  [
+
+                                ],
+    "activeFeatures":  {
+
+                       },
+    "expectedFeatures":  {
+
+                         },
+    "paidPlanForCheckout":  "fddf",
+    "checkoutSuccess":  true,
+    "checkoutUrl":  null,
+    "checkoutError":  null
+}
