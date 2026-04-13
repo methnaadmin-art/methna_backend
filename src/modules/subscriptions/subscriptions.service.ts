@@ -433,7 +433,7 @@ export class SubscriptionsService {
         };
     }
 
-    private async updateUserPremiumState(
+    async updateUserPremiumState(
         userId: string,
         isPremium: boolean,
         premiumStartDate: Date | null,
@@ -469,8 +469,7 @@ export class SubscriptionsService {
     private blocksSamePlanSubscription(subscription: Subscription, normalizedPlanCode: string, now: Date): boolean {
         const statusBlocks =
             subscription.status === SubscriptionStatus.ACTIVE ||
-            subscription.status === SubscriptionStatus.PAST_DUE ||
-            subscription.status === SubscriptionStatus.TRIAL;
+            subscription.status === SubscriptionStatus.PAST_DUE;
         if (!statusBlocks) {
             return false;
         }

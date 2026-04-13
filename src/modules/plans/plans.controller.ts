@@ -54,6 +54,7 @@ class CreatePlanDto {
     @ApiPropertyOptional() @IsOptional() @IsString() currency?: string;
     @ApiPropertyOptional() @IsOptional() @IsEnum(BillingCycle) billingCycle?: BillingCycle;
     @ApiPropertyOptional() @IsOptional() @IsString() stripePriceId?: string;
+    @ApiPropertyOptional() @IsOptional() @IsString() googleProductId?: string;
     @ApiPropertyOptional() @IsOptional() @IsInt() durationDays?: number;
     @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
     @ApiPropertyOptional() @IsOptional() @IsBoolean() isVisible?: boolean;
@@ -69,6 +70,7 @@ class UpdatePlanDto {
     @ApiPropertyOptional() @IsOptional() @IsString() currency?: string;
     @ApiPropertyOptional() @IsOptional() @IsEnum(BillingCycle) billingCycle?: BillingCycle;
     @ApiPropertyOptional() @IsOptional() @IsString() stripePriceId?: string;
+    @ApiPropertyOptional() @IsOptional() @IsString() googleProductId?: string;
     @ApiPropertyOptional() @IsOptional() @IsInt() durationDays?: number;
     @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
     @ApiPropertyOptional() @IsOptional() @IsBoolean() isVisible?: boolean;

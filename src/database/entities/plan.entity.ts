@@ -71,6 +71,12 @@ export class Plan {
     @Column({ type: 'varchar', nullable: true })
     stripePriceId: string | null;
 
+    /** Google Play Billing product ID (e.g. 'com.methna.app.premium_monthly').
+     *  Used to map Android in-app purchases to internal plans. */
+    @Index()
+    @Column({ type: 'varchar', nullable: true })
+    googleProductId: string | null;
+
     @Column({ default: 30 })
     durationDays: number;
 

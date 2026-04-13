@@ -220,6 +220,7 @@ export class PlansService {
                 currency: 'usd',
                 billingCycle: BillingCycle.MONTHLY,
                 stripePriceId: null,
+                googleProductId: null,
                 durationDays: 0,
                 isActive: true,
                 isVisible: true,
