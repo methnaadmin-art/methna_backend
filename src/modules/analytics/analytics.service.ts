@@ -112,7 +112,7 @@ export class AnalyticsService {
                 .createQueryBuilder('event')
                 .select('COUNT(DISTINCT event.userId)', 'count')
                 .where('event.eventDate = :date', { date: targetDate })
-                .andWhere('event.userId IN (SELECT id FROM users WHERE "createdAt" BETWEEN :start AND :end)', {
+                .andWhere('event.userId::uuid IN (SELECT id FROM users WHERE "createdAt" BETWEEN :start AND :end)', {
                     start: cohortStart,
                     end: cohortEnd,
                 })
