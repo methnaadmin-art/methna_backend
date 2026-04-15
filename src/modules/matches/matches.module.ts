@@ -10,10 +10,12 @@ import { BlockedUser } from '../../database/entities/blocked-user.entity';
 import { Photo } from '../../database/entities/photo.entity';
 import { Conversation } from '../../database/entities/conversation.entity';
 import { User } from '../../database/entities/user.entity';
+import { ModerationModule } from '../../common/moderation.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([Match, Like, Profile, UserPreference, BlockedUser, Photo, Conversation, User]),
+        ModerationModule,
     ],
     controllers: [MatchesController],
     providers: [MatchesService],

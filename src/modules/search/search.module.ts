@@ -8,6 +8,7 @@ import { BlockedUser } from '../../database/entities/blocked-user.entity';
 import { Like } from '../../database/entities/like.entity';
 import { Match } from '../../database/entities/match.entity';
 import { UserPreference } from '../../database/entities/user-preference.entity';
+import { ModerationModule } from '../../common/moderation.module';
 
 @Module({
     imports: [
@@ -19,6 +20,7 @@ import { UserPreference } from '../../database/entities/user-preference.entity';
             Match,
             UserPreference,
         ]),
+        ModerationModule,
     ],
     controllers: [SearchController],
     providers: [SearchService],

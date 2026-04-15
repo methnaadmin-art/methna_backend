@@ -13,6 +13,7 @@ import { User } from '../../database/entities/user.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { MonetizationModule } from '../monetization/monetization.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { ModerationModule } from '../../common/moderation.module';
 
 @Module({
     imports: [
@@ -20,6 +21,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
         NotificationsModule,
         MonetizationModule,
         SubscriptionsModule,
+        ModerationModule,
     ],
     controllers: [SwipesController],
     providers: [SwipesService],
