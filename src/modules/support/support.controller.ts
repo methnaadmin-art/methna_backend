@@ -20,13 +20,33 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { UserRole } from '../../database/entities/user.entity';
 
 @ApiTags('support')
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('support')
 export class SupportController {
     constructor(private readonly supportService: SupportService) { }
 
+    // ─── Public: Create ticket from website (no auth) ──────
+
+    @Post('public')
+    @ApiOperation({ summary: 'Create a support ticket from website (no auth required)' })
+    async createPublicTicket(
+        @Body() body: { name: string; email: string; subject: string; message: string; accountEmail?: string },
+    ) {
+        const subject = body.subject || 'Website Support Request';
+        const message = [
+            `From: ${body.name || 'Anonymous'} (${body.email || 'no email'})`,
+            body.accountEmail ? `Account email: ${body.accountEmail}` : '',
+            '',
+            body.message || '',
+        ].filter(Boolean).join('\n');
+
+        return this.supportService.createPublicTicket(subject, message, body.email);
+    }
+
+    // ─── Authenticated endpoints ────────────────────────────
+
     @Post()
+    @ApiBearerAuth()
+    @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Create a support ticket' })
     async createTicket(
         @CurrentUser('sub') userId: string,

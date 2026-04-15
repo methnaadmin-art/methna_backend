@@ -30,12 +30,15 @@ export class SupportTicket {
     id: string;
 
     @Index()
-    @Column()
+    @Column({ nullable: true })
     userId: string;
 
-    @ManyToOne(() => User, { onDelete: 'CASCADE' })
+    @ManyToOne(() => User, { onDelete: 'CASCADE', nullable: true })
     @JoinColumn({ name: 'userId' })
     user: User;
+
+    @Column({ nullable: true })
+    contactEmail: string;
 
     @Column()
     subject: string;

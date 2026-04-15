@@ -23,6 +23,17 @@ export class SupportService {
         return this.ticketRepository.save(ticket);
     }
 
+    async createPublicTicket(subject: string, message: string, email?: string): Promise<SupportTicket> {
+        const ticket = this.ticketRepository.create({
+            userId: undefined,
+            contactEmail: email || undefined,
+            subject,
+            message,
+            status: TicketStatus.OPEN,
+        });
+        return this.ticketRepository.save(ticket);
+    }
+
     async getMyTickets(userId: string, pagination: PaginationDto) {
         const [tickets, total] = await this.ticketRepository.findAndCount({
             where: { userId },
