@@ -5,14 +5,17 @@ import { Repository } from 'typeorm';
 import { Subscription, SubscriptionStatus } from '../../database/entities/subscription.entity';
 import { Plan } from '../../database/entities/plan.entity';
 import { User } from '../../database/entities/user.entity';
+import {
+    PurchaseTransaction,
+    PurchaseProvider,
+    PurchaseStatus,
+} from '../../database/entities/purchase-transaction.entity';
 import Stripe from 'stripe';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { RedisService } from '../redis/redis.service';
 
 export enum PaymentProvider {
     STRIPE = 'stripe',
-    APPLE_PAY = 'apple_pay',
-    GOOGLE_PAY = 'google_pay',
 }
 
 export enum PaymentStatus {
@@ -22,9 +25,25 @@ export enum PaymentStatus {
     REFUNDED = 'refunded',
 }
 
+export interface AlternativeBillingMetadataDto {
+    billingModel?: string;
+    store?: string;
+    appPackageName?: string;
+    countryCode?: string;
+    disclosureVersion?: string;
+    disclosureShownAt?: string;
+    disclosureAcceptedAt?: string;
+    complianceSessionId?: string;
+    externalTransactionToken?: string;
+}
+
 export interface CreateCheckoutSessionDto {
     planCode: string;
-    provider: PaymentProvider;
+    provider?: PaymentProvider | string;
+    alternativeBilling?: AlternativeBillingMetadataDto;
+    alternative_billing?: AlternativeBillingMetadataDto;
+    billingMetadata?: Record<string, any>;
+    platform?: string;
 }
 
 export interface PaymentResult {
@@ -49,6 +68,8 @@ export class PaymentsService {
         private readonly planRepository: Repository<Plan>,
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
+        @InjectRepository(PurchaseTransaction)
+        private readonly purchaseTransactionRepository: Repository<PurchaseTransaction>,
         private readonly subscriptionsService: SubscriptionsService,
         private readonly redisService: RedisService,
     ) {
@@ -82,7 +103,17 @@ export class PaymentsService {
         userId: string,
         dto: CreateCheckoutSessionDto,
     ): Promise<PaymentResult> {
-        const { planCode, provider } = dto;
+        const planCode = (dto.planCode || '').trim();
+        if (!planCode) {
+            throw new BadRequestException('planCode is required');
+        }
+
+        const provider = this.normalizeProvider(dto.provider);
+        if (provider !== PaymentProvider.STRIPE) {
+            throw new BadRequestException(
+                'Google Play and Apple checkout are retired. Use Stripe checkout only.',
+            );
+        }
 
         // Load plan from DB — backend is source of truth
         const plan = await this.planRepository.findOne({
@@ -93,16 +124,11 @@ export class PaymentsService {
 
         await this.subscriptionsService.assertPlanCanBeSubscribed(userId, plan.code);
 
-        switch (provider) {
-            case PaymentProvider.STRIPE:
-                return this.createStripeCheckoutSession(userId, plan);
-            case PaymentProvider.APPLE_PAY:
-                return this.createApplePaySession(userId, plan);
-            case PaymentProvider.GOOGLE_PAY:
-                return this.createGooglePaySession(userId, plan);
-            default:
-                throw new BadRequestException('Unsupported payment provider');
-        }
+        const alternativeBilling = this.normalizeAlternativeBillingMetadata(
+            dto.alternativeBilling || dto.alternative_billing || dto.billingMetadata,
+        );
+
+        return this.createStripeCheckoutSession(userId, plan, alternativeBilling);
     }
 
     // ─── STRIPE CHECKOUT SESSION ──────────────────────────────
@@ -110,6 +136,7 @@ export class PaymentsService {
     async createStripeCheckoutSession(
         userId: string,
         plan: Plan,
+        alternativeBilling?: AlternativeBillingMetadataDto,
     ): Promise<PaymentResult> {
         if (!this.stripe) {
             this.logger.error('Stripe secret key is not configured');
@@ -155,40 +182,37 @@ export class PaymentsService {
             const isOneTime = plan.billingCycle === 'one_time';
             const mode: 'subscription' | 'payment' = isOneTime ? 'payment' : 'subscription';
 
+            const checkoutMetadata = {
+                userId,
+                planId: plan.id,
+                planCode: plan.code,
+                ...this.serializeAlternativeBillingMetadata(alternativeBilling),
+            };
+
             const sessionParams: Stripe.Checkout.SessionCreateParams = {
                 customer: customerId,
                 mode,
                 line_items: [{ price: plan.stripePriceId, quantity: 1 }],
                 success_url: successUrl,
                 cancel_url: cancelUrl,
-                metadata: {
-                    userId,
-                    planId: plan.id,
-                    planCode: plan.code,
-                },
+                metadata: checkoutMetadata,
             };
 
             // Only include subscription_data for recurring plans
             if (!isOneTime) {
                 sessionParams.subscription_data = {
-                    metadata: {
-                        userId,
-                        planId: plan.id,
-                        planCode: plan.code,
-                    },
+                    metadata: checkoutMetadata,
                 };
             } else {
                 // For one-time payments, put metadata in payment_intent_data
                 sessionParams.payment_intent_data = {
-                    metadata: {
-                        userId,
-                        planId: plan.id,
-                        planCode: plan.code,
-                    },
+                    metadata: checkoutMetadata,
                 };
             }
 
             const session = await this.stripe.checkout.sessions.create(sessionParams);
+
+            await this.upsertPendingStripeTransaction(userId, plan, session, alternativeBilling);
 
             this.logger.log(`Stripe checkout session created for user ${userId}, plan: ${plan.code}, mode: ${mode}, session: ${session.id}`);
 
@@ -213,34 +237,6 @@ export class PaymentsService {
     ): Promise<PaymentResult> {
         // Delegate to checkout session flow
         return this.createStripeCheckoutSession(userId, plan);
-    }
-
-    // ─── APPLE PAY INTEGRATION ──────────────────────────────
-
-    private async createApplePaySession(
-        userId: string,
-        plan: Plan,
-    ): Promise<PaymentResult> {
-        // TODO: Integrate with Apple Pay server-side validation
-        this.logger.log(`Apple Pay session requested for user ${userId}, plan: ${plan.code}`);
-        return {
-            success: false,
-            error: 'Apple Pay is not yet supported',
-        };
-    }
-
-    // ─── GOOGLE PAY INTEGRATION ─────────────────────────────
-
-    private async createGooglePaySession(
-        userId: string,
-        plan: Plan,
-    ): Promise<PaymentResult> {
-        // TODO: Integrate with Google Pay server-side validation
-        this.logger.log(`Google Pay session requested for user ${userId}, plan: ${plan.code}`);
-        return {
-            success: false,
-            error: 'Google Pay is not yet supported',
-        };
     }
 
     // ─── WEBHOOK HANDLER (Stripe) ────────────────────────────
@@ -470,6 +466,15 @@ export class PaymentsService {
             await this.userRepository.update(finalUserId, { stripeCustomerId: customerId });
         }
 
+        await this.upsertVerifiedStripeTransaction(
+            finalUserId,
+            planEntity,
+            session,
+            paymentIntentId || null,
+            subscriptionId || null,
+            customerId || null,
+        );
+
         // Invalidate entitlements cache so features unlock immediately
         await this.redisService.del(`entitlements:${finalUserId}`);
         await this.redisService.del(`plan:${finalUserId}`);
@@ -638,8 +643,236 @@ export class PaymentsService {
                 features: p.features,
                 description: p.description,
             })),
-            providers: Object.values(PaymentProvider),
+            providers: [PaymentProvider.STRIPE],
         };
+    }
+
+    private normalizeProvider(provider?: string | PaymentProvider): PaymentProvider {
+        const normalized = (provider || PaymentProvider.STRIPE).toString().trim().toLowerCase();
+        if (normalized === PaymentProvider.STRIPE) {
+            return PaymentProvider.STRIPE;
+        }
+        return normalized as PaymentProvider;
+    }
+
+    private normalizeAlternativeBillingMetadata(
+        metadata?: AlternativeBillingMetadataDto | Record<string, any>,
+    ): AlternativeBillingMetadataDto | undefined {
+        if (!metadata || typeof metadata !== 'object') {
+            return undefined;
+        }
+
+        const source = metadata as Record<string, any>;
+        const normalized: AlternativeBillingMetadataDto = {
+            billingModel: this.normalizeMetadataValue(source.billingModel || source.billing_mode),
+            store: this.normalizeMetadataValue(source.store || source.appStore || source.app_store),
+            appPackageName: this.normalizeMetadataValue(source.appPackageName || source.app_package_name),
+            countryCode: this.normalizeMetadataValue(source.countryCode || source.country_code),
+            disclosureVersion: this.normalizeMetadataValue(source.disclosureVersion || source.disclosure_version),
+            disclosureShownAt: this.normalizeMetadataValue(source.disclosureShownAt || source.disclosure_shown_at),
+            disclosureAcceptedAt: this.normalizeMetadataValue(source.disclosureAcceptedAt || source.disclosure_accepted_at),
+            complianceSessionId: this.normalizeMetadataValue(source.complianceSessionId || source.compliance_session_id),
+            externalTransactionToken: this.normalizeMetadataValue(source.externalTransactionToken || source.external_transaction_token),
+        };
+
+        const hasValues = Object.values(normalized).some(
+            (value) => typeof value === 'string' && value.trim().length > 0,
+        );
+        return hasValues ? normalized : undefined;
+    }
+
+    private serializeAlternativeBillingMetadata(
+        metadata?: AlternativeBillingMetadataDto,
+    ): Record<string, string> {
+        if (!metadata) {
+            return {};
+        }
+
+        const result: Record<string, string> = {};
+
+        const map = [
+            ['aboBillingModel', metadata.billingModel],
+            ['aboStore', metadata.store],
+            ['aboAppPackage', metadata.appPackageName],
+            ['aboCountryCode', metadata.countryCode],
+            ['aboDisclosureVersion', metadata.disclosureVersion],
+            ['aboDisclosureShownAt', metadata.disclosureShownAt],
+            ['aboDisclosureAcceptedAt', metadata.disclosureAcceptedAt],
+            ['aboComplianceSessionId', metadata.complianceSessionId],
+            ['aboExternalTransactionToken', metadata.externalTransactionToken],
+        ] as const;
+
+        for (const [key, value] of map) {
+            const normalized = this.normalizeMetadataValue(value);
+            if (normalized) {
+                result[key] = normalized;
+            }
+        }
+
+        return result;
+    }
+
+    private extractAlternativeBillingFromStripeMetadata(
+        metadata?: Stripe.Metadata | null,
+    ): AlternativeBillingMetadataDto | undefined {
+        if (!metadata) {
+            return undefined;
+        }
+
+        const parsed: AlternativeBillingMetadataDto = {
+            billingModel: this.normalizeMetadataValue(metadata.aboBillingModel),
+            store: this.normalizeMetadataValue(metadata.aboStore),
+            appPackageName: this.normalizeMetadataValue(metadata.aboAppPackage),
+            countryCode: this.normalizeMetadataValue(metadata.aboCountryCode),
+            disclosureVersion: this.normalizeMetadataValue(metadata.aboDisclosureVersion),
+            disclosureShownAt: this.normalizeMetadataValue(metadata.aboDisclosureShownAt),
+            disclosureAcceptedAt: this.normalizeMetadataValue(metadata.aboDisclosureAcceptedAt),
+            complianceSessionId: this.normalizeMetadataValue(metadata.aboComplianceSessionId),
+            externalTransactionToken: this.normalizeMetadataValue(metadata.aboExternalTransactionToken),
+        };
+
+        const hasValues = Object.values(parsed).some(
+            (value) => typeof value === 'string' && value.trim().length > 0,
+        );
+        return hasValues ? parsed : undefined;
+    }
+
+    private normalizeMetadataValue(value?: unknown): string {
+        if (value === null || value === undefined) {
+            return '';
+        }
+
+        const asString = typeof value === 'string' ? value : String(value);
+        return this.normalizeConfigValue(asString).trim();
+    }
+
+    private async upsertPendingStripeTransaction(
+        userId: string,
+        plan: Plan,
+        session: Stripe.Checkout.Session,
+        alternativeBilling?: AlternativeBillingMetadataDto,
+    ): Promise<void> {
+        const sessionId = session.id;
+        if (!sessionId) {
+            return;
+        }
+
+        const existing = await this.purchaseTransactionRepository.findOne({
+            where: { purchaseToken: sessionId },
+        });
+
+        const transactionDate = session.created
+            ? new Date(session.created * 1000)
+            : new Date();
+
+        const rawVerification = {
+            provider: 'stripe',
+            phase: 'checkout_session_created',
+            checkoutSessionId: session.id,
+            stripeCustomerId: session.customer || null,
+            mode: session.mode,
+            planCode: plan.code,
+            planId: plan.id,
+            alternativeBilling: alternativeBilling || null,
+        };
+
+        if (existing) {
+            existing.userId = userId;
+            existing.planId = plan.id;
+            existing.provider = PurchaseProvider.STRIPE;
+            existing.productId = plan.stripePriceId || plan.code;
+            existing.status = PurchaseStatus.PENDING;
+            existing.rawVerification = {
+                ...(existing.rawVerification || {}),
+                ...rawVerification,
+            };
+            existing.transactionDate = transactionDate;
+            await this.purchaseTransactionRepository.save(existing);
+            return;
+        }
+
+        const transaction = this.purchaseTransactionRepository.create({
+            userId,
+            planId: plan.id,
+            provider: PurchaseProvider.STRIPE,
+            purchaseToken: sessionId,
+            productId: plan.stripePriceId || plan.code,
+            orderId: null,
+            status: PurchaseStatus.PENDING,
+            rawVerification,
+            transactionDate,
+            expiryDate: null,
+            paymentReference: null,
+        });
+
+        await this.purchaseTransactionRepository.save(transaction);
+    }
+
+    private async upsertVerifiedStripeTransaction(
+        userId: string,
+        plan: Plan,
+        session: Stripe.Checkout.Session,
+        paymentIntentId: string | null,
+        subscriptionId: string | null,
+        customerId: string | null,
+    ): Promise<void> {
+        const sessionId = session.id;
+        if (!sessionId) {
+            return;
+        }
+
+        const existing = await this.purchaseTransactionRepository.findOne({
+            where: { purchaseToken: sessionId },
+        });
+
+        const rawVerification = {
+            provider: 'stripe',
+            phase: 'checkout_session_completed',
+            checkoutSessionId: sessionId,
+            paymentIntentId,
+            subscriptionId,
+            stripeCustomerId: customerId,
+            planCode: plan.code,
+            planId: plan.id,
+            alternativeBilling: this.extractAlternativeBillingFromStripeMetadata(session.metadata || null) || null,
+        };
+
+        if (existing) {
+            existing.userId = userId;
+            existing.planId = plan.id;
+            existing.provider = PurchaseProvider.STRIPE;
+            existing.productId = plan.stripePriceId || plan.code;
+            existing.orderId = paymentIntentId || existing.orderId;
+            existing.status = PurchaseStatus.VERIFIED;
+            existing.rawVerification = {
+                ...(existing.rawVerification || {}),
+                ...rawVerification,
+            };
+            existing.paymentReference = subscriptionId || paymentIntentId || sessionId;
+            existing.transactionDate = session.created
+                ? new Date(session.created * 1000)
+                : existing.transactionDate || new Date();
+            await this.purchaseTransactionRepository.save(existing);
+            return;
+        }
+
+        const transaction = this.purchaseTransactionRepository.create({
+            userId,
+            planId: plan.id,
+            provider: PurchaseProvider.STRIPE,
+            purchaseToken: sessionId,
+            productId: plan.stripePriceId || plan.code,
+            orderId: paymentIntentId,
+            status: PurchaseStatus.VERIFIED,
+            rawVerification,
+            transactionDate: session.created
+                ? new Date(session.created * 1000)
+                : new Date(),
+            expiryDate: null,
+            paymentReference: subscriptionId || paymentIntentId || sessionId,
+        });
+
+        await this.purchaseTransactionRepository.save(transaction);
     }
 
     private normalizeConfigValue(value?: string): string {

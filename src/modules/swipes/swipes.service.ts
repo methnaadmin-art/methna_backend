@@ -91,22 +91,6 @@ export class SwipesService {
             throw new BadRequestException('Cannot interact with this user');
         }
 
-        // Check duplicate swipe
-        const existingSwipe = await this.likeRepository.findOne({
-            where: { likerId: userId, likedId: targetUserId },
-        });
-        if (existingSwipe) {
-            throw new BadRequestException('Already swiped on this user');
-        }
-
-        if (action === SwipeAction.LIKE) {
-            await this.monetizationService.useLike(userId);
-        } else if (action === SwipeAction.SUPER_LIKE) {
-            await this.monetizationService.useSuperLike(userId);
-        } else if (action === SwipeAction.COMPLIMENT) {
-            await this.monetizationService.useComplimentCredit(userId);
-        }
-
         // Map SwipeAction to LikeType
         const likeTypeMap: Record<SwipeAction, LikeType> = {
             [SwipeAction.LIKE]: LikeType.LIKE,
@@ -116,6 +100,56 @@ export class SwipesService {
         };
 
         const isPositive = action !== SwipeAction.PASS;
+
+        // Check duplicate swipe. Allow a one-way upgrade from PASS -> LIKE/SUPER_LIKE/COMPLIMENT.
+        const existingSwipe = await this.likeRepository.findOne({
+            where: { likerId: userId, likedId: targetUserId },
+        });
+        if (existingSwipe) {
+            const canUpgradePassToPositive = existingSwipe.isLike === false && isPositive;
+            if (!canUpgradePassToPositive) {
+                throw new BadRequestException('Already swiped on this user');
+            }
+
+            if (action === SwipeAction.LIKE) {
+                await this.monetizationService.useLike(userId);
+            } else if (action === SwipeAction.SUPER_LIKE) {
+                await this.monetizationService.useSuperLike(userId);
+            } else if (action === SwipeAction.COMPLIMENT) {
+                await this.monetizationService.useComplimentCredit(userId);
+            }
+
+            existingSwipe.type = likeTypeMap[action];
+            existingSwipe.isLike = true;
+            existingSwipe.complimentMessage =
+                action === SwipeAction.COMPLIMENT ? (complimentMessage ?? '') : '';
+
+            await this.likeRepository.save(existingSwipe);
+            await this.invalidateDiscoveryCaches(userId);
+
+            this.sendLikeNotification(targetUserId, userId, action, complimentMessage).catch(() => { });
+
+            const mutualLike = await this.likeRepository.findOne({
+                where: { likerId: targetUserId, likedId: userId, isLike: true },
+            });
+
+            if (mutualLike) {
+                const match = await this.createMatch(userId, targetUserId);
+                await this.invalidateDiscoveryCaches(targetUserId);
+                this.logger.log(`Match created between ${userId} and ${targetUserId} (upgraded pass)`);
+                return { liked: true, matched: true, matchId: match.id, action, upgradedFromPass: true };
+            }
+
+            return { liked: true, matched: false, action, upgradedFromPass: true };
+        }
+
+        if (action === SwipeAction.LIKE) {
+            await this.monetizationService.useLike(userId);
+        } else if (action === SwipeAction.SUPER_LIKE) {
+            await this.monetizationService.useSuperLike(userId);
+        } else if (action === SwipeAction.COMPLIMENT) {
+            await this.monetizationService.useComplimentCredit(userId);
+        }
 
         const like = this.likeRepository.create({
             likerId: userId,

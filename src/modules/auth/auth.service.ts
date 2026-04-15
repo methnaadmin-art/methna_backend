@@ -170,6 +170,18 @@ export class AuthService {
             otpCode: hashedOtp,
             otpExpiresAt: otpExpiry,
             otpAttempts: 0,
+            notificationsEnabled: true,
+            matchNotifications: true,
+            messageNotifications: true,
+            likeNotifications: true,
+            profileVisitorNotifications: true,
+            eventsNotifications: true,
+            safetyAlertNotifications: true,
+            promotionsNotifications: true,
+            inAppRecommendationNotifications: true,
+            weeklySummaryNotifications: true,
+            connectionRequestNotifications: true,
+            surveyNotifications: true,
         });
 
         try {
@@ -447,7 +459,24 @@ export class AuthService {
                 { phone: identifier },
                 { phone: normalizedPhone },
             ],
-            select: ['id', 'email', 'password', 'firstName', 'lastName', 'role', 'status', 'emailVerified'],
+            select: [
+                'id',
+                'email',
+                'password',
+                'firstName',
+                'lastName',
+                'role',
+                'status',
+                'emailVerified',
+                'statusReason',
+                'moderationReasonCode',
+                'moderationReasonText',
+                'actionRequired',
+                'supportMessage',
+                'isUserVisible',
+                'moderationExpiresAt',
+                'internalAdminNote',
+            ],
         });
 
         if (!user) {
@@ -477,12 +506,12 @@ export class AuthService {
         }
 
         if (!user.emailVerified && user.status === UserStatus.PENDING_VERIFICATION) {
-            this.throwAuthStatusException(user.status, 'Please verify your email first', HttpStatus.UNAUTHORIZED);
+            this.throwAuthStatusException(user, 'Please verify your email first', HttpStatus.UNAUTHORIZED);
         }
 
         const blockedLoginMessage = this.getBlockedLoginMessage(user.status);
         if (blockedLoginMessage) {
-            this.throwAuthStatusException(user.status, blockedLoginMessage, HttpStatus.FORBIDDEN);
+            this.throwAuthStatusException(user, blockedLoginMessage, HttpStatus.FORBIDDEN);
         }
 
         await this.subscriptionsService.syncUserPremiumState(user.id);
@@ -623,6 +652,18 @@ export class AuthService {
                 status: UserStatus.ACTIVE,
                 emailVerified: true,
                 lastKnownIp: clientIp,
+                notificationsEnabled: true,
+                matchNotifications: true,
+                messageNotifications: true,
+                likeNotifications: true,
+                profileVisitorNotifications: true,
+                eventsNotifications: true,
+                safetyAlertNotifications: true,
+                promotionsNotifications: true,
+                inAppRecommendationNotifications: true,
+                weeklySummaryNotifications: true,
+                connectionRequestNotifications: true,
+                surveyNotifications: true,
             });
 
             await this.userRepository.save(user);
@@ -880,7 +921,24 @@ export class AuthService {
 
         const user = await this.userRepository.findOne({
             where: { id: payload.sub },
-            select: ['id', 'email', 'firstName', 'lastName', 'role', 'refreshToken', 'status', 'emailVerified'],
+            select: [
+                'id',
+                'email',
+                'firstName',
+                'lastName',
+                'role',
+                'refreshToken',
+                'status',
+                'emailVerified',
+                'statusReason',
+                'moderationReasonCode',
+                'moderationReasonText',
+                'actionRequired',
+                'supportMessage',
+                'isUserVisible',
+                'moderationExpiresAt',
+                'internalAdminNote',
+            ],
         });
 
         if (!user || !user.refreshToken) {
@@ -912,12 +970,12 @@ export class AuthService {
         }
 
         if (!user.emailVerified && user.status === UserStatus.PENDING_VERIFICATION) {
-            this.throwAuthStatusException(user.status, 'Please verify your email first', HttpStatus.UNAUTHORIZED);
+            this.throwAuthStatusException(user, 'Please verify your email first', HttpStatus.UNAUTHORIZED);
         }
 
         const blockedLoginMessage = this.getBlockedLoginMessage(user.status);
         if (blockedLoginMessage) {
-            this.throwAuthStatusException(user.status, blockedLoginMessage, HttpStatus.FORBIDDEN);
+            this.throwAuthStatusException(user, blockedLoginMessage, HttpStatus.FORBIDDEN);
         }
 
         await this.subscriptionsService.syncUserPremiumState(user.id);
@@ -1103,16 +1161,46 @@ export class AuthService {
         }
     }
 
-    private throwAuthStatusException(status: UserStatus, message: string, httpStatus: HttpStatus): never {
+    private throwAuthStatusException(
+        userOrStatus:
+            | UserStatus
+            | Pick<
+                  User,
+                  | 'status'
+                  | 'statusReason'
+                  | 'moderationReasonCode'
+                  | 'moderationReasonText'
+                  | 'actionRequired'
+                  | 'supportMessage'
+                  | 'isUserVisible'
+                  | 'moderationExpiresAt'
+                  | 'internalAdminNote'
+              >,
+        message: string,
+        httpStatus: HttpStatus,
+    ): never {
+        const status =
+            typeof userOrStatus === 'string' ? userOrStatus : userOrStatus.status;
+        const moderationMeta =
+            typeof userOrStatus === 'string' ? null : userOrStatus;
         const normalizedStatus = this.getAuthResponseStatus(status);
+        const supportMessage = moderationMeta?.supportMessage || null;
+        const moderationReasonText = moderationMeta?.moderationReasonText || null;
+        const statusReason =
+            moderationMeta?.statusReason ||
+            supportMessage ||
+            moderationReasonText ||
+            this.getStatusReason(normalizedStatus);
 
-        this.logger.warn(`Login blocked: status=${normalizedStatus}, reason=${message}`);
+        this.logger.warn(
+            `Login blocked: status=${normalizedStatus}, reason=${statusReason}`,
+        );
         this.redisService
             .appendAuditLog({
                 type: 'login',
                 action: 'login_blocked',
                 status: normalizedStatus,
-                detail: message,
+                detail: statusReason,
             })
             .catch(() => {});
 
@@ -1121,7 +1209,15 @@ export class AuthService {
                 success: false,
                 status: normalizedStatus,
                 message,
-                reason: this.getStatusReason(normalizedStatus),
+                reason: statusReason,
+                statusReason,
+                moderationReasonCode: moderationMeta?.moderationReasonCode || null,
+                moderationReasonText,
+                actionRequired: moderationMeta?.actionRequired || null,
+                supportMessage,
+                staffMessage: moderationMeta?.internalAdminNote || null,
+                isUserVisible: moderationMeta?.isUserVisible ?? true,
+                expiresAt: moderationMeta?.moderationExpiresAt?.toISOString() || null,
             },
             httpStatus,
         );

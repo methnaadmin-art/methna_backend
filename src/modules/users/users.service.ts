@@ -20,6 +20,7 @@ import { Conversation } from '../../database/entities/conversation.entity';
 import { Message, MessageType } from '../../database/entities/message.entity';
 import { RematchRequest, RematchStatus } from '../../database/entities/rematch-request.entity';
 import { RedisService } from '../redis/redis.service';
+import { CloudinaryService } from '../photos/cloudinary.service';
 
 @Injectable()
 export class UsersService {
@@ -58,6 +59,11 @@ export class UsersService {
         isPremium: true,
         premiumStartDate: true,
         premiumExpiryDate: true,
+        subscriptionPlanId: true,
+        isGhostModeEnabled: true,
+        isPassportActive: true,
+        realLocation: true,
+        passportLocation: true,
         verification: true,
         emailVerified: true,
         selfieVerified: true,
@@ -121,6 +127,11 @@ export class UsersService {
             isPremium,
             premiumStartDate,
             premiumExpiryDate,
+            subscriptionPlanId,
+            isGhostModeEnabled,
+            isPassportActive,
+            realLocation,
+            passportLocation,
             verification,
             ...safeSelectLegacy
         } = UsersService.SAFE_USER_SELECT;
@@ -328,22 +339,99 @@ export class UsersService {
         return { status: 'closed' };
     }
 
-    async getPublicProfile(userId: string): Promise<Partial<User>> {
-        const user = await this.userRepository.findOne({
-            where: { id: userId },
-            select: {
-                id: true,
-                username: true,
-                firstName: true,
-                lastName: true,
-                role: true,
-                status: true,
-                selfieVerified: true,
-                createdAt: true,
-            },
-            relations: ['profile'],
-        });
+    async getPublicProfile(
+        userId: string,
+        viewerId?: string,
+    ): Promise<Partial<User>> {
+        let user: User | null;
+        try {
+            user = await this.userRepository.findOne({
+                where: { id: userId },
+                select: {
+                    id: true,
+                    username: true,
+                    firstName: true,
+                    lastName: true,
+                    role: true,
+                    status: true,
+                    selfieVerified: true,
+                    isPremium: true,
+                    premiumStartDate: true,
+                    premiumExpiryDate: true,
+                    isGhostModeEnabled: true,
+                    isPassportActive: true,
+                    passportLocation: true,
+                    createdAt: true,
+                },
+                relations: ['profile'],
+            });
+        } catch (error) {
+            if (!this.isMissingPremiumColumnsError(error)) {
+                throw error;
+            }
+
+            user = await this.userRepository.findOne({
+                where: { id: userId },
+                select: {
+                    id: true,
+                    username: true,
+                    firstName: true,
+                    lastName: true,
+                    role: true,
+                    status: true,
+                    selfieVerified: true,
+                    isGhostModeEnabled: true,
+                    isPassportActive: true,
+                    passportLocation: true,
+                    createdAt: true,
+                },
+                relations: ['profile'],
+            } as any);
+        }
         if (!user) throw new NotFoundException('User not found');
+
+        let viewerSelfieVerified = false;
+        let viewerIsPremium = false;
+        if (viewerId && viewerId !== userId) {
+            try {
+                const viewer = await this.userRepository.findOne({
+                    where: { id: viewerId },
+                    select: {
+                        id: true,
+                        selfieVerified: true,
+                        isPremium: true,
+                        premiumStartDate: true,
+                        premiumExpiryDate: true,
+                    },
+                });
+
+                viewerSelfieVerified = viewer?.selfieVerified === true;
+                viewerIsPremium = this.hasActivePremiumEntitlement(viewer);
+            } catch {
+                // Backward compatibility for databases missing premium columns.
+                const viewer = await this.userRepository.findOne({
+                    where: { id: viewerId },
+                    select: {
+                        id: true,
+                        selfieVerified: true,
+                    },
+                } as any);
+                viewerSelfieVerified = viewer?.selfieVerified === true;
+                viewerIsPremium = false;
+            }
+        }
+
+        const shouldRestrictGallery =
+            !!viewerId &&
+            viewerId !== userId &&
+            !viewerSelfieVerified &&
+            !viewerIsPremium;
+        const shouldMaskGhostProfile =
+            !!viewerId &&
+            viewerId !== userId &&
+            user.isGhostModeEnabled === true;
+        const canViewAllPhotos = !shouldRestrictGallery;
+        const targetHasActivePremium = this.hasActivePremiumEntitlement(user);
 
         // Hide banned/closed/deactivated profiles from public view
         const hiddenStatuses = [UserStatus.BANNED, UserStatus.CLOSED, UserStatus.DEACTIVATED];
@@ -356,19 +444,60 @@ export class UsersService {
             where: { userId, moderationStatus: PhotoModerationStatus.APPROVED },
             order: { isMain: 'DESC', order: 'ASC' },
         });
+        const serializedPhotos = this.applyViewerPhotoAccessPolicy(
+            photos || [],
+            userId,
+            shouldRestrictGallery,
+        );
+
+        const effectiveLocation = this.resolveEffectiveLocation(
+            user,
+            user.profile ?? null,
+        );
+
+        const profilePayload: Record<string, any> | null = user.profile
+            ? {
+                ...user.profile,
+                city: effectiveLocation.city,
+                country: effectiveLocation.country,
+                latitude: effectiveLocation.latitude,
+                longitude: effectiveLocation.longitude,
+            }
+            : null;
+
+        const publicFirstName = shouldMaskGhostProfile ? 'Ghost' : user.firstName;
+        const publicLastName = shouldMaskGhostProfile ? 'Member' : user.lastName;
+        const publicUsername = shouldMaskGhostProfile ? null : user.username;
+        const publicPhotos = shouldMaskGhostProfile
+            ? this.applyGhostPhotoMask(serializedPhotos, userId)
+            : serializedPhotos;
+
+        if (shouldMaskGhostProfile && profilePayload) {
+            profilePayload.bio = null;
+            profilePayload.aboutPartner = null;
+            profilePayload.jobTitle = null;
+            profilePayload.company = null;
+        }
 
         // Explicit whitelist — never expose sensitive fields to other users
         return {
             id: user.id,
-            username: user.username,
-            firstName: user.firstName,
-            lastName: user.lastName,
+            username: publicUsername,
+            firstName: publicFirstName,
+            lastName: publicLastName,
             role: user.role,
             selfieVerified: user.selfieVerified,
+            isPremium: targetHasActivePremium,
+            premiumStartDate: user.premiumStartDate ?? null,
+            premiumExpiryDate: user.premiumExpiryDate ?? null,
+            subscriptionPlanId: user.subscriptionPlanId ?? null,
+            isGhostModeEnabled: user.isGhostModeEnabled === true,
+            isPassportActive: effectiveLocation.isPassportActive,
+            canViewAllPhotos,
             createdAt: user.createdAt,
-            profile: user.profile,
-            photos: photos || [],
-        } as Partial<User>;
+            profile: profilePayload,
+            photos: publicPhotos,
+        } as unknown as Partial<User>;
     }
 
     async updateStatus(userId: string, status: UserStatus): Promise<void> {
@@ -492,12 +621,195 @@ export class UsersService {
     }
 
     private normalizeUserState(user: User): User {
+        const hasActivePremium = this.hasActivePremiumEntitlement(user);
         return {
             ...user,
-            isPremium: user.isPremium ?? false,
+            isPremium: hasActivePremium,
             premiumStartDate: user.premiumStartDate ?? null,
             premiumExpiryDate: user.premiumExpiryDate ?? null,
             verification: normalizeVerificationState(user.verification),
+        };
+    }
+
+    private hasActivePremiumEntitlement(
+        user:
+            | Pick<User, 'isPremium' | 'premiumStartDate' | 'premiumExpiryDate'>
+            | null
+            | undefined,
+    ): boolean {
+        if (!user || user.isPremium !== true) {
+            return false;
+        }
+
+        const now = Date.now();
+        const premiumStartDate = user.premiumStartDate
+            ? new Date(user.premiumStartDate).getTime()
+            : null;
+        const premiumExpiryDate = user.premiumExpiryDate
+            ? new Date(user.premiumExpiryDate).getTime()
+            : null;
+
+        if (premiumStartDate !== null && Number.isFinite(premiumStartDate) && premiumStartDate > now) {
+            return false;
+        }
+
+        if (premiumExpiryDate !== null && Number.isFinite(premiumExpiryDate) && premiumExpiryDate <= now) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private applyViewerPhotoAccessPolicy(
+        photos: Photo[],
+        targetUserId: string,
+        restrictGallery: boolean,
+    ): Array<Record<string, unknown>> {
+        if (!Array.isArray(photos) || photos.length === 0) {
+            return [];
+        }
+
+        const serializePhoto = (photo: Photo, isLocked = false) => ({
+            ...(isLocked ? {} : CloudinaryService.buildImageUrls(photo.url)),
+            id: photo.id,
+            url: isLocked ? '' : CloudinaryService.profileUrl(photo.url),
+            mediumUrl: isLocked ? '' : CloudinaryService.cardUrl(photo.url),
+            publicId: isLocked ? null : photo.publicId,
+            isMain: photo.isMain,
+            isSelfieVerification: photo.isSelfieVerification,
+            order: photo.order,
+            moderationStatus: isLocked ? 'locked' : photo.moderationStatus,
+            moderationNote: isLocked ? null : photo.moderationNote,
+            createdAt: photo.createdAt,
+            isLocked,
+            lockReason: isLocked
+                ? 'Verify your profile or upgrade to Premium to unlock all photos'
+                : null,
+            unlockCta: isLocked
+                ? 'Verify your profile or upgrade to Premium'
+                : null,
+        });
+
+        if (!restrictGallery) {
+            return photos.map((photo) => serializePhoto(photo, false));
+        }
+
+        const mainPhoto = photos.find((photo) => photo.isMain) ?? photos[0];
+        if (!mainPhoto) {
+            return [];
+        }
+
+        const visible = [serializePhoto(mainPhoto, false)];
+        const lockedCount = Math.max(photos.length - 1, 0);
+
+        for (let index = 0; index < lockedCount; index += 1) {
+            visible.push({
+                id: `${targetUserId}-locked-${index + 1}`,
+                url: '',
+                originalUrl: '',
+                thumbnailUrl: '',
+                mediumUrl: '',
+                cardUrl: '',
+                profileUrl: '',
+                fullscreenUrl: '',
+                publicId: null,
+                isMain: false,
+                isSelfieVerification: false,
+                order: (mainPhoto.order ?? 0) + index + 1,
+                moderationStatus: 'locked',
+                moderationNote: null,
+                createdAt: mainPhoto.createdAt,
+                isLocked: true,
+                lockReason: 'Verify your profile or upgrade to Premium to unlock all photos',
+                unlockCta: 'Verify your profile or upgrade to Premium',
+            });
+        }
+
+        return visible;
+    }
+
+    private applyGhostPhotoMask(
+        photos: Array<Record<string, unknown>>,
+        targetUserId: string,
+    ): Array<Record<string, unknown>> {
+        if (!Array.isArray(photos) || photos.length === 0) {
+            return [
+                {
+                    id: `${targetUserId}-ghost-1`,
+                    url: '',
+                    originalUrl: '',
+                    thumbnailUrl: '',
+                    mediumUrl: '',
+                    cardUrl: '',
+                    profileUrl: '',
+                    fullscreenUrl: '',
+                    publicId: null,
+                    isMain: true,
+                    isSelfieVerification: false,
+                    order: 1,
+                    moderationStatus: 'ghost_masked',
+                    moderationNote: null,
+                    createdAt: null,
+                    isLocked: true,
+                    lockReason: 'This member is using Ghost Mode',
+                    unlockCta: 'Ghost mode keeps identity private until mutual trust is built',
+                },
+            ];
+        }
+
+        return photos.map((photo, index) => ({
+            ...photo,
+            id: photo['id'] ?? `${targetUserId}-ghost-${index + 1}`,
+            url: '',
+            originalUrl: '',
+            thumbnailUrl: '',
+            mediumUrl: '',
+            cardUrl: '',
+            profileUrl: '',
+            fullscreenUrl: '',
+            publicId: null,
+            isLocked: true,
+            lockReason: 'This member is using Ghost Mode',
+            unlockCta: 'Ghost mode keeps identity private until mutual trust is built',
+        }));
+    }
+
+    private resolveEffectiveLocation(
+        user: Pick<User, 'isPassportActive' | 'passportLocation'>,
+        profile: Profile | null,
+    ): {
+        city: string | null;
+        country: string | null;
+        latitude: number | null;
+        longitude: number | null;
+        isPassportActive: boolean;
+    } {
+        const passportLocation = user.passportLocation;
+        const hasPassportLocation =
+            user.isPassportActive === true &&
+            !!passportLocation &&
+            typeof passportLocation === 'object';
+
+        if (hasPassportLocation) {
+            return {
+                city: (passportLocation?.city as string | undefined) ?? null,
+                country: (passportLocation?.country as string | undefined) ?? null,
+                latitude: Number.isFinite(passportLocation?.latitude as number)
+                    ? (passportLocation?.latitude as number)
+                    : null,
+                longitude: Number.isFinite(passportLocation?.longitude as number)
+                    ? (passportLocation?.longitude as number)
+                    : null,
+                isPassportActive: true,
+            };
+        }
+
+        return {
+            city: profile?.city ?? null,
+            country: profile?.country ?? null,
+            latitude: profile?.latitude ?? null,
+            longitude: profile?.longitude ?? null,
+            isPassportActive: false,
         };
     }
 
@@ -529,7 +841,11 @@ export class UsersService {
             return false;
         }
 
-        return this.isMissingPremiumColumnsError(error) || this.isMissingVerificationColumnError(error);
+        return (
+            this.isMissingPremiumColumnsError(error) ||
+            this.isMissingVerificationColumnError(error) ||
+            this.isMissingVisibilityColumnsError(error)
+        );
     }
 
     private isMissingPremiumColumnsError(error: unknown): boolean {
@@ -544,5 +860,16 @@ export class UsersService {
     private isMissingVerificationColumnError(error: unknown): boolean {
         const message = String((error as { message?: unknown })?.message ?? '');
         return message.includes('verification');
+    }
+
+    private isMissingVisibilityColumnsError(error: unknown): boolean {
+        const message = String((error as { message?: unknown })?.message ?? '');
+        return (
+            message.includes('subscriptionPlanId') ||
+            message.includes('isGhostModeEnabled') ||
+            message.includes('isPassportActive') ||
+            message.includes('realLocation') ||
+            message.includes('passportLocation')
+        );
     }
 }

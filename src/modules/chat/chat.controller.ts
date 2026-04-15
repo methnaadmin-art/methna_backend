@@ -76,6 +76,7 @@ export class ChatController {
     }
 
     @Post('conversations')
+    @SetModerationLevel('limited')
     @ApiOperation({ summary: 'Find or create a conversation with a target user' })
     async findOrCreateConversation(
         @CurrentUser('sub') userId: string,

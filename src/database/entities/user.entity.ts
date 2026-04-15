@@ -216,6 +216,32 @@ export class User {
     @Column({ type: 'timestamptz', nullable: true })
     premiumExpiryDate: Date | null;
 
+    @Index()
+    @Column({ type: 'varchar', nullable: true })
+    subscriptionPlanId: string | null;
+
+    @Column({ default: false })
+    isGhostModeEnabled: boolean;
+
+    @Column({ default: false })
+    isPassportActive: boolean;
+
+    @Column({ type: 'jsonb', nullable: true })
+    realLocation: {
+        latitude?: number;
+        longitude?: number;
+        city?: string;
+        country?: string;
+    } | null;
+
+    @Column({ type: 'jsonb', nullable: true })
+    passportLocation: {
+        latitude?: number;
+        longitude?: number;
+        city?: string;
+        country?: string;
+    } | null;
+
     @Column({ type: 'jsonb', nullable: true, default: () => "'{}'" })
     verification: UserVerificationState;
 

@@ -272,7 +272,7 @@ export class SearchService {
             if (!photosMap.has(photo.userId)) {
                 photosMap.set(photo.userId, []);
             }
-            const variants = CloudinaryService.buildImageUrls(photo.url);
+            const variants = this.resolvePhotoVariants(photo.url);
             photosMap.get(photo.userId)!.push({
                 id: photo.id,
                 originalUrl: variants.originalUrl,
@@ -429,10 +429,15 @@ export class SearchService {
                 flagCount: profile.user?.flagCount ?? 0,
                 deviceCount: profile.user?.deviceCount ?? 0,
                 notificationsEnabled: profile.user?.notificationsEnabled ?? true,
-                isGhostModeEnabled: profile.user?.isGhostModeEnabled ?? false,
+                isGhostModeEnabled: this.readBooleanFlag(
+                    profile.user as unknown as Record<string, unknown> | undefined,
+                    'isGhostModeEnabled',
+                ),
                 isPassportActive:
-                    profile.user?.isPassportActive === true &&
-                    this.extractPassportLocation(profile.user as User | undefined) != null,
+                    this.readBooleanFlag(
+                        profile.user as unknown as Record<string, unknown> | undefined,
+                        'isPassportActive',
+                    ) && this.extractPassportLocation(profile.user as unknown as Record<string, unknown> | undefined) != null,
                 isPremium: this.hasActivePremiumEntitlement(profile.user),
                 premiumStartDate: profile.user?.premiumStartDate ?? null,
                 premiumExpiryDate: profile.user?.premiumExpiryDate ?? null,
@@ -534,6 +539,16 @@ export class SearchService {
         currentProfile: Profile,
         hasUserLocation: boolean,
     ): void {
+        const extendedFilters = filters as SearchFiltersDto & {
+            timeFrame?: MarriageIntention;
+            intentMode?: IntentMode;
+            recentlyActiveOnly?: boolean;
+            withPhotosOnly?: boolean;
+            minTrustScore?: number;
+            backgroundCheckStatus?: string;
+            communicationStyles?: string[];
+        };
+
         if (filters.city) {
             const normalizedCity = filters.city.trim();
             query.andWhere(
@@ -573,7 +588,7 @@ export class SearchService {
         }
 
         const effectiveTimeFrame = this.normalizeValue(
-            filters.timeFrame || filters.marriageIntention,
+            extendedFilters.timeFrame || filters.marriageIntention,
         );
 
         if (filters.maritalStatus) {
@@ -645,9 +660,9 @@ export class SearchService {
             }
         }
 
-        if (!effectiveTimeFrame && filters.intentMode) {
+        if (!effectiveTimeFrame && extendedFilters.intentMode) {
             query.andWhere('profile.intentMode = :intentMode', {
-                intentMode: filters.intentMode,
+                intentMode: extendedFilters.intentMode,
             });
         }
 
@@ -719,13 +734,13 @@ export class SearchService {
             });
         }
 
-        if (filters.recentlyActiveOnly) {
+        if (extendedFilters.recentlyActiveOnly) {
             query.andWhere('user.lastLoginAt >= :recentlyActiveCutoff', {
                 recentlyActiveCutoff: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
             });
         }
 
-        if (filters.withPhotosOnly) {
+        if (extendedFilters.withPhotosOnly) {
             query.andWhere(
                 (qb) => {
                     const subQuery = qb
@@ -741,22 +756,22 @@ export class SearchService {
             );
         }
 
-        if (filters.minTrustScore && filters.minTrustScore > 0) {
+        if (extendedFilters.minTrustScore && extendedFilters.minTrustScore > 0) {
             query.andWhere('user.trustScore >= :minTrustScore', {
-                minTrustScore: filters.minTrustScore,
+                minTrustScore: extendedFilters.minTrustScore,
             });
         }
 
-        if (filters.backgroundCheckStatus) {
+        if (extendedFilters.backgroundCheckStatus) {
             query.andWhere('user.backgroundCheckStatus = :bgCheckStatus', {
-                bgCheckStatus: filters.backgroundCheckStatus,
+                bgCheckStatus: extendedFilters.backgroundCheckStatus,
             });
         }
 
-        if (filters.communicationStyles && filters.communicationStyles.length > 0) {
+        if (extendedFilters.communicationStyles && extendedFilters.communicationStyles.length > 0) {
             const normalizedStyles = Array.from(
                 new Set(
-                    filters.communicationStyles
+                    extendedFilters.communicationStyles
                         .map((style) => this.normalizeCommunicationStyle(style))
                         .filter(Boolean),
                 ),
@@ -797,6 +812,8 @@ export class SearchService {
         if (!currentPreference) {
             return;
         }
+
+        const extendedFilters = filters as SearchFiltersDto & { goGlobal?: boolean };
 
         const now = new Date();
         if (!filters.maxAge && currentPreference.maxAge) {
@@ -868,7 +885,7 @@ export class SearchService {
             currentPreference.maxDistance &&
             hasUserLocation &&
             !filters.maxDistance &&
-            !filters.goGlobal
+            !extendedFilters.goGlobal
         ) {
             this.applyDistanceConstraint(
                 query,
@@ -1386,11 +1403,13 @@ export class SearchService {
             country: passport.country,
             goGlobal: true,
             maxDistance: undefined,
-        };
+        } as SearchFiltersDto;
     }
 
     private resolveEffectiveProfileLocation(profile: Profile): Profile {
-        const passport = this.extractPassportLocation(profile.user as User | undefined);
+        const passport = this.extractPassportLocation(
+            profile.user as unknown as Record<string, unknown> | undefined,
+        );
         if (!passport) {
             return profile;
         }
@@ -1406,7 +1425,10 @@ export class SearchService {
 
     private extractPassportLocation(
         user:
-            | Pick<User, 'isPassportActive' | 'passportLocation'>
+            | {
+                  isPassportActive?: boolean | null;
+                  passportLocation?: unknown;
+              }
             | undefined
             | null,
     ): {
@@ -1419,7 +1441,7 @@ export class SearchService {
             return null;
         }
 
-        const location = user.passportLocation;
+        const location = user.passportLocation as Record<string, unknown>;
         if (typeof location !== 'object') {
             return null;
         }
@@ -1438,11 +1460,63 @@ export class SearchService {
     }
 
     private shouldMaskGhostProfile(
-        user: Pick<User, 'id' | 'isGhostModeEnabled'> | undefined,
+        user:
+            | {
+                  id?: string | null;
+                  isGhostModeEnabled?: boolean | null;
+              }
+            | undefined,
         viewerId: string,
     ): boolean {
         if (!user) return false;
         return user.isGhostModeEnabled === true && user.id !== viewerId;
+    }
+
+    private resolvePhotoVariants(originalUrl: string): {
+        originalUrl: string;
+        thumbnailUrl: string;
+        cardUrl: string;
+        profileUrl: string;
+        fullscreenUrl: string;
+    } {
+        const cloudinaryStatic = CloudinaryService as unknown as {
+            buildImageUrls?: (url: string) => {
+                originalUrl?: string;
+                thumbnailUrl?: string;
+                cardUrl?: string;
+                profileUrl?: string;
+                fullscreenUrl?: string;
+            };
+        };
+
+        const variants = cloudinaryStatic.buildImageUrls?.(originalUrl);
+        if (variants) {
+            return {
+                originalUrl: variants.originalUrl ?? originalUrl,
+                thumbnailUrl: variants.thumbnailUrl ?? originalUrl,
+                cardUrl: variants.cardUrl ?? originalUrl,
+                profileUrl: variants.profileUrl ?? originalUrl,
+                fullscreenUrl: variants.fullscreenUrl ?? originalUrl,
+            };
+        }
+
+        return {
+            originalUrl,
+            thumbnailUrl: originalUrl,
+            cardUrl: originalUrl,
+            profileUrl: originalUrl,
+            fullscreenUrl: originalUrl,
+        };
+    }
+
+    private readBooleanFlag(
+        source: Record<string, unknown> | undefined,
+        key: string,
+    ): boolean {
+        if (!source || typeof source !== 'object') {
+            return false;
+        }
+        return source[key] === true;
     }
 
     private applyGhostPhotoMask(photos: any[], targetUserId: string): any[] {

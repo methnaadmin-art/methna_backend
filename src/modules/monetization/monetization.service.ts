@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { User } from '../../database/entities/user.entity';
+import { Profile } from '../../database/entities/profile.entity';
 import { Subscription, SubscriptionStatus } from '../../database/entities/subscription.entity';
 import { Plan, PlanEntitlements } from '../../database/entities/plan.entity';
 import { Boost, BoostType } from '../../database/entities/boost.entity';
@@ -23,6 +24,7 @@ export enum FeatureFlag {
     PRIORITY_MATCHING = 'priority_matching',
     REWIND = 'rewind',
     INVISIBLE_MODE = 'invisible_mode',
+    GHOST_MODE = 'ghost_mode',
     COMPLIMENT_CREDITS = 'compliment_credits',
     REMATCH = 'rematch',
     PREMIUM_BADGE = 'premium_badge',
@@ -43,6 +45,7 @@ const FEATURE_TO_ENTITLEMENT: Partial<Record<FeatureFlag, keyof PlanEntitlements
     [FeatureFlag.PRIORITY_MATCHING]: 'priorityMatching',
     [FeatureFlag.REWIND]: 'monthlyRewinds',
     [FeatureFlag.INVISIBLE_MODE]: 'invisibleMode',
+    [FeatureFlag.GHOST_MODE]: 'ghostMode',
     [FeatureFlag.COMPLIMENT_CREDITS]: 'dailyCompliments',
     [FeatureFlag.REMATCH]: 'rematch',
     [FeatureFlag.PREMIUM_BADGE]: 'premiumBadge',
@@ -68,6 +71,8 @@ export class MonetizationService {
     constructor(
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
+        @InjectRepository(Profile)
+        private readonly profileRepository: Repository<Profile>,
         @InjectRepository(Subscription)
         private readonly subscriptionRepository: Repository<Subscription>,
         @InjectRepository(Plan)
@@ -143,6 +148,7 @@ export class MonetizationService {
             isPremium: planEntity.code !== 'free',
             premiumStartDate: startDate,
             premiumExpiryDate: endDate,
+            subscriptionPlanId: planEntity.id,
         });
         await this.invalidateUserPlanCaches(userId);
 
@@ -175,21 +181,31 @@ export class MonetizationService {
 
     async hasFeature(userId: string, feature: FeatureFlag): Promise<boolean> {
         const { plan, entitlements } = await this.plansService.resolveUserEntitlements(userId);
-        return this.entitlementEnablesFeature(entitlements, feature) ||
-            (plan.features || []).includes(feature);
+        const planFeatures = (plan.features || []).map((item) => String(item));
+        const hasPlanFeature =
+            planFeatures.includes(feature) ||
+            (feature === FeatureFlag.GHOST_MODE && planFeatures.includes(FeatureFlag.INVISIBLE_MODE)) ||
+            (feature === FeatureFlag.INVISIBLE_MODE && planFeatures.includes(FeatureFlag.GHOST_MODE));
+
+        return this.entitlementEnablesFeature(entitlements, feature) || hasPlanFeature;
     }
 
     async getDailyLimits(userId: string): Promise<{ likes: number; superLikes: number; complimentCredits: number }> {
         const { entitlements } = await this.plansService.resolveUserEntitlements(userId);
         const likes = entitlements.unlimitedLikes
             ? -1
-            : this.numberEntitlement(entitlements.dailyLikes, DEFAULT_LIMITS.likes);
+            : this.numberEntitlementFromAliases(
+                entitlements,
+                ['dailyLikes', 'likesLimit'],
+                DEFAULT_LIMITS.likes,
+            );
         const superLikes = this.numberEntitlement(
             entitlements.dailySuperLikes,
             entitlements.superLike ? -1 : DEFAULT_LIMITS.superLikes,
         );
-        const complimentCredits = this.numberEntitlement(
-            entitlements.dailyCompliments,
+        const complimentCredits = this.numberEntitlementFromAliases(
+            entitlements,
+            ['dailyCompliments', 'complimentsLimit'],
             DEFAULT_LIMITS.complimentCredits,
         );
 
@@ -201,7 +217,11 @@ export class MonetizationService {
         const rewinds = entitlements.unlimitedRewinds
             ? -1
             : this.numberEntitlement(entitlements.monthlyRewinds, DEFAULT_LIMITS.rewinds);
-        const weeklyBoosts = this.numberEntitlement(entitlements.weeklyBoosts, DEFAULT_LIMITS.weeklyBoosts);
+        const weeklyBoosts = this.numberEntitlementFromAliases(
+            entitlements,
+            ['weeklyBoosts', 'boostsLimit'],
+            DEFAULT_LIMITS.weeklyBoosts,
+        );
 
         return { rewinds, weeklyBoosts };
     }
@@ -272,13 +292,32 @@ export class MonetizationService {
     }
 
     async toggleInvisibleMode(userId: string, enabled: boolean): Promise<void> {
-        if (!(await this.hasFeature(userId, FeatureFlag.INVISIBLE_MODE))) {
+        const canUseGhostMode =
+            (await this.hasFeature(userId, FeatureFlag.INVISIBLE_MODE)) ||
+            (await this.hasFeature(userId, FeatureFlag.GHOST_MODE));
+        if (!canUseGhostMode) {
             throw new BadRequestException('Invisible mode is not available on your current plan.');
         }
+
+        await this.userRepository.update(userId, { isGhostModeEnabled: enabled });
         await this.redisService.set(`invisible:${userId}`, enabled ? '1' : '0', 0);
+        await this.redisService.delByPattern('search:*');
+        await this.redisService.delByPattern('discovery:*');
+        await this.redisService.delByPattern('suggestions:*');
     }
 
     async isInvisible(userId: string): Promise<boolean> {
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: {
+                id: true,
+                isGhostModeEnabled: true,
+            },
+        });
+        if (user) {
+            return user.isGhostModeEnabled === true;
+        }
+
         const val = await this.redisService.get(`invisible:${userId}`);
         return val === '1';
     }
@@ -353,17 +392,99 @@ export class MonetizationService {
             throw new BadRequestException('Passport mode is not available on your current plan.');
         }
 
-        const passportData = JSON.stringify({ latitude, longitude, city, country });
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            throw new BadRequestException('A valid latitude/longitude is required for passport mode.');
+        }
+
+        const normalizedCity = city?.trim() || undefined;
+        const normalizedCountry = country?.trim() || undefined;
+        if (!normalizedCity && !normalizedCountry) {
+            throw new BadRequestException('Passport mode requires at least a city or country.');
+        }
+
+        const [user, profile] = await Promise.all([
+            this.userRepository.findOne({
+                where: { id: userId },
+                select: {
+                    id: true,
+                    realLocation: true,
+                },
+            }),
+            this.profileRepository.findOne({
+                where: { userId },
+                select: {
+                    id: true,
+                    latitude: true,
+                    longitude: true,
+                    city: true,
+                    country: true,
+                },
+            }),
+        ]);
+
+        if (!user) {
+            throw new BadRequestException('User not found');
+        }
+
+        const existingRealLocation =
+            user.realLocation && typeof user.realLocation === 'object'
+                ? user.realLocation
+                : null;
+        const derivedRealLocation = {
+            latitude: profile?.latitude ?? undefined,
+            longitude: profile?.longitude ?? undefined,
+            city: profile?.city ?? undefined,
+            country: profile?.country ?? undefined,
+        };
+
+        const passportLocation = {
+            latitude,
+            longitude,
+            city: normalizedCity,
+            country: normalizedCountry,
+        };
+
+        await this.userRepository.update(userId, {
+            isPassportActive: true,
+            passportLocation,
+            realLocation: existingRealLocation ?? (this.hasLocationValues(derivedRealLocation) ? derivedRealLocation : null),
+        });
+
+        const passportData = JSON.stringify(passportLocation);
         await this.redisService.set(`passport:${userId}`, passportData, 0);
-        this.logger.log(`User ${userId} set passport location: ${city || ''}, ${country || ''}`);
+        await this.redisService.delByPattern('search:*');
+        await this.redisService.delByPattern('discovery:*');
+        await this.redisService.delByPattern('suggestions:*');
+
+        this.logger.log(`User ${userId} set passport location: ${normalizedCity || ''}, ${normalizedCountry || ''}`);
     }
 
     async clearPassportLocation(userId: string): Promise<void> {
+        await this.userRepository.update(userId, {
+            isPassportActive: false,
+            passportLocation: null,
+        });
         await this.redisService.del(`passport:${userId}`);
+        await this.redisService.delByPattern('search:*');
+        await this.redisService.delByPattern('discovery:*');
+        await this.redisService.delByPattern('suggestions:*');
         this.logger.log(`User ${userId} cleared passport location`);
     }
 
-    async getPassportLocation(userId: string): Promise<{ latitude: number; longitude: number; city?: string; country?: string } | null> {
+    async getPassportLocation(userId: string): Promise<{ latitude?: number; longitude?: number; city?: string; country?: string } | null> {
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: {
+                id: true,
+                isPassportActive: true,
+                passportLocation: true,
+            },
+        });
+
+        if (user?.isPassportActive === true && user.passportLocation) {
+            return user.passportLocation;
+        }
+
         const data = await this.redisService.get(`passport:${userId}`);
         if (!data) return null;
         try {
@@ -373,8 +494,22 @@ export class MonetizationService {
         }
     }
 
-    async getEffectiveLocation(userId: string): Promise<{ latitude: number; longitude: number; city?: string; country?: string } | null> {
-        return this.getPassportLocation(userId);
+    async getEffectiveLocation(userId: string): Promise<{ latitude?: number; longitude?: number; city?: string; country?: string } | null> {
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: {
+                id: true,
+                isPassportActive: true,
+                passportLocation: true,
+                realLocation: true,
+            },
+        });
+
+        if (user?.isPassportActive === true && user.passportLocation) {
+            return user.passportLocation;
+        }
+
+        return user?.realLocation ?? null;
     }
 
     async getUserSubscriptionStatus(userId: string) {
@@ -385,16 +520,64 @@ export class MonetizationService {
         const remainingLikes = await this.getRemainingLikes(userId);
         const isBoosted = await this.isUserBoosted(userId);
         const activeBoost = isBoosted ? await this.getActiveBoost(userId) : null;
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: {
+                id: true,
+                isGhostModeEnabled: true,
+                isPassportActive: true,
+                passportLocation: true,
+                realLocation: true,
+                subscriptionPlanId: true,
+            },
+        });
+
+        const planFeatures = {
+            boost:
+                this.entitlementEnablesFeature(entitlements, FeatureFlag.PROFILE_BOOST) ||
+                features.includes(FeatureFlag.PROFILE_BOOST),
+            likes:
+                this.entitlementEnablesFeature(entitlements, FeatureFlag.UNLIMITED_LIKES) ||
+                this.numberEntitlementFromAliases(entitlements, ['dailyLikes', 'likesLimit'], 0) !== 0,
+            whoLikedMe:
+                this.entitlementEnablesFeature(entitlements, FeatureFlag.SEE_WHO_LIKED) ||
+                features.includes(FeatureFlag.SEE_WHO_LIKED),
+            ghostMode:
+                this.entitlementEnablesFeature(entitlements, FeatureFlag.GHOST_MODE) ||
+                this.entitlementEnablesFeature(entitlements, FeatureFlag.INVISIBLE_MODE) ||
+                features.includes(FeatureFlag.GHOST_MODE) ||
+                features.includes(FeatureFlag.INVISIBLE_MODE),
+            passportMode:
+                this.entitlementEnablesFeature(entitlements, FeatureFlag.PASSPORT_MODE) ||
+                features.includes(FeatureFlag.PASSPORT_MODE),
+            compliments:
+                this.entitlementEnablesFeature(entitlements, FeatureFlag.COMPLIMENT_CREDITS) ||
+                features.includes(FeatureFlag.COMPLIMENT_CREDITS),
+            premiumBadge:
+                this.entitlementEnablesFeature(entitlements, FeatureFlag.PREMIUM_BADGE) ||
+                features.includes(FeatureFlag.PREMIUM_BADGE),
+            likesLimit: this.numberEntitlementFromAliases(entitlements, ['dailyLikes', 'likesLimit'], DEFAULT_LIMITS.likes),
+            boostsLimit: this.numberEntitlementFromAliases(entitlements, ['weeklyBoosts', 'boostsLimit'], DEFAULT_LIMITS.weeklyBoosts),
+            complimentsLimit: this.numberEntitlementFromAliases(entitlements, ['dailyCompliments', 'complimentsLimit'], DEFAULT_LIMITS.complimentCredits),
+        };
 
         return {
             plan: plan.code,
             planId: plan.id,
+            subscriptionPlanId: user?.subscriptionPlanId ?? plan.id,
             status: subscription?.status ?? 'free',
             entitlements,
             features,
+            planFeatures,
             limits,
             monthlyLimits,
             remainingLikes,
+            visibility: {
+                isGhostModeEnabled: user?.isGhostModeEnabled ?? false,
+                isPassportActive: user?.isPassportActive ?? false,
+                passportLocation: user?.passportLocation ?? null,
+                realLocation: user?.realLocation ?? null,
+            },
             boost: {
                 isActive: isBoosted,
                 expiresAt: activeBoost?.expiresAt || null,
@@ -407,18 +590,46 @@ export class MonetizationService {
             return entitlements.unlimitedRewinds === true || this.numberEntitlement(entitlements.monthlyRewinds, 0) !== 0;
         }
         if (feature === FeatureFlag.PROFILE_BOOST) {
-            return this.numberEntitlement(entitlements.weeklyBoosts, 0) !== 0 ||
+            return this.numberEntitlementFromAliases(entitlements, ['weeklyBoosts', 'boostsLimit'], 0) !== 0 ||
                 entitlements.profileBoostPriority === true;
         }
         if (feature === FeatureFlag.SUPER_LIKE) {
             return entitlements.superLike === true ||
                 this.numberEntitlement(entitlements.dailySuperLikes, 0) !== 0;
         }
+        if (feature === FeatureFlag.SEE_WHO_LIKED) {
+            return entitlements.seeWhoLikesYou === true || entitlements.whoLikedMe === true;
+        }
+        if (feature === FeatureFlag.INVISIBLE_MODE || feature === FeatureFlag.GHOST_MODE) {
+            return entitlements.invisibleMode === true || entitlements.ghostMode === true;
+        }
+        if (feature === FeatureFlag.COMPLIMENT_CREDITS) {
+            return this.numberEntitlementFromAliases(entitlements, ['dailyCompliments', 'complimentsLimit'], 0) !== 0;
+        }
 
         const key = FEATURE_TO_ENTITLEMENT[feature];
         if (!key) return false;
         const value = entitlements[key];
         return value === true || value === -1 || (typeof value === 'number' && value > 0);
+    }
+
+    private numberEntitlementFromAliases(
+        entitlements: PlanEntitlements,
+        keys: Array<keyof PlanEntitlements>,
+        fallback: number,
+    ): number {
+        for (const key of keys) {
+            const value = entitlements[key] as unknown;
+            if (value === -1) return -1;
+            if (typeof value === 'number' && Number.isFinite(value)) return value;
+            if (typeof value === 'string' && value.trim() !== '') {
+                const parsed = Number(value);
+                if (Number.isFinite(parsed)) {
+                    return parsed;
+                }
+            }
+        }
+        return fallback;
     }
 
     private numberEntitlement(value: unknown, fallback: number): number {
@@ -480,6 +691,20 @@ export class MonetizationService {
             this.redisService.del(`premium:${userId}`),
             this.redisService.del(`entitlements:${userId}`),
         ]);
+    }
+
+    private hasLocationValues(location: {
+        latitude?: number;
+        longitude?: number;
+        city?: string;
+        country?: string;
+    }): boolean {
+        return (
+            Number.isFinite(location.latitude) ||
+            Number.isFinite(location.longitude) ||
+            (location.city ?? '').trim().length > 0 ||
+            (location.country ?? '').trim().length > 0
+        );
     }
 
     private todayKey(): string {

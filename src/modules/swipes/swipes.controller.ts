@@ -25,7 +25,7 @@ export class SwipesController {
 
     @Post()
     @Throttle({ default: { ttl: 60000, limit: 30 } })
-    @SetModerationLevel('suspended')
+    @SetModerationLevel('limited')
     @ApiOperation({ summary: 'Swipe on a user (like, super_like, compliment, pass)' })
     async swipe(
         @CurrentUser('sub') userId: string,

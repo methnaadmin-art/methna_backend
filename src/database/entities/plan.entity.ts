@@ -17,6 +17,9 @@ export interface PlanEntitlements {
     dailyCompliments?: number;
     monthlyRewinds?: number;
     weeklyBoosts?: number;
+    likesLimit?: number;
+    boostsLimit?: number;
+    complimentsLimit?: number;
 
     // Boolean feature flags
     unlimitedLikes?: boolean;
@@ -26,7 +29,11 @@ export interface PlanEntitlements {
     readReceipts?: boolean;
     typingIndicators?: boolean;
     invisibleMode?: boolean;
+    ghostMode?: boolean;
     passportMode?: boolean;
+    whoLikedMe?: boolean;
+    boost?: boolean;
+    likes?: boolean;
     premiumBadge?: boolean;
     hideAds?: boolean;
     rematch?: boolean;

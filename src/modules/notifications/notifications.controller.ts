@@ -105,9 +105,18 @@ export class NotificationsController {
         @CurrentUser('sub') userId: string,
         @Body() settings: {
             enabled?: boolean;
+            notificationsEnabled?: boolean;
             matchNotifications?: boolean;
             messageNotifications?: boolean;
             likeNotifications?: boolean;
+            profileVisitorNotifications?: boolean;
+            eventsNotifications?: boolean;
+            safetyAlertNotifications?: boolean;
+            promotionsNotifications?: boolean;
+            inAppRecommendationNotifications?: boolean;
+            weeklySummaryNotifications?: boolean;
+            connectionRequestNotifications?: boolean;
+            surveyNotifications?: boolean;
         },
     ) {
         await this.notificationsService.updateNotificationSettings(userId, settings);

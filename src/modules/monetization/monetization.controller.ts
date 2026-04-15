@@ -121,12 +121,34 @@ export class MonetizationController {
     @ApiOperation({ summary: 'Set virtual location for passport mode' })
     async setPassportLocation(
         @CurrentUser('sub') userId: string,
-        @Body() body: { latitude: number; longitude: number; city?: string; country?: string },
+        @Body()
+        body: {
+            latitude: number;
+            longitude: number;
+            city?: string;
+            cityName?: string;
+            country?: string;
+            countryName?: string;
+        },
     ) {
+        const city = body.city ?? body.cityName;
+        const country = body.country ?? body.countryName;
         await this.monetizationService.setPassportLocation(
-            userId, body.latitude, body.longitude, body.city, body.country,
+            userId,
+            body.latitude,
+            body.longitude,
+            city,
+            country,
         );
-        return { message: 'Passport location set', location: body };
+        return {
+            message: 'Passport location set',
+            location: {
+                latitude: body.latitude,
+                longitude: body.longitude,
+                city,
+                country,
+            },
+        };
     }
 
     @Post('passport/clear')
@@ -141,6 +163,23 @@ export class MonetizationController {
     async getPassportLocation(@CurrentUser('sub') userId: string) {
         const location = await this.monetizationService.getPassportLocation(userId);
         return { active: !!location, location };
+    }
+
+    @Post('ghost')
+    @ApiOperation({ summary: 'Toggle ghost mode (Premium only)' })
+    async toggleGhostMode(
+        @CurrentUser('sub') userId: string,
+        @Body() body: { enabled: boolean },
+    ) {
+        await this.monetizationService.toggleInvisibleMode(userId, body.enabled);
+        return { message: body.enabled ? 'Ghost mode enabled' : 'Ghost mode disabled' };
+    }
+
+    @Get('ghost')
+    @ApiOperation({ summary: 'Get ghost mode status' })
+    async getGhostModeStatus(@CurrentUser('sub') userId: string) {
+        const enabled = await this.monetizationService.isInvisible(userId);
+        return { isGhostModeEnabled: enabled };
     }
 
     // ─── Monthly Limits ───────────────────────────────────────

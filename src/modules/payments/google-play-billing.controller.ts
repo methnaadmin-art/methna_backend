@@ -6,11 +6,11 @@ import {
     Request,
     Logger,
     HttpCode,
+    GoneException,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
-    GooglePlayBillingService,
     VerifyPurchaseDto,
     RestorePurchaseDto,
 } from './google-play-billing.service';
@@ -20,9 +20,7 @@ import {
 export class GooglePlayBillingController {
     private readonly logger = new Logger(GooglePlayBillingController.name);
 
-    constructor(
-        private readonly billingService: GooglePlayBillingService,
-    ) { }
+    constructor() { }
 
     @ApiBearerAuth()
     @UseGuards(JwtAuthGuard)
@@ -46,10 +44,12 @@ export class GooglePlayBillingController {
         },
     })
     async verifyPurchase(@Request() req, @Body() dto: VerifyPurchaseDto) {
-        this.logger.log(
-            `Verify purchase for user ${req.user.id}: productId=${dto.productId}`,
+        this.logger.warn(
+            `Deprecated Google Play verify endpoint called by user ${req.user.id}: productId=${dto.productId}`,
         );
-        return this.billingService.verifyAndActivatePurchase(req.user.id, dto);
+        throw new GoneException(
+            'Google Play checkout verification has been retired. Use Stripe checkout and Stripe webhooks for entitlement activation.',
+        );
     }
 
     @ApiBearerAuth()
@@ -67,9 +67,11 @@ export class GooglePlayBillingController {
         },
     })
     async restorePurchase(@Request() req, @Body() dto: RestorePurchaseDto) {
-        this.logger.log(
-            `Restore purchase for user ${req.user.id}: productId=${dto.productId}`,
+        this.logger.warn(
+            `Deprecated Google Play restore endpoint called by user ${req.user.id}: productId=${dto.productId}`,
         );
-        return this.billingService.restorePurchase(req.user.id, dto);
+        throw new GoneException(
+            'Google Play restore is no longer supported. Subscription access is managed by Stripe checkout and webhook state.',
+        );
     }
 }

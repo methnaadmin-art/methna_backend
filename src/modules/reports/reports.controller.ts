@@ -8,8 +8,6 @@ import {
     Body,
     Query,
     UseGuards,
-    HttpCode,
-    HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
@@ -81,7 +79,6 @@ export class ReportsController {
     }
 
     @Delete('block/:id')
-    @HttpCode(HttpStatus.NO_CONTENT)
     @ApiOperation({ summary: 'Unblock a user' })
     async unblockUser(
         @CurrentUser('sub') userId: string,

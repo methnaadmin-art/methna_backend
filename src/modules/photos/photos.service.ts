@@ -11,7 +11,14 @@ import { Photo } from '../../database/entities/photo.entity';
 import { CloudinaryService } from './cloudinary.service';
 
 const MAX_PHOTOS = 6;
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
+const ALLOWED_TYPES = [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/heic',
+    'image/heif',
+];
 
 @Injectable()
 export class PhotosService {
@@ -27,7 +34,7 @@ export class PhotosService {
         userId: string,
         file: Express.Multer.File,
         isMainRequested: boolean = false,
-    ): Promise<Photo> {
+    ): Promise<Record<string, unknown>> {
         // Validate file presence
         if (!file) {
             throw new BadRequestException('No photo file provided');
@@ -36,13 +43,13 @@ export class PhotosService {
         // Validate file type
         if (!ALLOWED_TYPES.includes(file.mimetype)) {
             throw new BadRequestException(
-                'Invalid file type. Only JPEG, PNG, and WebP are allowed.',
+                'Invalid file type. Only JPEG, PNG, WebP, HEIC, and HEIF are allowed.',
             );
         }
 
-        // Validate max size (5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            throw new BadRequestException('File size must be under 5MB');
+        // Validate max size
+        if (file.size > MAX_UPLOAD_BYTES) {
+            throw new BadRequestException('File size must be under 12MB');
         }
 
         // Check photo limit
@@ -77,7 +84,8 @@ export class PhotosService {
                 order: photoCount,
             });
 
-            return await this.photoRepository.save(photo);
+            const savedPhoto = await this.photoRepository.save(photo);
+            return this.withDeliveryUrls(savedPhoto);
         } catch (error) {
             this.logger.error(`Photo upload failed for user ${userId}: ${error.message}`);
             
@@ -90,14 +98,16 @@ export class PhotosService {
         }
     }
 
-    async getMyPhotos(userId: string): Promise<Photo[]> {
-        return this.photoRepository.find({
+    async getMyPhotos(userId: string): Promise<Array<Record<string, unknown>>> {
+        const photos = await this.photoRepository.find({
             where: { userId },
             order: { order: 'ASC' },
         });
+
+        return photos.map((photo) => this.withDeliveryUrls(photo));
     }
 
-    async setMainPhoto(userId: string, photoId: string): Promise<Photo> {
+    async setMainPhoto(userId: string, photoId: string): Promise<Record<string, unknown>> {
         const photo = await this.photoRepository.findOne({
             where: { id: photoId, userId },
         });
@@ -111,7 +121,8 @@ export class PhotosService {
 
         // Set new main
         photo.isMain = true;
-        return this.photoRepository.save(photo);
+        const saved = await this.photoRepository.save(photo);
+        return this.withDeliveryUrls(saved);
     }
 
     async deletePhoto(userId: string, photoId: string): Promise<void> {
@@ -143,5 +154,14 @@ export class PhotosService {
         return this.photoRepository.findOne({
             where: { userId, isMain: true },
         });
+    }
+
+    private withDeliveryUrls(photo: Photo): Record<string, unknown> {
+        const urls = CloudinaryService.buildImageUrls(photo.url);
+
+        return {
+            ...photo,
+            ...urls,
+        };
     }
 }

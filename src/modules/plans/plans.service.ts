@@ -273,6 +273,41 @@ export class PlansService {
     private mergeEntitlements(plan: Plan): PlanEntitlements {
         const ent: PlanEntitlements = { ...plan.entitlements };
 
+        if (ent.dailyLikes === undefined && ent.likesLimit !== undefined) {
+            ent.dailyLikes = ent.likesLimit;
+        }
+        if (ent.likesLimit === undefined && ent.dailyLikes !== undefined) {
+            ent.likesLimit = ent.dailyLikes;
+        }
+
+        if (ent.weeklyBoosts === undefined && ent.boostsLimit !== undefined) {
+            ent.weeklyBoosts = ent.boostsLimit;
+        }
+        if (ent.boostsLimit === undefined && ent.weeklyBoosts !== undefined) {
+            ent.boostsLimit = ent.weeklyBoosts;
+        }
+
+        if (ent.dailyCompliments === undefined && ent.complimentsLimit !== undefined) {
+            ent.dailyCompliments = ent.complimentsLimit;
+        }
+        if (ent.complimentsLimit === undefined && ent.dailyCompliments !== undefined) {
+            ent.complimentsLimit = ent.dailyCompliments;
+        }
+
+        if (ent.seeWhoLikesYou === undefined && ent.whoLikedMe !== undefined) {
+            ent.seeWhoLikesYou = ent.whoLikedMe;
+        }
+        if (ent.whoLikedMe === undefined && ent.seeWhoLikesYou !== undefined) {
+            ent.whoLikedMe = ent.seeWhoLikesYou;
+        }
+
+        if (ent.invisibleMode === undefined && ent.ghostMode !== undefined) {
+            ent.invisibleMode = ent.ghostMode;
+        }
+        if (ent.ghostMode === undefined && ent.invisibleMode !== undefined) {
+            ent.ghostMode = ent.invisibleMode;
+        }
+
         // Sync from legacy columns if they differ from entitlements
         if (plan.dailyLikesLimit !== undefined && ent.dailyLikes === undefined) {
             ent.dailyLikes = plan.dailyLikesLimit;
@@ -293,6 +328,16 @@ export class PlansService {
         // Derive unlimitedLikes from dailyLikes = -1
         if (ent.dailyLikes === -1) ent.unlimitedLikes = true;
         if (ent.monthlyRewinds === -1) ent.unlimitedRewinds = true;
+        if (ent.boost === undefined) {
+            ent.boost =
+                ent.profileBoostPriority === true ||
+                (typeof ent.weeklyBoosts === 'number' && ent.weeklyBoosts !== 0);
+        }
+        if (ent.likes === undefined) {
+            ent.likes =
+                ent.unlimitedLikes === true ||
+                (typeof ent.dailyLikes === 'number' && ent.dailyLikes !== 0);
+        }
 
         return ent;
     }
@@ -300,6 +345,42 @@ export class PlansService {
     /** Sync entitlements JSONB -> legacy columns for backward compatibility. */
     private syncEntitlementsToLegacy(plan: Plan): void {
         const ent = plan.entitlements || {};
+
+        if (ent.dailyLikes === undefined && ent.likesLimit !== undefined) {
+            ent.dailyLikes = ent.likesLimit;
+        }
+        if (ent.likesLimit === undefined && ent.dailyLikes !== undefined) {
+            ent.likesLimit = ent.dailyLikes;
+        }
+
+        if (ent.weeklyBoosts === undefined && ent.boostsLimit !== undefined) {
+            ent.weeklyBoosts = ent.boostsLimit;
+        }
+        if (ent.boostsLimit === undefined && ent.weeklyBoosts !== undefined) {
+            ent.boostsLimit = ent.weeklyBoosts;
+        }
+
+        if (ent.dailyCompliments === undefined && ent.complimentsLimit !== undefined) {
+            ent.dailyCompliments = ent.complimentsLimit;
+        }
+        if (ent.complimentsLimit === undefined && ent.dailyCompliments !== undefined) {
+            ent.complimentsLimit = ent.dailyCompliments;
+        }
+
+        if (ent.seeWhoLikesYou === undefined && ent.whoLikedMe !== undefined) {
+            ent.seeWhoLikesYou = ent.whoLikedMe;
+        }
+        if (ent.whoLikedMe === undefined && ent.seeWhoLikesYou !== undefined) {
+            ent.whoLikedMe = ent.seeWhoLikesYou;
+        }
+
+        if (ent.invisibleMode === undefined && ent.ghostMode !== undefined) {
+            ent.invisibleMode = ent.ghostMode;
+        }
+        if (ent.ghostMode === undefined && ent.invisibleMode !== undefined) {
+            ent.ghostMode = ent.invisibleMode;
+        }
+
         if (ent.dailyLikes !== undefined) plan.dailyLikesLimit = ent.dailyLikes;
         if (ent.dailySuperLikes !== undefined) plan.dailySuperLikesLimit = ent.dailySuperLikes;
         if (ent.dailyCompliments !== undefined) plan.dailyComplimentsLimit = ent.dailyCompliments;
@@ -311,12 +392,15 @@ export class PlansService {
         if (ent.unlimitedLikes || ent.dailyLikes === -1) featureFlags.push('unlimited_likes');
         if (ent.advancedFilters) featureFlags.push('advanced_filters');
         if (ent.seeWhoLikesYou) featureFlags.push('see_who_liked');
+        if (ent.whoLikedMe) featureFlags.push('who_liked_me');
         if (ent.superLike || ent.dailySuperLikes === -1 || (ent.dailySuperLikes ?? 0) > 0) featureFlags.push('super_like');
         if (ent.profileBoostPriority || ent.weeklyBoosts === -1 || (ent.weeklyBoosts ?? 0) > 0) featureFlags.push('profile_boost');
+        if (ent.boost) featureFlags.push('boost');
         if (ent.readReceipts) featureFlags.push('read_receipts');
         if (ent.priorityMatching) featureFlags.push('priority_matching');
         if (ent.unlimitedRewinds || ent.monthlyRewinds === -1) featureFlags.push('rewind');
         if (ent.invisibleMode) featureFlags.push('invisible_mode');
+        if (ent.ghostMode) featureFlags.push('ghost_mode');
         if (ent.dailyCompliments === -1 || (ent.dailyCompliments ?? 0) > 0) featureFlags.push('compliment_credits');
         if (ent.rematch) featureFlags.push('rematch');
         if (ent.premiumBadge) featureFlags.push('premium_badge');

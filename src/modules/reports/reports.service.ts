@@ -85,7 +85,15 @@ export class ReportsService {
     }
 
     // ─── Blocking ──────────────────────────────────────────
-    async blockUser(userId: string, blockedId: string): Promise<void> {
+    async blockUser(
+        userId: string,
+        blockedId: string,
+    ): Promise<{
+        blockedId: string;
+        isBlocked: true;
+        alreadyBlocked: boolean;
+        message: string;
+    }> {
         if (userId === blockedId) {
             throw new BadRequestException('Cannot block yourself');
         }
@@ -94,7 +102,12 @@ export class ReportsService {
             where: { blockerId: userId, blockedId },
         });
         if (existing) {
-            return; // Already blocked — idempotent success
+            return {
+                blockedId,
+                isBlocked: true,
+                alreadyBlocked: true,
+                message: 'User already blocked',
+            };
         }
 
         const block = this.blockedUserRepository.create({
@@ -116,14 +129,44 @@ export class ReportsService {
         if (activeMatches.length > 0) {
             await this.matchRepository.save(activeMatches);
         }
+
+        return {
+            blockedId,
+            isBlocked: true,
+            alreadyBlocked: false,
+            message: 'User blocked successfully',
+        };
     }
 
-    async unblockUser(userId: string, blockedId: string): Promise<void> {
+    async unblockUser(
+        userId: string,
+        blockedId: string,
+    ): Promise<{
+        blockedId: string;
+        isBlocked: false;
+        alreadyUnblocked: boolean;
+        message: string;
+    }> {
         const block = await this.blockedUserRepository.findOne({
             where: { blockerId: userId, blockedId },
         });
-        if (!block) throw new NotFoundException('User is not blocked');
+        if (!block) {
+            return {
+                blockedId,
+                isBlocked: false,
+                alreadyUnblocked: true,
+                message: 'User already unblocked',
+            };
+        }
+
         await this.blockedUserRepository.remove(block);
+
+        return {
+            blockedId,
+            isBlocked: false,
+            alreadyUnblocked: false,
+            message: 'User unblocked successfully',
+        };
     }
 
     async getBlockedUsers(userId: string) {

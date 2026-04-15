@@ -19,6 +19,7 @@ import { User } from '../../database/entities/user.entity';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { ChatGateway } from './chat.gateway';
 import { RedisService } from '../redis/redis.service';
+import { CloudinaryService } from '../photos/cloudinary.service';
 
 @Injectable()
 export class ChatService {
@@ -118,6 +119,7 @@ export class ChatService {
             const otherUser = conv.user1Id === userId ? conv.user2 : conv.user1;
             const unreadCount = conv.user1Id === userId ? conv.user1UnreadCount : conv.user2UnreadCount;
             const isMuted = conv.user1Id === userId ? conv.user1Muted : conv.user2Muted;
+            const hasActivePremium = this.hasActivePremiumEntitlement(otherUser);
 
             return {
                 id: conv.id,
@@ -127,6 +129,9 @@ export class ChatService {
                     firstName: otherUser?.firstName,
                     lastName: otherUser?.lastName,
                     photo: photoMap.get(otherUserId) || null,
+                    isPremium: hasActivePremium,
+                    premiumStartDate: otherUser?.premiumStartDate ?? null,
+                    premiumExpiryDate: otherUser?.premiumExpiryDate ?? null,
                 },
                 lastMessage: this.decryptContent(conv.lastMessageContent),
                 lastMessageAt: conv.lastMessageAt,
@@ -386,6 +391,9 @@ export class ChatService {
                     user.photos?.find((photo) => photo.isMain) ??
                     user.photos?.[0] ??
                     null;
+                const mainPhotoUrls = mainPhoto
+                    ? CloudinaryService.buildImageUrls(mainPhoto.url)
+                    : null;
 
                 return {
                     id: user.id,
@@ -393,16 +401,22 @@ export class ChatService {
                     email: '',
                     firstName: user.firstName,
                     lastName: user.lastName,
+                    isPremium: this.hasActivePremiumEntitlement(user),
+                    premiumStartDate: user.premiumStartDate ?? null,
+                    premiumExpiryDate: user.premiumExpiryDate ?? null,
                     phoneVerified: user.phoneVerified ?? false,
                     selfieVerified: user.selfieVerified,
                     status: onlineSet.has(user.id) ? 'online' : 'active',
                     isOnline: onlineSet.has(user.id),
                     lastLoginAt: user.lastLoginAt,
-                    mainPhotoUrl: mainPhoto?.url ?? null,
+                    mainPhotoUrl: mainPhotoUrls?.thumbnailUrl ?? null,
                     photos: mainPhoto
                         ? [{
                             id: mainPhoto.id,
-                            url: mainPhoto.url,
+                            url: mainPhotoUrls?.cardUrl ?? mainPhoto.url,
+                            thumbnailUrl: mainPhotoUrls?.thumbnailUrl ?? mainPhoto.url,
+                            profileUrl: mainPhotoUrls?.profileUrl ?? mainPhoto.url,
+                            fullscreenUrl: mainPhotoUrls?.fullscreenUrl ?? mainPhoto.url,
                             isMain: mainPhoto.isMain,
                             moderationStatus: mainPhoto.moderationStatus,
                         }]
@@ -561,5 +575,34 @@ export class ChatService {
         }
 
         return createHash('sha256').update(rawKey).digest();
+    }
+
+    private hasActivePremiumEntitlement(
+        user:
+            | Pick<User, 'isPremium' | 'premiumStartDate' | 'premiumExpiryDate'>
+            | null
+            | undefined,
+    ): boolean {
+        if (!user || user.isPremium !== true) {
+            return false;
+        }
+
+        const now = Date.now();
+        const premiumStartDate = user.premiumStartDate
+            ? new Date(user.premiumStartDate).getTime()
+            : null;
+        const premiumExpiryDate = user.premiumExpiryDate
+            ? new Date(user.premiumExpiryDate).getTime()
+            : null;
+
+        if (premiumStartDate !== null && Number.isFinite(premiumStartDate) && premiumStartDate > now) {
+            return false;
+        }
+
+        if (premiumExpiryDate !== null && Number.isFinite(premiumExpiryDate) && premiumExpiryDate <= now) {
+            return false;
+        }
+
+        return true;
     }
 }

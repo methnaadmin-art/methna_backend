@@ -723,19 +723,57 @@ export class NotificationsService {
                 'connectionRequestNotifications', 'surveyNotifications',
             ],
         });
+
+        // Repair legacy defaults where optional categories were initialized as false
+        // for users who never configured notification preferences.
+        const hasLegacyDefaultPattern =
+            !!user &&
+            (user.notificationsEnabled ?? true) &&
+            (user.matchNotifications ?? true) &&
+            (user.messageNotifications ?? true) &&
+            (user.likeNotifications ?? true) &&
+            (user.safetyAlertNotifications ?? true) &&
+            (user.connectionRequestNotifications ?? true) &&
+            user.profileVisitorNotifications === false &&
+            user.eventsNotifications === false &&
+            user.promotionsNotifications === false &&
+            user.inAppRecommendationNotifications === false &&
+            user.weeklySummaryNotifications === false &&
+            user.surveyNotifications === false;
+
+        if (hasLegacyDefaultPattern) {
+            await this.userRepository.update(userId, {
+                profileVisitorNotifications: true,
+                eventsNotifications: true,
+                promotionsNotifications: true,
+                inAppRecommendationNotifications: true,
+                weeklySummaryNotifications: true,
+                surveyNotifications: true,
+            });
+
+            if (user) {
+                user.profileVisitorNotifications = true;
+                user.eventsNotifications = true;
+                user.promotionsNotifications = true;
+                user.inAppRecommendationNotifications = true;
+                user.weeklySummaryNotifications = true;
+                user.surveyNotifications = true;
+            }
+        }
+
         return {
             notificationsEnabled: user?.notificationsEnabled ?? true,
             matchNotifications: user?.matchNotifications ?? true,
             messageNotifications: user?.messageNotifications ?? true,
             likeNotifications: user?.likeNotifications ?? true,
-            profileVisitorNotifications: user?.profileVisitorNotifications ?? false,
-            eventsNotifications: user?.eventsNotifications ?? false,
+            profileVisitorNotifications: user?.profileVisitorNotifications ?? true,
+            eventsNotifications: user?.eventsNotifications ?? true,
             safetyAlertNotifications: user?.safetyAlertNotifications ?? true,
-            promotionsNotifications: user?.promotionsNotifications ?? false,
-            inAppRecommendationNotifications: user?.inAppRecommendationNotifications ?? false,
-            weeklySummaryNotifications: user?.weeklySummaryNotifications ?? false,
+            promotionsNotifications: user?.promotionsNotifications ?? true,
+            inAppRecommendationNotifications: user?.inAppRecommendationNotifications ?? true,
+            weeklySummaryNotifications: user?.weeklySummaryNotifications ?? true,
             connectionRequestNotifications: user?.connectionRequestNotifications ?? true,
-            surveyNotifications: user?.surveyNotifications ?? false,
+            surveyNotifications: user?.surveyNotifications ?? true,
         };
     }
 

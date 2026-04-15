@@ -37,9 +37,24 @@ export class PaymentsController {
             type: 'object',
             properties: {
                 planCode: { type: 'string', description: 'Plan code from DB (e.g. premium, gold)' },
-                provider: { type: 'string', enum: Object.values(PaymentProvider) },
+                provider: { type: 'string', enum: [PaymentProvider.STRIPE], default: PaymentProvider.STRIPE },
+                alternativeBilling: {
+                    type: 'object',
+                    description: 'Optional Google Play Alternative Billing Only reporting metadata',
+                    properties: {
+                        billingModel: { type: 'string', example: 'alternative_billing_only' },
+                        store: { type: 'string', example: 'google_play' },
+                        appPackageName: { type: 'string', example: 'com.methnapp.app' },
+                        countryCode: { type: 'string', example: 'US' },
+                        disclosureVersion: { type: 'string', example: 'abo_v1' },
+                        disclosureShownAt: { type: 'string', example: '2026-01-10T14:34:22.000Z' },
+                        disclosureAcceptedAt: { type: 'string', example: '2026-01-10T14:34:29.000Z' },
+                        complianceSessionId: { type: 'string', example: 'abo_abc123' },
+                        externalTransactionToken: { type: 'string', example: 'ext_txn_123' },
+                    },
+                },
             },
-            required: ['planCode', 'provider'],
+            required: ['planCode'],
         },
     })
     async createCheckoutSession(@Request() req, @Body() dto: CreateCheckoutSessionDto) {
@@ -55,9 +70,13 @@ export class PaymentsController {
             type: 'object',
             properties: {
                 planCode: { type: 'string' },
-                provider: { type: 'string', enum: Object.values(PaymentProvider) },
+                provider: { type: 'string', enum: [PaymentProvider.STRIPE], default: PaymentProvider.STRIPE },
+                alternativeBilling: {
+                    type: 'object',
+                    description: 'Optional Google Play Alternative Billing Only reporting metadata',
+                },
             },
-            required: ['planCode', 'provider'],
+            required: ['planCode'],
         },
     })
     async createPaymentIntent(@Request() req, @Body() dto: CreateCheckoutSessionDto) {

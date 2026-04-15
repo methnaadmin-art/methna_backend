@@ -35,6 +35,8 @@ export class MatchesService {
         private readonly blockedUserRepository: Repository<BlockedUser>,
         @InjectRepository(Photo)
         private readonly photoRepository: Repository<Photo>,
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
         @InjectRepository(Conversation)
         private readonly conversationRepository: Repository<Conversation>,
         private readonly redisService: RedisService,
@@ -62,7 +64,21 @@ export class MatchesService {
                 .andWhere('photo.moderationStatus = :approvedStatus', { approvedStatus: 'approved' })
                 .getMany()
             : [];
-        const photoMap = new Map(photos.map(p => [p.userId, CloudinaryService.thumbnailUrl(p.url)]));
+        const photoMap = new Map(
+            photos.map((photo) => {
+                const variants = CloudinaryService.buildImageUrls(photo.url);
+                return [
+                    photo.userId,
+                    {
+                        thumbnailUrl: variants.thumbnailUrl,
+                        mediumUrl: variants.cardUrl,
+                        cardUrl: variants.cardUrl,
+                        profileUrl: variants.profileUrl,
+                        fullscreenUrl: variants.fullscreenUrl,
+                    },
+                ];
+            }),
+        );
 
         // Batch check online status via Redis
         const onlineChecks = await Promise.all(
@@ -73,14 +89,24 @@ export class MatchesService {
         const enriched = matches.map((match) => {
             const otherUserId = match.user1Id === userId ? match.user2Id : match.user1Id;
             const otherUser = match.user1Id === userId ? match.user2 : match.user1;
+            const hasActivePremium = this.hasActivePremiumEntitlement(otherUser);
+            const maskedByGhost = otherUser?.isGhostModeEnabled === true;
+            const photoSet = photoMap.get(otherUserId);
             return {
                 id: match.id,
                 matchedAt: match.matchedAt,
                 user: {
                     id: otherUser.id,
-                    firstName: otherUser.firstName,
-                    lastName: otherUser.lastName,
-                    photo: photoMap.get(otherUserId) || null,
+                    firstName: maskedByGhost ? 'Ghost' : otherUser.firstName,
+                    lastName: maskedByGhost ? 'Member' : otherUser.lastName,
+                    photo: maskedByGhost ? null : (photoSet?.thumbnailUrl || null),
+                    photoCard: maskedByGhost ? null : (photoSet?.cardUrl || null),
+                    photoProfile: maskedByGhost ? null : (photoSet?.profileUrl || null),
+                    photoFullscreen: maskedByGhost ? null : (photoSet?.fullscreenUrl || null),
+                    isGhostModeEnabled: maskedByGhost,
+                    isPremium: hasActivePremium,
+                    premiumStartDate: otherUser.premiumStartDate ?? null,
+                    premiumExpiryDate: otherUser.premiumExpiryDate ?? null,
                     isOnline: onlineMap.get(otherUserId) || false,
                     status: otherUser.status,
                 },
@@ -114,11 +140,21 @@ export class MatchesService {
 
     // ─── NEARBY USERS RADAR ─────────────────────────────────
 
-    async getNearbyUsers(userId: string, radiusKm: number = 50, limit: number = 30, country?: string, city?: string) {
+    async getNearbyUsers(
+        userId: string,
+        radiusKm: number = 50,
+        limit: number = 30,
+        country?: string,
+        city?: string,
+        restrictGallery?: boolean,
+    ) {
         const profile = await this.profileRepository.findOne({ where: { userId } });
         if (!profile || !profile.latitude || !profile.longitude) {
             return [];
         }
+
+        const viewerGalleryRestricted =
+            restrictGallery ?? (await this.isViewerGalleryRestricted(userId));
 
         const excludeIds = await this.getExcludeIds(userId);
 
@@ -153,17 +189,35 @@ export class MatchesService {
 
         // Apply country/city filters (case-insensitive exact match)
         if (country) {
-            query.andWhere('LOWER(profile.country) = LOWER(:country)', { country: country.trim() });
+            query.andWhere(
+                `(
+                    LOWER(profile.country) = LOWER(:country)
+                    OR (
+                        user."isPassportActive" = true
+                        AND LOWER(COALESCE(user."passportLocation"->>'country', '')) = LOWER(:country)
+                    )
+                )`,
+                { country: country.trim() },
+            );
         }
         if (city) {
-            query.andWhere('LOWER(profile.city) = LOWER(:city)', { city: city.trim() });
+            query.andWhere(
+                `(
+                    LOWER(profile.city) = LOWER(:city)
+                    OR (
+                        user."isPassportActive" = true
+                        AND LOWER(COALESCE(user."passportLocation"->>'city', '')) = LOWER(:city)
+                    )
+                )`,
+                { city: city.trim() },
+            );
         }
 
         query.orderBy('distance', 'ASC').take(limit);
 
         const results = await query.getRawAndEntities();
 
-        return this.enrichProfiles(results.entities);
+        return this.enrichProfiles(results.entities, viewerGalleryRestricted, userId);
     }
 
     // ─── DISCOVERY CATEGORIES ───────────────────────────────
@@ -174,11 +228,13 @@ export class MatchesService {
         const cached = await this.redisService.getJson<any>(cacheKey);
         if (cached) return cached;
 
+        const restrictGallery = await this.isViewerGalleryRestricted(userId);
+
         // Use allSettled so one failure doesn't crash the whole discovery
         const results = await Promise.allSettled([
-            this.getNearbyUsers(userId, 30, 10),
-            this.getSuggestions(userId, 10),
-            this.getNewUsers(userId, 10),
+            this.getNearbyUsers(userId, 30, 10, undefined, undefined, restrictGallery),
+            this.getSuggestions(userId, 10, restrictGallery),
+            this.getNewUsers(userId, 10, restrictGallery),
         ]);
         const nearby = results[0].status === 'fulfilled' ? results[0].value : [];
         const compatible = results[1].status === 'fulfilled' ? results[1].value : [];
@@ -207,9 +263,15 @@ export class MatchesService {
         return result;
     }
 
-    private async getNewUsers(userId: string, limit: number) {
+    private async getNewUsers(
+        userId: string,
+        limit: number,
+        restrictGallery?: boolean,
+    ) {
         const excludeIds = await this.getExcludeIds(userId);
         const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const viewerGalleryRestricted =
+            restrictGallery ?? (await this.isViewerGalleryRestricted(userId));
 
         const profiles = await this.profileRepository
             .createQueryBuilder('profile')
@@ -221,15 +283,22 @@ export class MatchesService {
             .take(limit)
             .getMany();
 
-        return this.enrichProfiles(profiles);
+        return this.enrichProfiles(profiles, viewerGalleryRestricted, userId);
     }
 
     // ─── SUGGESTIONS ────────────────────────────────────────
 
-    async getSuggestions(userId: string, limit: number = 20) {
+    async getSuggestions(
+        userId: string,
+        limit: number = 20,
+        restrictGallery?: boolean,
+    ) {
         const cacheKey = `suggestions:${userId}`;
         const cached = await this.redisService.getJson<any[]>(cacheKey);
         if (cached && cached.length > 0) return cached;
+
+        const viewerGalleryRestricted =
+            restrictGallery ?? (await this.isViewerGalleryRestricted(userId));
 
         const profile = await this.profileRepository.findOne({ where: { userId } });
         const preferences = await this.preferenceRepository.findOne({ where: { userId } });
@@ -281,7 +350,11 @@ export class MatchesService {
 
         const suggestions = await query.getMany();
 
-        const enriched = await this.enrichProfiles(suggestions);
+        const enriched = await this.enrichProfiles(
+            suggestions,
+            viewerGalleryRestricted,
+            userId,
+        );
 
         await this.redisService.setJson(cacheKey, enriched, 600);
         return enriched;
@@ -289,7 +362,11 @@ export class MatchesService {
 
     // ─── PRIVATE HELPERS ────────────────────────────────────
 
-    private async enrichProfiles(profiles: Profile[]): Promise<any[]> {
+    private async enrichProfiles(
+        profiles: Profile[],
+        viewerGalleryRestricted: boolean,
+        viewerId: string,
+    ): Promise<any[]> {
         if (profiles.length === 0) return [];
 
         const userIds = profiles.map(p => p.userId);
@@ -306,9 +383,16 @@ export class MatchesService {
         const photosMap = new Map<string, any[]>();
         for (const photo of photos) {
             if (!photosMap.has(photo.userId)) photosMap.set(photo.userId, []);
+            const variants = CloudinaryService.buildImageUrls(photo.url);
             photosMap.get(photo.userId)!.push({
                 id: photo.id,
-                url: photo.url,
+                originalUrl: variants.originalUrl,
+                url: variants.cardUrl,
+                thumbnailUrl: variants.thumbnailUrl,
+                mediumUrl: variants.cardUrl,
+                cardUrl: variants.cardUrl,
+                profileUrl: variants.profileUrl,
+                fullscreenUrl: variants.fullscreenUrl,
                 publicId: photo.publicId,
                 isMain: photo.isMain,
                 isSelfieVerification: photo.isSelfieVerification,
@@ -319,56 +403,283 @@ export class MatchesService {
             });
         }
 
-        return profiles.map((p) => ({
-            id: p.userId,
-            username: p.user?.username ?? null,
-            email: p.user?.email ?? '',
-            firstName: p.user?.firstName ?? null,
-            lastName: p.user?.lastName ?? null,
-            phone: p.user?.phone ?? null,
-            role: p.user?.role ?? 'user',
-            status: p.user?.status ?? 'active',
-            emailVerified: p.user?.emailVerified ?? false,
-            selfieVerified: p.user?.selfieVerified ?? false,
-            isShadowBanned: p.user?.isShadowBanned ?? false,
-            trustScore: p.user?.trustScore ?? 100,
-            flagCount: p.user?.flagCount ?? 0,
-            deviceCount: p.user?.deviceCount ?? 0,
-            notificationsEnabled: p.user?.notificationsEnabled ?? true,
-            lastLoginAt: p.user?.lastLoginAt ?? null,
-            createdAt: p.user?.createdAt ?? new Date(),
-            updatedAt: p.user?.updatedAt ?? new Date(),
-            photos: photosMap.get(p.userId) ?? [],
-            profile: {
-                id: p.id,
-                gender: p.gender,
-                dateOfBirth: p.dateOfBirth,
-                bio: p.bio,
-                ethnicity: p.ethnicity,
-                nationality: p.nationality,
-                city: p.city,
-                country: p.country,
-                latitude: p.latitude,
-                longitude: p.longitude,
-                religiousLevel: p.religiousLevel,
-                sect: p.sect,
-                prayerFrequency: p.prayerFrequency,
-                marriageIntention: p.marriageIntention,
-                maritalStatus: p.maritalStatus,
-                education: p.education,
-                jobTitle: p.jobTitle,
-                company: p.company,
-                height: p.height,
-                weight: p.weight,
-                interests: p.interests,
-                languages: p.languages,
-                intentMode: p.intentMode ?? null,
-                secondWifePreference: p.secondWifePreference ?? null,
-                profileCompletionPercentage: p.profileCompletionPercentage ?? 0,
-                activityScore: p.activityScore ?? 0,
-                isComplete: p.isComplete ?? false,
-            },
+        return profiles.map((p) => {
+            const effectiveProfile = this.resolveEffectiveProfileLocation(p);
+            const maskedByGhost = this.shouldMaskGhostProfile(
+                p.user as User | undefined,
+                viewerId,
+            );
+            const candidatePhotos = this.applyViewerPhotoAccessPolicy(
+                photosMap.get(p.userId) ?? [],
+                p.userId,
+                viewerGalleryRestricted,
+            );
+            const publicPhotos = maskedByGhost
+                ? this.applyGhostPhotoMask(candidatePhotos, p.userId)
+                : candidatePhotos;
+            const hasActivePremium = this.hasActivePremiumEntitlement(p.user);
+
+            return {
+                id: p.userId,
+                username: maskedByGhost ? null : p.user?.username ?? null,
+                email: maskedByGhost ? '' : p.user?.email ?? '',
+                firstName: maskedByGhost ? 'Ghost' : p.user?.firstName ?? null,
+                lastName: maskedByGhost ? 'Member' : p.user?.lastName ?? null,
+                phone: maskedByGhost ? null : p.user?.phone ?? null,
+                role: p.user?.role ?? 'user',
+                status: p.user?.status ?? 'active',
+                emailVerified: p.user?.emailVerified ?? false,
+                selfieVerified: p.user?.selfieVerified ?? false,
+                isShadowBanned: p.user?.isShadowBanned ?? false,
+                trustScore: p.user?.trustScore ?? 100,
+                flagCount: p.user?.flagCount ?? 0,
+                deviceCount: p.user?.deviceCount ?? 0,
+                notificationsEnabled: p.user?.notificationsEnabled ?? true,
+                isGhostModeEnabled: p.user?.isGhostModeEnabled ?? false,
+                isPassportActive:
+                    p.user?.isPassportActive === true &&
+                    this.extractPassportLocation(p.user as User | undefined) != null,
+                isPremium: hasActivePremium,
+                premiumStartDate: p.user?.premiumStartDate ?? null,
+                premiumExpiryDate: p.user?.premiumExpiryDate ?? null,
+                canViewAllPhotos: !viewerGalleryRestricted && !maskedByGhost,
+                lastLoginAt: p.user?.lastLoginAt ?? null,
+                createdAt: p.user?.createdAt ?? new Date(),
+                updatedAt: p.user?.updatedAt ?? new Date(),
+                photos: publicPhotos,
+                profile: {
+                    id: effectiveProfile.id,
+                    gender: effectiveProfile.gender,
+                    dateOfBirth: effectiveProfile.dateOfBirth,
+                    bio: maskedByGhost ? null : effectiveProfile.bio,
+                    ethnicity: effectiveProfile.ethnicity,
+                    nationality: effectiveProfile.nationality,
+                    city: effectiveProfile.city,
+                    country: effectiveProfile.country,
+                    latitude: effectiveProfile.latitude,
+                    longitude: effectiveProfile.longitude,
+                    religiousLevel: effectiveProfile.religiousLevel,
+                    sect: effectiveProfile.sect,
+                    prayerFrequency: effectiveProfile.prayerFrequency,
+                    marriageIntention: effectiveProfile.marriageIntention,
+                    maritalStatus: effectiveProfile.maritalStatus,
+                    education: effectiveProfile.education,
+                    jobTitle: maskedByGhost ? null : effectiveProfile.jobTitle,
+                    company: maskedByGhost ? null : effectiveProfile.company,
+                    height: effectiveProfile.height,
+                    weight: effectiveProfile.weight,
+                    interests: effectiveProfile.interests,
+                    languages: effectiveProfile.languages,
+                    intentMode: effectiveProfile.intentMode ?? null,
+                    secondWifePreference: effectiveProfile.secondWifePreference ?? null,
+                    profileCompletionPercentage: effectiveProfile.profileCompletionPercentage ?? 0,
+                    activityScore: effectiveProfile.activityScore ?? 0,
+                    isComplete: effectiveProfile.isComplete ?? false,
+                },
+            };
+        });
+    }
+
+    private resolveEffectiveProfileLocation(profile: Profile): Profile {
+        const passport = this.extractPassportLocation(profile.user as User | undefined);
+        if (!passport) {
+            return profile;
+        }
+
+        return {
+            ...profile,
+            city: passport.city ?? profile.city,
+            country: passport.country ?? profile.country,
+            latitude: Number.isFinite(passport.latitude) ? passport.latitude : profile.latitude,
+            longitude: Number.isFinite(passport.longitude) ? passport.longitude : profile.longitude,
+        } as Profile;
+    }
+
+    private extractPassportLocation(
+        user:
+            | Pick<User, 'isPassportActive' | 'passportLocation'>
+            | null
+            | undefined,
+    ): {
+        latitude?: number;
+        longitude?: number;
+        city?: string;
+        country?: string;
+    } | null {
+        if (!user || user.isPassportActive !== true || !user.passportLocation) {
+            return null;
+        }
+
+        const location = user.passportLocation;
+        if (typeof location !== 'object') {
+            return null;
+        }
+
+        const city = String(location.city ?? '').trim() || undefined;
+        const country = String(location.country ?? '').trim() || undefined;
+        const latitude = Number(location.latitude);
+        const longitude = Number(location.longitude);
+
+        return {
+            latitude: Number.isFinite(latitude) ? latitude : undefined,
+            longitude: Number.isFinite(longitude) ? longitude : undefined,
+            city,
+            country,
+        };
+    }
+
+    private shouldMaskGhostProfile(
+        user: Pick<User, 'id' | 'isGhostModeEnabled'> | undefined,
+        viewerId: string,
+    ): boolean {
+        if (!user) return false;
+        return user.isGhostModeEnabled === true && user.id !== viewerId;
+    }
+
+    private applyGhostPhotoMask(photos: any[], targetUserId: string): any[] {
+        if (!Array.isArray(photos) || photos.length === 0) {
+            return [
+                {
+                    id: `${targetUserId}-ghost-1`,
+                    url: '',
+                    originalUrl: '',
+                    thumbnailUrl: '',
+                    mediumUrl: '',
+                    cardUrl: '',
+                    profileUrl: '',
+                    fullscreenUrl: '',
+                    publicId: null,
+                    isMain: true,
+                    isSelfieVerification: false,
+                    order: 1,
+                    moderationStatus: 'ghost_masked',
+                    moderationNote: null,
+                    createdAt: null,
+                    isLocked: true,
+                    lockReason: 'This member is using Ghost Mode',
+                    unlockCta: 'Ghost mode keeps identity private until mutual trust is built',
+                },
+            ];
+        }
+
+        return photos.map((photo, index) => ({
+            ...photo,
+            id: photo.id ?? `${targetUserId}-ghost-${index + 1}`,
+            url: '',
+            originalUrl: '',
+            thumbnailUrl: '',
+            mediumUrl: '',
+            cardUrl: '',
+            profileUrl: '',
+            fullscreenUrl: '',
+            publicId: null,
+            isLocked: true,
+            lockReason: 'This member is using Ghost Mode',
+            unlockCta: 'Ghost mode keeps identity private until mutual trust is built',
         }));
+    }
+
+    private hasActivePremiumEntitlement(
+        user:
+            | Pick<User, 'isPremium' | 'premiumStartDate' | 'premiumExpiryDate'>
+            | null
+            | undefined,
+    ): boolean {
+        if (!user || user.isPremium !== true) {
+            return false;
+        }
+
+        const now = Date.now();
+        const premiumStartDate = user.premiumStartDate
+            ? new Date(user.premiumStartDate).getTime()
+            : null;
+        const premiumExpiryDate = user.premiumExpiryDate
+            ? new Date(user.premiumExpiryDate).getTime()
+            : null;
+
+        if (premiumStartDate !== null && Number.isFinite(premiumStartDate) && premiumStartDate > now) {
+            return false;
+        }
+
+        if (premiumExpiryDate !== null && Number.isFinite(premiumExpiryDate) && premiumExpiryDate <= now) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private async isViewerGalleryRestricted(userId: string): Promise<boolean> {
+        const viewer = await this.userRepository.findOne({
+            where: { id: userId },
+            select: {
+                id: true,
+                selfieVerified: true,
+                isPremium: true,
+                premiumStartDate: true,
+                premiumExpiryDate: true,
+            },
+        });
+
+        const isVerified = viewer?.selfieVerified === true;
+        const isPremium = this.hasActivePremiumEntitlement(viewer);
+
+        // Policy: free + non-verified viewers can only access the main profile photo.
+        return !isVerified && !isPremium;
+    }
+
+    private applyViewerPhotoAccessPolicy(
+        photos: any[],
+        targetUserId: string,
+        restrictGallery: boolean,
+    ): any[] {
+        if (!Array.isArray(photos) || photos.length === 0) {
+            return [];
+        }
+
+        if (!restrictGallery) {
+            return photos.map((photo) => ({
+                ...photo,
+                isLocked: false,
+            }));
+        }
+
+        const mainPhoto = photos.find((photo) => photo?.isMain) ?? photos[0];
+        if (!mainPhoto) {
+            return [];
+        }
+
+        const lockedCount = Math.max(photos.length - 1, 0);
+        const unlockedMain = {
+            ...mainPhoto,
+            isLocked: false,
+        };
+
+        if (lockedCount === 0) {
+            return [unlockedMain];
+        }
+
+        const lockedPlaceholders = Array.from({ length: lockedCount }).map((_, index) => ({
+            id: `${targetUserId}-locked-${index + 1}`,
+            url: '',
+            originalUrl: '',
+            thumbnailUrl: '',
+            mediumUrl: '',
+            cardUrl: '',
+            profileUrl: '',
+            fullscreenUrl: '',
+            publicId: null,
+            isMain: false,
+            isSelfieVerification: false,
+            order: (mainPhoto?.order ?? 0) + index + 1,
+            moderationStatus: 'locked',
+            moderationNote: null,
+            createdAt: mainPhoto?.createdAt ?? null,
+            isLocked: true,
+            lockReason: 'Verify your profile or upgrade to Premium to unlock all photos',
+            unlockCta: 'Verify your profile or upgrade to Premium',
+        }));
+
+        return [unlockedMain, ...lockedPlaceholders];
     }
 
     private async getExcludeIds(userId: string): Promise<string[]> {

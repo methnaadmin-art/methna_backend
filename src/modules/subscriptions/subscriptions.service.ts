@@ -62,7 +62,13 @@ export class SubscriptionsService {
         });
 
         const saved = await this.subscriptionRepository.save(subscription);
-        await this.updateUserPremiumState(userId, true, now, endDate);
+        await this.updateUserPremiumState(
+            userId,
+            true,
+            now,
+            endDate,
+            planEntity?.id ?? null,
+        );
         await this.invalidatePremiumCaches(userId);
         
         return saved;
@@ -151,7 +157,13 @@ export class SubscriptionsService {
         const saved = await this.subscriptionRepository.save(subscription);
 
         // Invalidate premium cache so swipe limits update immediately
-        await this.updateUserPremiumState(userId, planEntity.code !== 'free', now, endDate);
+        await this.updateUserPremiumState(
+            userId,
+            planEntity.code !== 'free',
+            now,
+            endDate,
+            planEntity.id,
+        );
         await this.invalidatePremiumCaches(userId);
 
         return saved;
@@ -202,7 +214,7 @@ export class SubscriptionsService {
         await this.subscriptionRepository.save(sub);
 
         // Invalidate premium cache
-        await this.updateUserPremiumState(userId, false, null, null);
+        await this.updateUserPremiumState(userId, false, null, null, null);
         await this.invalidatePremiumCaches(userId);
     }
 
@@ -268,6 +280,7 @@ export class SubscriptionsService {
             startDate <= now && expiryDate > now,
             startDate,
             expiryDate,
+            planEntity?.id ?? null,
         );
         await this.invalidatePremiumCaches(userId);
 
@@ -280,7 +293,7 @@ export class SubscriptionsService {
             { status: SubscriptionStatus.CANCELLED },
         );
 
-        await this.updateUserPremiumState(userId, false, null, null);
+        await this.updateUserPremiumState(userId, false, null, null, null);
         await this.invalidatePremiumCaches(userId);
     }
 
@@ -330,7 +343,7 @@ export class SubscriptionsService {
 
         const ids = [...expiredUserIds];
         await Promise.all(
-            ids.map((userId) => this.updateUserPremiumState(userId, false, null, null)),
+            ids.map((userId) => this.updateUserPremiumState(userId, false, null, null, null)),
         );
 
         await Promise.all(ids.map((userId) => this.invalidatePremiumCaches(userId)));
@@ -385,7 +398,13 @@ export class SubscriptionsService {
             const isPremium = activeSubscription.status === SubscriptionStatus.ACTIVE ||
                               activeSubscription.status === SubscriptionStatus.PAST_DUE;
 
-            await this.updateUserPremiumState(userId, isPremium, startDate, expiryDate);
+            await this.updateUserPremiumState(
+                userId,
+                isPremium,
+                startDate,
+                expiryDate,
+                activeSubscription.planId ?? activeSubscription.planEntity?.id ?? null,
+            );
             await this.invalidatePremiumCaches(userId);
 
             return {
@@ -404,7 +423,13 @@ export class SubscriptionsService {
             const startDate = new Date(activeSubscription.startDate);
             const expiryDate = activeSubscription.endDate ? new Date(activeSubscription.endDate) : null;
 
-            await this.updateUserPremiumState(userId, false, startDate, expiryDate);
+            await this.updateUserPremiumState(
+                userId,
+                false,
+                startDate,
+                expiryDate,
+                activeSubscription.planId ?? activeSubscription.planEntity?.id ?? null,
+            );
             await this.invalidatePremiumCaches(userId);
 
             return {
@@ -423,7 +448,7 @@ export class SubscriptionsService {
             );
         }
 
-        await this.updateUserPremiumState(userId, false, null, null);
+            await this.updateUserPremiumState(userId, false, null, null, null);
         await this.invalidatePremiumCaches(userId);
 
         return {
@@ -438,13 +463,20 @@ export class SubscriptionsService {
         isPremium: boolean,
         premiumStartDate: Date | null,
         premiumExpiryDate: Date | null,
+        subscriptionPlanId?: string | null,
     ): Promise<void> {
         try {
-            await this.userRepository.update(userId, {
+            const payload: Partial<User> = {
                 isPremium,
                 premiumStartDate,
                 premiumExpiryDate,
-            });
+            };
+
+            if (subscriptionPlanId !== undefined) {
+                payload.subscriptionPlanId = subscriptionPlanId;
+            }
+
+            await this.userRepository.update(userId, payload);
         } catch (error: any) {
             if (this.isMissingPremiumColumnsError(error)) {
                 if (!this.hasLoggedMissingPremiumColumns) {
@@ -519,7 +551,8 @@ export class SubscriptionsService {
         return (
             message.includes('isPremium') ||
             message.includes('premiumStartDate') ||
-            message.includes('premiumExpiryDate')
+            message.includes('premiumExpiryDate') ||
+            message.includes('subscriptionPlanId')
         );
     }
 
