@@ -11,6 +11,6 @@ import { RedisModule } from '../modules/redis/redis.module';
         RedisModule,
     ],
     providers: [ModerationGuard],
-    exports: [ModerationGuard],
+    exports: [ModerationGuard, TypeOrmModule, RedisModule],
 })
 export class ModerationModule {}
