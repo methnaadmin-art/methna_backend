@@ -4,13 +4,13 @@ import {
     BadRequestException,
     Logger,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import Stripe from 'stripe';
 import {
     Plan,
     PlanEntitlements,
+    PlanFeatureFlags,
+    PlanLimits,
     BillingCycle,
 } from '../../database/entities/plan.entity';
 import {
@@ -24,7 +24,6 @@ import { RedisService } from '../redis/redis.service';
 export class PlansService {
     private readonly logger = new Logger(PlansService.name);
     private hasLoggedMissingPlanCodeColumn = false;
-    private stripe: Stripe | null = null;
 
     constructor(
         @InjectRepository(Plan)
@@ -33,20 +32,8 @@ export class PlansService {
         private readonly subscriptionRepository: Repository<Subscription>,
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
-        private readonly configService: ConfigService,
         private readonly redisService: RedisService,
-    ) {
-        const stripeKey = this.normalizeConfigValue(
-            this.configService.get<string>('STRIPE_SECRET_KEY') ||
-            this.configService.get<string>('stripe.secretKey'),
-        );
-
-        if (stripeKey) {
-            this.stripe = new Stripe(stripeKey, { apiVersion: '2023-10-16' as any });
-        } else {
-            this.logger.warn('STRIPE_SECRET_KEY is missing. Auto Stripe price creation for plans is disabled.');
-        }
-    }
+    ) { }
 
     // PUBLIC ENDPOINTS
 
@@ -90,19 +77,13 @@ export class PlansService {
             if (existing) throw new BadRequestException("Plan code '" + dto.code + "' already exists");
         }
 
+        await this.assertGooglePlayPlanMapping(dto);
+
         // Sync entitlements -> legacy columns for backward compat
         const plan = this.planRepository.create(dto);
         this.syncEntitlementsToLegacy(plan);
 
-        const saved = await this.planRepository.manager.transaction(async manager => {
-            const planRepo = manager.getRepository(Plan);
-
-            let created = await planRepo.save(plan);
-            await this.ensureStripePriceForPaidPlan(created, { forceRegenerate: false });
-            created = await planRepo.save(created);
-
-            return created;
-        });
+        const saved = await this.planRepository.save(plan);
 
         await this.invalidatePlansCache();
         this.logger.log(`Plan created: ${saved.code} (${saved.name})`);
@@ -119,19 +100,10 @@ export class PlansService {
             if (existing) throw new BadRequestException(`Plan code '${dto.code}' already exists`);
         }
 
-        const pricingChanged =
-            dto.price !== undefined ||
-            dto.currency !== undefined ||
-            dto.billingCycle !== undefined;
-        const stripePriceIdTouched = Object.prototype.hasOwnProperty.call(dto, 'stripePriceId');
-        const stripePriceExplicitlyProvided = stripePriceIdTouched && !!dto.stripePriceId;
+        await this.assertGooglePlayPlanMapping(dto, id, plan);
 
         Object.assign(plan, dto);
         this.syncEntitlementsToLegacy(plan);
-
-        await this.ensureStripePriceForPaidPlan(plan, {
-            forceRegenerate: !stripePriceExplicitlyProvided && (pricingChanged || !plan.stripePriceId),
-        });
 
         const saved = await this.planRepository.save(plan);
         await this.invalidatePlansCache();
@@ -220,12 +192,22 @@ export class PlansService {
                 currency: 'usd',
                 billingCycle: BillingCycle.MONTHLY,
                 stripePriceId: null,
+                stripeProductId: null,
                 googleProductId: null,
+                googleBasePlanId: null,
                 durationDays: 0,
                 isActive: true,
                 isVisible: true,
                 sortOrder: 0,
                 entitlements: {
+                    dailyLikes: 10,
+                    dailySuperLikes: 0,
+                    dailyCompliments: 0,
+                    monthlyRewinds: 2,
+                    weeklyBoosts: 0,
+                },
+                featureFlags: {},
+                limits: {
                     dailyLikes: 10,
                     dailySuperLikes: 0,
                     dailyCompliments: 0,
@@ -271,7 +253,11 @@ export class PlansService {
 
     /** Merge entitlements JSONB with legacy columns (legacy takes precedence if set). */
     private mergeEntitlements(plan: Plan): PlanEntitlements {
-        const ent: PlanEntitlements = { ...plan.entitlements };
+        const ent: PlanEntitlements = {
+            ...(plan.entitlements || {}),
+            ...this.pickNumericLimits(plan.limits),
+            ...this.pickBooleanFeatures(plan.featureFlags),
+        };
 
         if (ent.dailyLikes === undefined && ent.likesLimit !== undefined) {
             ent.dailyLikes = ent.likesLimit;
@@ -344,7 +330,13 @@ export class PlansService {
 
     /** Sync entitlements JSONB -> legacy columns for backward compatibility. */
     private syncEntitlementsToLegacy(plan: Plan): void {
-        const ent = plan.entitlements || {};
+        const ent: PlanEntitlements = {
+            ...(plan.entitlements || {}),
+            ...this.pickNumericLimits(plan.limits),
+            ...this.pickBooleanFeatures(plan.featureFlags),
+        };
+
+        plan.entitlements = ent;
 
         if (ent.dailyLikes === undefined && ent.likesLimit !== undefined) {
             ent.dailyLikes = ent.likesLimit;
@@ -410,109 +402,153 @@ export class PlansService {
         if (ent.videoChat) featureFlags.push('video_chat');
         if (ent.typingIndicators) featureFlags.push('typing_indicators');
         plan.features = featureFlags;
+        plan.featureFlags = this.extractFeatureFlags(ent);
+        plan.limits = this.extractLimits(ent);
     }
 
-    private async ensureStripePriceForPaidPlan(
-        plan: Plan,
-        options: { forceRegenerate: boolean },
+    private async assertGooglePlayPlanMapping(
+        dto: Partial<Plan>,
+        currentPlanId?: string,
+        currentPlan?: Plan,
     ): Promise<void> {
-        const numericPrice = Number(plan.price ?? 0);
-        if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+        const effectivePrice = dto.price !== undefined
+            ? Number(dto.price)
+            : Number(currentPlan?.price ?? 0);
+        const isPaidPlan = Number.isFinite(effectivePrice) && effectivePrice > 0;
+        if (!isPaidPlan) {
             return;
         }
 
-        if (plan.stripePriceId && !options.forceRegenerate) {
-            return;
+        const googleProductId = this.normalizeNullableString(dto.googleProductId) || currentPlan?.googleProductId || null;
+        if (!googleProductId) {
+            throw new BadRequestException('googleProductId is required for paid plans');
         }
 
-        if (!this.stripe) {
-            throw new BadRequestException(
-                'Stripe is not configured on the server. Set STRIPE_SECRET_KEY or provide Stripe Price ID manually.',
-            );
+        const productCollision = await this.planRepository.findOne({ where: { googleProductId } });
+        if (productCollision && productCollision.id !== currentPlanId) {
+            throw new BadRequestException(`googleProductId '${googleProductId}' is already mapped to another plan`);
         }
 
-        plan.stripePriceId = await this.createStripePriceForPlan(plan, numericPrice);
-    }
-
-    private async createStripePriceForPlan(plan: Plan, numericPrice: number): Promise<string> {
-        if (!this.stripe) {
-            throw new BadRequestException('Stripe client is not initialized');
-        }
-
-        const currency = String(plan.currency || 'usd').toLowerCase();
-        const unitAmount = Math.round(numericPrice * 100);
-        if (unitAmount <= 0) {
-            throw new BadRequestException('Plan price must be greater than zero for Stripe pricing');
-        }
-
-        const interval = this.mapBillingCycleToStripeInterval(plan.billingCycle);
-
-        try {
-            const product = await this.stripe.products.create({
-                name: plan.name,
-                description: plan.description || undefined,
-                metadata: {
-                    planId: plan.id,
-                    planCode: plan.code,
-                },
-            });
-
-            const priceParams: Stripe.PriceCreateParams = {
-                currency,
-                unit_amount: unitAmount,
-                product: product.id,
-                metadata: {
-                    planId: plan.id,
-                    planCode: plan.code,
-                },
-            };
-
-            if (interval) {
-                priceParams.recurring = { interval };
+        const googleBasePlanId = this.normalizeNullableString(dto.googleBasePlanId) || currentPlan?.googleBasePlanId || null;
+        if (googleBasePlanId) {
+            const basePlanCollision = await this.planRepository.findOne({ where: { googleBasePlanId } });
+            if (basePlanCollision && basePlanCollision.id !== currentPlanId) {
+                throw new BadRequestException(`googleBasePlanId '${googleBasePlanId}' is already mapped to another plan`);
             }
-
-            const stripePrice = await this.stripe.prices.create(priceParams);
-            this.logger.log(`Auto-created Stripe price ${stripePrice.id} for plan ${plan.code}`);
-            return stripePrice.id;
-        } catch (error) {
-            this.logger.error(
-                `Failed auto-creating Stripe price for plan ${plan.code}: ${(error as Error).message}`,
-            );
-            throw new BadRequestException(
-                `Unable to auto-create Stripe price for plan '${plan.code}'. Verify Stripe keys and try again.`,
-            );
         }
+
+        dto.googleProductId = googleProductId;
+        dto.googleBasePlanId = googleBasePlanId;
     }
 
-    private mapBillingCycleToStripeInterval(
-        cycle?: BillingCycle,
-    ): Stripe.PriceCreateParams.Recurring.Interval | null {
-        switch (cycle) {
-            case BillingCycle.WEEKLY:
-                return 'week';
-            case BillingCycle.YEARLY:
-                return 'year';
-            case BillingCycle.ONE_TIME:
-                return null;
-            case BillingCycle.MONTHLY:
-            default:
-                return 'month';
-        }
-    }
-
-    private normalizeConfigValue(value?: string | null): string | null {
+    private normalizeNullableString(value?: string | null): string | null {
         if (!value) return null;
-        const trimmed = value.trim();
-        if (!trimmed) return null;
-        const withoutSingleQuotes =
-            trimmed.startsWith("'") && trimmed.endsWith("'")
-                ? trimmed.slice(1, -1)
-                : trimmed;
-        const withoutDoubleQuotes =
-            withoutSingleQuotes.startsWith('"') && withoutSingleQuotes.endsWith('"')
-                ? withoutSingleQuotes.slice(1, -1)
-                : withoutSingleQuotes;
-        return withoutDoubleQuotes.trim() || null;
+        const normalized = String(value).trim();
+        return normalized.length > 0 ? normalized : null;
+    }
+
+    private pickNumericLimits(limits?: PlanLimits | null): Partial<PlanEntitlements> {
+        if (!limits || typeof limits !== 'object') {
+            return {};
+        }
+
+        const result: Partial<PlanEntitlements> = {};
+        const keys: Array<keyof PlanLimits> = [
+            'dailyLikes',
+            'dailySuperLikes',
+            'dailyCompliments',
+            'monthlyRewinds',
+            'weeklyBoosts',
+            'likesLimit',
+            'boostsLimit',
+            'complimentsLimit',
+        ];
+
+        for (const key of keys) {
+            const value = limits[key];
+            if (typeof value === 'number' && Number.isFinite(value)) {
+                (result as any)[key] = value;
+            }
+        }
+
+        return result;
+    }
+
+    private pickBooleanFeatures(featureFlags?: PlanFeatureFlags | null): Partial<PlanEntitlements> {
+        if (!featureFlags || typeof featureFlags !== 'object') {
+            return {};
+        }
+
+        const result: Partial<PlanEntitlements> = {};
+        const keys: Array<keyof PlanFeatureFlags> = [
+            'unlimitedLikes',
+            'unlimitedRewinds',
+            'advancedFilters',
+            'seeWhoLikesYou',
+            'readReceipts',
+            'typingIndicators',
+            'invisibleMode',
+            'ghostMode',
+            'passportMode',
+            'whoLikedMe',
+            'boost',
+            'likes',
+            'premiumBadge',
+            'hideAds',
+            'rematch',
+            'videoChat',
+            'superLike',
+            'profileBoostPriority',
+            'priorityMatching',
+            'improvedVisits',
+        ];
+
+        for (const key of keys) {
+            const value = featureFlags[key];
+            if (typeof value === 'boolean') {
+                (result as any)[key] = value;
+            }
+        }
+
+        return result;
+    }
+
+    private extractFeatureFlags(entitlements: PlanEntitlements): PlanFeatureFlags {
+        return {
+            unlimitedLikes: entitlements.unlimitedLikes,
+            unlimitedRewinds: entitlements.unlimitedRewinds,
+            advancedFilters: entitlements.advancedFilters,
+            seeWhoLikesYou: entitlements.seeWhoLikesYou,
+            whoLikedMe: entitlements.whoLikedMe,
+            readReceipts: entitlements.readReceipts,
+            typingIndicators: entitlements.typingIndicators,
+            invisibleMode: entitlements.invisibleMode,
+            ghostMode: entitlements.ghostMode,
+            passportMode: entitlements.passportMode,
+            boost: entitlements.boost,
+            likes: entitlements.likes,
+            premiumBadge: entitlements.premiumBadge,
+            hideAds: entitlements.hideAds,
+            rematch: entitlements.rematch,
+            videoChat: entitlements.videoChat,
+            superLike: entitlements.superLike,
+            profileBoostPriority: entitlements.profileBoostPriority,
+            priorityMatching: entitlements.priorityMatching,
+            improvedVisits: entitlements.improvedVisits,
+        };
+    }
+
+    private extractLimits(entitlements: PlanEntitlements): PlanLimits {
+        return {
+            dailyLikes: entitlements.dailyLikes,
+            dailySuperLikes: entitlements.dailySuperLikes,
+            dailyCompliments: entitlements.dailyCompliments,
+            monthlyRewinds: entitlements.monthlyRewinds,
+            weeklyBoosts: entitlements.weeklyBoosts,
+            likesLimit: entitlements.likesLimit,
+            boostsLimit: entitlements.boostsLimit,
+            complimentsLimit: entitlements.complimentsLimit,
+        };
     }
 
     private async invalidatePlansCache(): Promise<void> {

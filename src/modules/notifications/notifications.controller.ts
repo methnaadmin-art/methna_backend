@@ -48,11 +48,28 @@ export class NotificationsController {
         return { message: 'Notification marked as read' };
     }
 
+    @Patch(':id/unread')
+    @ApiOperation({ summary: 'Mark notification as unread' })
+    async markAsUnread(
+        @CurrentUser('sub') userId: string,
+        @Param('id') notificationId: string,
+    ) {
+        await this.notificationsService.markAsUnread(userId, notificationId);
+        return { message: 'Notification marked as unread' };
+    }
+
     @Patch('read-all')
     @ApiOperation({ summary: 'Mark all notifications as read' })
     async markAllAsRead(@CurrentUser('sub') userId: string) {
         await this.notificationsService.markAllAsRead(userId);
         return { message: 'All notifications marked as read' };
+    }
+
+    @Delete('clear-all')
+    @ApiOperation({ summary: 'Delete all notifications' })
+    async clearAllNotifications(@CurrentUser('sub') userId: string) {
+        await this.notificationsService.clearAllNotifications(userId);
+        return { message: 'All notifications deleted' };
     }
 
     @Delete(':id')

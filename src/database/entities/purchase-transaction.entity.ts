@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { Plan } from './plan.entity';
+import { ConsumableProduct } from './consumable-product.entity';
 
 export enum PurchaseProvider {
     STRIPE = 'stripe',
@@ -45,6 +46,14 @@ export class PurchaseTransaction {
     @ManyToOne(() => Plan, { onDelete: 'SET NULL', nullable: true })
     @JoinColumn({ name: 'planId' })
     plan: Plan | null;
+
+    @Index()
+    @Column({ type: 'uuid', nullable: true })
+    consumableProductId: string | null;
+
+    @ManyToOne(() => ConsumableProduct, { onDelete: 'SET NULL', nullable: true })
+    @JoinColumn({ name: 'consumableProductId' })
+    consumableProduct: ConsumableProduct | null;
 
     @Column({ type: 'enum', enum: PurchaseProvider })
     provider: PurchaseProvider;

@@ -33,6 +33,9 @@ import { DailyInsightsModule } from './modules/daily-insights/daily-insights.mod
 import { ContentModule } from './modules/content/content.module';
 import { ModerationModule } from './common/moderation.module';
 import { AdsModule } from './modules/ads/ads.module';
+import { MobileModule } from './modules/mobile/mobile.module';
+import { WebModule } from './modules/web/web.module';
+import { ConsumablesModule } from './modules/consumables/consumable.module';
 import configuration from './config/configuration';
 
 @Module({
@@ -89,6 +92,13 @@ import configuration from './config/configuration';
         ContentModule,
         ModerationModule,
         AdsModule,
+
+        // Consumable purchases (likes/compliments/boosts packs)
+        ConsumablesModule,
+
+        // Platform-specific API surfaces
+        MobileModule,   // /mobile/* — Google Play Billing only
+        WebModule,      // /web/*    — Stripe only + /webhook/stripe
     ],
 })
 export class AppModule { }

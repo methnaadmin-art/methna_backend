@@ -1,12 +1,15 @@
 ﻿import { Injectable, NotFoundException, BadRequestException, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, Not, IsNull } from 'typeorm';
+import { ConflictException } from '@nestjs/common';
+import { Repository, ILike, Not, IsNull, Brackets } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import {
     User,
     UserRole,
     UserStatus,
     VerificationStatus,
+    ModerationReasonCode,
+    ActionRequired,
     normalizeVerificationState,
 } from '../../database/entities/user.entity';
 import { Report, ReportStatus } from '../../database/entities/report.entity';
@@ -19,7 +22,7 @@ import { Message, MessageType } from '../../database/entities/message.entity';
 import { Boost } from '../../database/entities/boost.entity';
 import { Notification, NotificationType } from '../../database/entities/notification.entity';
 import { Conversation } from '../../database/entities/conversation.entity';
-import { SupportTicket, TicketStatus } from '../../database/entities/support-ticket.entity';
+import { SupportTicket, TicketStatus, TicketPriority } from '../../database/entities/support-ticket.entity';
 import { Ad } from '../../database/entities/ad.entity';
 import { BlockedUser } from '../../database/entities/blocked-user.entity';
 import { RematchRequest, RematchStatus } from '../../database/entities/rematch-request.entity';
@@ -31,9 +34,91 @@ import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { PlansService } from '../plans/plans.service';
 import { ChatService } from '../chat/chat.service';
 
+type SortOrder = 'asc' | 'desc';
+
+interface AdminUserFilters {
+    status?: UserStatus;
+    search?: string;
+    role?: UserRole;
+    plan?: string;
+    premiumState?: 'all' | 'premium' | 'not_premium' | 'expired';
+    verificationState?: 'all' | 'pending' | 'approved' | 'rejected';
+    dateFrom?: Date;
+    dateTo?: Date;
+    sortBy?: string;
+    sortOrder?: SortOrder;
+}
+
+interface AdminVerificationFilters {
+    search?: string;
+    status?: 'all' | 'pending' | 'approved' | 'rejected';
+    type?: 'all' | 'selfie' | 'identity' | 'marital_status';
+    userStatus?: UserStatus;
+    dateFrom?: Date;
+    dateTo?: Date;
+    sortBy?: string;
+    sortOrder?: SortOrder;
+}
+
+interface AdminNotificationsFilters {
+    search?: string;
+    userId?: string;
+    type?: string;
+    isRead?: boolean;
+    dateFrom?: Date;
+    dateTo?: Date;
+    sortBy?: string;
+    sortOrder?: SortOrder;
+}
+
+interface AdminTicketsFilters {
+    status?: TicketStatus;
+    priority?: TicketPriority;
+    search?: string;
+    userId?: string;
+    assignedToId?: string;
+    dateFrom?: Date;
+    dateTo?: Date;
+    sortBy?: string;
+    sortOrder?: SortOrder;
+}
+
 @Injectable()
 export class AdminService implements OnModuleInit {
     private readonly logger = new Logger(AdminService.name);
+    private static readonly USER_SORT_COLUMNS: Record<string, string> = {
+        createdAt: 'user.createdAt',
+        updatedAt: 'user.updatedAt',
+        lastLoginAt: 'user.lastLoginAt',
+        firstName: 'user.firstName',
+        email: 'user.email',
+        status: 'user.status',
+        trustScore: 'user.trustScore',
+        premiumExpiryDate: 'user.premiumExpiryDate',
+    };
+
+    private static readonly VERIFICATION_SORT_COLUMNS: Record<string, string> = {
+        createdAt: 'user.createdAt',
+        updatedAt: 'user.updatedAt',
+        firstName: 'user.firstName',
+        email: 'user.email',
+        status: 'user.status',
+    };
+
+    private static readonly NOTIFICATION_SORT_COLUMNS: Record<string, string> = {
+        createdAt: 'notification.createdAt',
+        type: 'notification.type',
+        isRead: 'notification.isRead',
+    };
+
+    private static readonly TICKET_SORT_COLUMNS: Record<string, string> = {
+        createdAt: 'ticket.createdAt',
+        updatedAt: 'ticket.updatedAt',
+        repliedAt: 'ticket.repliedAt',
+        status: 'ticket.status',
+        priority: 'ticket.priority',
+    };
+
     private static readonly ADMIN_USER_SELECT = {
         id: true,
         username: true,
@@ -43,6 +128,15 @@ export class AdminService implements OnModuleInit {
         phone: true,
         role: true,
         status: true,
+        statusReason: true,
+        moderationReasonCode: true,
+        moderationReasonText: true,
+        actionRequired: true,
+        supportMessage: true,
+        isUserVisible: true,
+        moderationExpiresAt: true,
+        internalAdminNote: true,
+        updatedByAdminId: true,
         verification: true,
         emailVerified: true,
         selfieVerified: true,
@@ -76,6 +170,15 @@ export class AdminService implements OnModuleInit {
         'user.phone',
         'user.role',
         'user.status',
+        'user.statusReason',
+        'user.moderationReasonCode',
+        'user.moderationReasonText',
+        'user.actionRequired',
+        'user.supportMessage',
+        'user.isUserVisible',
+        'user.moderationExpiresAt',
+        'user.internalAdminNote',
+        'user.updatedByAdminId',
         'user.verification',
         'user.emailVerified',
         'user.selfieVerified',
@@ -182,36 +285,113 @@ export class AdminService implements OnModuleInit {
 
     // â”€â”€â”€ USER MANAGEMENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    async getUsers(pagination: PaginationDto, status?: UserStatus, search?: string, role?: UserRole, plan?: string) {
+    async getUsers(
+        pagination: PaginationDto,
+        statusOrFilters?: UserStatus | AdminUserFilters,
+        search?: string,
+        role?: UserRole,
+        plan?: string,
+    ) {
+        const filters = this.normalizeUserFilters(statusOrFilters, search, role, plan);
         const qb = this.userRepository.createQueryBuilder('user');
-        qb.select([...AdminService.ADMIN_USER_QUERY_SELECT_COLUMNS]);
 
-        if (status) qb.andWhere('user.status = :status', { status });
-        if (role) qb.andWhere('user.role = :role', { role });
-        if (search) {
+        qb.select([...AdminService.ADMIN_USER_QUERY_SELECT_COLUMNS]).distinct(true);
+
+        if (filters.status) {
+            qb.andWhere('user.status = :status', { status: filters.status });
+        }
+        if (filters.role) {
+            qb.andWhere('user.role = :role', { role: filters.role });
+        }
+
+        const normalizedSearch = filters.search?.trim();
+        if (normalizedSearch) {
+            const likeSearch = `%${normalizedSearch}%`;
             qb.andWhere(
-                '(user.id::text = :exactSearch OR user.firstName ILIKE :likeSearch OR user.lastName ILIKE :likeSearch OR CONCAT(user.firstName, \' \', user.lastName) ILIKE :likeSearch OR user.email ILIKE :likeSearch OR user.username ILIKE :likeSearch)',
-                { exactSearch: search.trim(), likeSearch: `%${search.trim()}%` },
+                new Brackets((searchQb) => {
+                    searchQb
+                        .where('user.id::text = :exactSearch', { exactSearch: normalizedSearch })
+                        .orWhere('user.firstName ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user.lastName ILIKE :likeSearch', { likeSearch })
+                        .orWhere("CONCAT(user.firstName, ' ', user.lastName) ILIKE :likeSearch", {
+                            likeSearch,
+                        })
+                        .orWhere('user.email ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user.username ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user.phone ILIKE :likeSearch', { likeSearch });
+                }),
             );
         }
-        if (plan) {
+
+        if (filters.plan) {
             qb.innerJoin(
                 'subscriptions',
                 'sub',
-                'sub."userId" = user.id AND sub.status = :subStatus',
-                { subStatus: SubscriptionStatus.ACTIVE },
+                'sub."userId" = user.id AND sub.status IN (:...subStatuses)',
+                { subStatuses: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE] },
             );
             qb.leftJoin('plans', 'planEntity', 'planEntity.id = sub."planId"');
-            qb.andWhere('(planEntity.code = :plan OR sub.plan = :plan)', { plan });
+            qb.andWhere('(planEntity.code = :plan OR sub.plan = :plan)', { plan: filters.plan });
         }
 
-        qb.orderBy('user.createdAt', 'DESC')
+        if (filters.premiumState && filters.premiumState !== 'all') {
+            const now = new Date();
+            if (filters.premiumState === 'premium') {
+                qb.andWhere(
+                    '(user.isPremium = true AND (user.premiumExpiryDate IS NULL OR user.premiumExpiryDate >= :premiumNow))',
+                    { premiumNow: now },
+                );
+            } else if (filters.premiumState === 'not_premium') {
+                qb.andWhere('(user.isPremium = false OR user.premiumExpiryDate < :premiumNow)', {
+                    premiumNow: now,
+                });
+            } else if (filters.premiumState === 'expired') {
+                qb.andWhere('user.premiumExpiryDate < :premiumNow', { premiumNow: now });
+            }
+        }
+
+        if (filters.verificationState && filters.verificationState !== 'all') {
+            const selfieStatusExpr = `COALESCE(user.verification->'selfie'->>'status', CASE WHEN user."selfieUrl" IS NOT NULL AND user."selfieVerified" = true THEN :approvedStatus WHEN user."selfieUrl" IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
+            const identityStatusExpr = `COALESCE(user.verification->'identity'->>'status', CASE WHEN user."documentUrl" IS NOT NULL AND user."documentVerified" = true THEN :approvedStatus WHEN user."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN user."documentUrl" IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
+            const maritalStatusExpr = `COALESCE(user.verification->'marital_status'->>'status', :notSubmittedStatus)`;
+            qb.setParameters({
+                approvedStatus: VerificationStatus.APPROVED,
+                pendingStatus: VerificationStatus.PENDING,
+                rejectedStatus: VerificationStatus.REJECTED,
+                notSubmittedStatus: VerificationStatus.NOT_SUBMITTED,
+            });
+
+            if (filters.verificationState === 'pending') {
+                qb.andWhere(`(${selfieStatusExpr} = :pendingStatus OR ${identityStatusExpr} = :pendingStatus OR ${maritalStatusExpr} = :pendingStatus)`);
+            } else if (filters.verificationState === 'approved') {
+                qb.andWhere(`(${selfieStatusExpr} = :approvedStatus OR ${identityStatusExpr} = :approvedStatus OR ${maritalStatusExpr} = :approvedStatus)`);
+            } else if (filters.verificationState === 'rejected') {
+                qb.andWhere(`(${selfieStatusExpr} = :rejectedStatus OR ${identityStatusExpr} = :rejectedStatus OR ${maritalStatusExpr} = :rejectedStatus)`);
+            }
+        }
+
+        if (filters.dateFrom) {
+            qb.andWhere('user.createdAt >= :dateFrom', { dateFrom: filters.dateFrom });
+        }
+        if (filters.dateTo) {
+            qb.andWhere('user.createdAt <= :dateTo', { dateTo: this.endOfDay(filters.dateTo) });
+        }
+
+        const sortColumn = this.resolveSortColumn(
+            filters.sortBy,
+            AdminService.USER_SORT_COLUMNS,
+            'user.createdAt',
+        );
+        const sortOrder = this.resolveSortOrder(filters.sortOrder);
+
+        qb.orderBy(sortColumn, sortOrder)
             .skip(pagination.skip)
             .take(pagination.limit);
 
         const [users, total] = await qb.getManyAndCount();
+        const normalizedUsers = users.map((user) => this.normalizeUserState(user));
         return {
-            users: users.map((user) => this.normalizeUserState(user)),
+            users: normalizedUsers,
             total,
             page: pagination.page,
             limit: pagination.limit,
@@ -230,6 +410,7 @@ export class AdminService implements OnModuleInit {
             },
         });
         if (!user) throw new NotFoundException('User not found');
+        const normalizedUser = this.normalizeUserState(user);
 
         const profile = await this.profileRepository.findOne({ where: { userId } });
         const photos = await this.photoRepository.find({ where: { userId } });
@@ -241,21 +422,21 @@ export class AdminService implements OnModuleInit {
 
         // Compute premium display fields
         const now = new Date();
-        const premiumExpiryDate = user.premiumExpiryDate ? new Date(user.premiumExpiryDate) : null;
+        const premiumExpiryDate = normalizedUser.premiumExpiryDate ? new Date(normalizedUser.premiumExpiryDate) : null;
         const premiumRemainingDays = premiumExpiryDate
             ? Math.max(0, Math.ceil((premiumExpiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
             : 0;
         const premiumIsExpired = premiumExpiryDate ? premiumExpiryDate < now : false;
 
         return {
-            user: this.normalizeUserState(user),
+            user: normalizedUser,
             profile,
             photos,
             subscription,
             premium: {
-                isPremium: user.isPremium,
-                startDate: user.premiumStartDate,
-                expiryDate: user.premiumExpiryDate,
+                isPremium: normalizedUser.isPremium,
+                startDate: normalizedUser.premiumStartDate,
+                expiryDate: normalizedUser.premiumExpiryDate,
                 remainingDays: premiumRemainingDays,
                 isExpired: premiumIsExpired,
             },
@@ -300,12 +481,26 @@ export class AdminService implements OnModuleInit {
         const reverifyMessage =
             rejectionReason ||
             "Please upload a clearer passport, national ID, or driver's license.";
+        const verification = normalizeVerificationState(user.verification);
+        const now = new Date().toISOString();
 
         user.documentVerified = approved;
         user.documentVerifiedAt = approved ? new Date() : null;
         (user as any).documentRejectionReason = approved
             ? null
             : reverifyMessage;
+        user.verification = {
+            ...verification,
+            identity: {
+                ...verification.identity,
+                status: approved ? VerificationStatus.APPROVED : VerificationStatus.REJECTED,
+                url: user.documentUrl,
+                submittedAt: verification.identity.submittedAt || now,
+                reviewedAt: now,
+                reviewedBy: 'admin',
+                rejectionReason: approved ? null : reverifyMessage,
+            },
+        };
 
         if (approved && user.status === UserStatus.PENDING_VERIFICATION) {
             user.status = UserStatus.ACTIVE;
@@ -328,6 +523,8 @@ export class AdminService implements OnModuleInit {
                 documentType: user.documentType ?? null,
                 status: approved ? 'approved' : 'rejected',
                 rejectionReason: approved ? null : reverifyMessage,
+                route: '/trust-safety/verification-status',
+                targetScreen: 'verification_center',
             },
         });
 
@@ -345,9 +542,23 @@ export class AdminService implements OnModuleInit {
         });
         let count = 0;
         for (const user of pending) {
+            const verification = normalizeVerificationState(user.verification);
+            const now = new Date().toISOString();
             user.documentVerified = true;
             user.documentVerifiedAt = new Date();
             (user as any).documentRejectionReason = null;
+            user.verification = {
+                ...verification,
+                identity: {
+                    ...verification.identity,
+                    status: VerificationStatus.APPROVED,
+                    url: user.documentUrl,
+                    submittedAt: verification.identity.submittedAt || now,
+                    reviewedAt: now,
+                    reviewedBy: 'admin:auto',
+                    rejectionReason: null,
+                },
+            };
             if (user.status === UserStatus.PENDING_VERIFICATION) {
                 user.status = UserStatus.ACTIVE;
             }
@@ -363,20 +574,39 @@ export class AdminService implements OnModuleInit {
 
     async createUser(dto: {
         email: string; password: string; firstName: string; lastName: string;
-        role?: UserRole; status?: UserStatus;
+        username?: string; role?: UserRole | string; status?: UserStatus;
     }) {
-        const exists = await this.userRepository.findOne({ where: { email: dto.email } });
+        const normalizedEmail = dto.email.trim().toLowerCase();
+        const normalizedUsername = dto.username?.trim().toLowerCase() || null;
+        const normalizedRole = this.normalizeUserRole(dto.role);
+
+        if (dto.role !== undefined && !normalizedRole) {
+            throw new BadRequestException('Invalid role. Use user, admin, moderator, or staff.');
+        }
+
+        const exists = await this.userRepository.findOne({ where: { email: normalizedEmail } });
         if (exists) throw new BadRequestException('Email already exists');
+
+        if (normalizedUsername) {
+            const existingUsername = await this.userRepository.findOne({
+                where: { username: normalizedUsername },
+                select: { id: true },
+            });
+            if (existingUsername) {
+                throw new ConflictException('Username already taken');
+            }
+        }
 
         const salt = await bcrypt.genSalt(12);
         const hashedPassword = await bcrypt.hash(dto.password, salt);
 
         const user = this.userRepository.create({
-            email: dto.email,
+            email: normalizedEmail,
             password: hashedPassword,
             firstName: dto.firstName,
             lastName: dto.lastName,
-            role: dto.role || UserRole.USER,
+            username: normalizedUsername ?? undefined,
+            role: normalizedRole || UserRole.USER,
             status: dto.status || UserStatus.ACTIVE,
             emailVerified: true,
             trustScore: 100,
@@ -402,6 +632,62 @@ export class AdminService implements OnModuleInit {
         const incoming: Record<string, any> = { ...dto };
         delete incoming.password;
         delete incoming.id;
+
+        const premiumEnabled = this.parseBoolean(
+            incoming.isPremium ?? incoming.premiumEnabled ?? incoming.premium,
+        );
+        const premiumStartInput = incoming.premiumStartDate ?? incoming.startDate;
+        const premiumExpiryInput = incoming.premiumExpiryDate ?? incoming.expiryDate;
+        const hasPremiumUpdate =
+            premiumEnabled !== undefined ||
+            premiumStartInput !== undefined ||
+            premiumExpiryInput !== undefined;
+
+        delete incoming.isPremium;
+        delete incoming.premiumEnabled;
+        delete incoming.premium;
+        delete incoming.premiumStartDate;
+        delete incoming.premiumExpiryDate;
+        delete incoming.startDate;
+        delete incoming.expiryDate;
+
+        if (incoming.role !== undefined) {
+            const normalizedRole = this.normalizeUserRole(incoming.role);
+            if (!normalizedRole) {
+                throw new BadRequestException('Invalid role. Use user, admin, moderator, or staff.');
+            }
+            incoming.role = normalizedRole;
+        }
+
+        if (incoming.email !== undefined) {
+            incoming.email = String(incoming.email).trim().toLowerCase();
+            if (!incoming.email) {
+                throw new BadRequestException('Email cannot be empty');
+            }
+
+            const existingEmail = await this.userRepository.findOne({
+                where: { email: incoming.email },
+                select: { id: true },
+            });
+            if (existingEmail && existingEmail.id !== userId) {
+                throw new ConflictException('Email already exists');
+            }
+        }
+
+        if (incoming.username !== undefined) {
+            const normalizedUsername = String(incoming.username || '').trim().toLowerCase();
+            incoming.username = normalizedUsername || null;
+
+            if (incoming.username) {
+                const existingUsername = await this.userRepository.findOne({
+                    where: { username: incoming.username },
+                    select: { id: true },
+                });
+                if (existingUsername && existingUsername.id !== userId) {
+                    throw new ConflictException('Username already taken');
+                }
+            }
+        }
 
         const nestedProfile = incoming.profile && typeof incoming.profile === 'object'
             ? incoming.profile
@@ -437,8 +723,34 @@ export class AdminService implements OnModuleInit {
         if (incoming.verification !== undefined) {
             incoming.verification = normalizeVerificationState(incoming.verification);
         }
+
+        if (hasPremiumUpdate) {
+            if (premiumEnabled === false) {
+                await this.subscriptionsService.removePremium(userId);
+            } else {
+                const premiumStartDate = this.parseDateInput(
+                    premiumStartInput,
+                    user.premiumStartDate ?? new Date(),
+                );
+                const premiumExpiryDate = this.parseDateInput(premiumExpiryInput, null);
+
+                if (!premiumExpiryDate) {
+                    throw new BadRequestException('premiumExpiryDate is required when enabling premium');
+                }
+                if (premiumStartDate && premiumExpiryDate <= premiumStartDate) {
+                    throw new BadRequestException('premiumExpiryDate must be later than premiumStartDate');
+                }
+
+                await this.subscriptionsService.setManualPremium(
+                    userId,
+                    premiumStartDate ?? new Date(),
+                    premiumExpiryDate,
+                );
+            }
+        }
+
         Object.assign(user, incoming);
-        const savedUser = await this.userRepository.save(user);
+        await this.userRepository.save(user);
 
         if (Object.keys(profileUpdate).length > 0) {
             const profile = await this.profileRepository.findOne({ where: { userId } });
@@ -449,7 +761,11 @@ export class AdminService implements OnModuleInit {
             await this.profileRepository.save(profile);
         }
 
-        return this.normalizeUserState(savedUser);
+        const savedUser = await this.userRepository.findOne({
+            where: { id: userId },
+            select: AdminService.ADMIN_USER_SELECT,
+        });
+        return savedUser ? this.normalizeUserState(savedUser) : null;
     }
 
     // â”€â”€â”€ PER-USER ACTIVITY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -529,7 +845,7 @@ export class AdminService implements OnModuleInit {
 
     // â”€â”€â”€ CONVERSATIONS (ADMIN VIEW) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    async getConversations(pagination: PaginationDto, search?: string) {
+    async getConversations(pagination: PaginationDto, search?: string, filters?: { locked?: boolean; flagged?: boolean }) {
         const qb = this.conversationRepository
             .createQueryBuilder('c')
             .leftJoinAndSelect('c.user1', 'user1')
@@ -541,10 +857,33 @@ export class AdminService implements OnModuleInit {
             .take(pagination.limit);
 
         if (search) {
+            const normalizedSearch = search.trim();
+            const likeSearch = `%${normalizedSearch}%`;
             qb.andWhere(
-                `(user1.firstName ILIKE :q OR user1.lastName ILIKE :q OR user2.firstName ILIKE :q OR user2.lastName ILIKE :q)`,
-                { q: `%${search}%` },
+                new Brackets((searchQb) => {
+                    searchQb
+                        .where('c.id::text = :exactSearch', { exactSearch: normalizedSearch })
+                        .orWhere('user1.id::text = :exactSearch', { exactSearch: normalizedSearch })
+                        .orWhere('user2.id::text = :exactSearch', { exactSearch: normalizedSearch })
+                        .orWhere('user1.email ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user2.email ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user1.username ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user2.username ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user1.firstName ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user1.lastName ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user2.firstName ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user2.lastName ILIKE :likeSearch', { likeSearch })
+                        .orWhere("CONCAT(user1.firstName, ' ', user1.lastName) ILIKE :likeSearch", { likeSearch })
+                        .orWhere("CONCAT(user2.firstName, ' ', user2.lastName) ILIKE :likeSearch", { likeSearch });
+                }),
             );
+        }
+
+        if (filters?.locked === true) {
+            qb.andWhere('c.isLocked = true');
+        }
+        if (filters?.flagged === true) {
+            qb.andWhere('c.isFlagged = true');
         }
 
         const [conversations, total] = await qb.getManyAndCount();
@@ -567,7 +906,24 @@ export class AdminService implements OnModuleInit {
                     message.content = this.chatService.decryptMessageContent(message.content);
                     return message;
                 })
-                .filter(message => (message.content || '').toLowerCase().includes(normalizedSearch));
+                .filter((message) => {
+                    const sender = message.sender as any;
+                    const haystacks = [
+                        message.content,
+                        sender?.id,
+                        sender?.email,
+                        sender?.username,
+                        sender?.firstName,
+                        sender?.lastName,
+                        `${sender?.firstName || ''} ${sender?.lastName || ''}`.trim(),
+                    ];
+
+                    return haystacks.some(
+                        (value) =>
+                            typeof value === 'string' &&
+                            value.toLowerCase().includes(normalizedSearch),
+                    );
+                });
 
             return {
                 messages: filtered.slice(skip, skip + limit),
@@ -654,23 +1010,44 @@ export class AdminService implements OnModuleInit {
         const qb = this.userRepository
             .createQueryBuilder('u')
             .leftJoinAndSelect('u.profile', 'p')
-            .leftJoin('subscriptions', 's', 's."userId" = u.id')
-            .where('u.status = :status', { status: UserStatus.ACTIVE });
+            .where('u.status = :status', { status: UserStatus.ACTIVE })
+            .distinct(true);
 
-        if (filters.ageMin) {
-            qb.andWhere(`(p.dateOfBirth IS NULL OR date_part('year', age(p.dateOfBirth)) >= :ageMin)`, { ageMin: filters.ageMin });
+        const premiumOnly = this.parseBoolean(filters?.premiumOnly) === true;
+        const recentOnly = this.parseBoolean(filters?.recentOnly) === true;
+        const recentDays = Number(filters?.recentDays);
+        const ageMin = filters?.ageMin !== undefined ? Number(filters.ageMin) : null;
+        const ageMax = filters?.ageMax !== undefined ? Number(filters.ageMax) : null;
+
+        if (ageMin !== null && (!Number.isFinite(ageMin) || ageMin < 18)) {
+            throw new BadRequestException('ageMin must be a number greater than or equal to 18');
         }
-        if (filters.ageMax) {
-            qb.andWhere(`(p.dateOfBirth IS NULL OR date_part('year', age(p.dateOfBirth)) <= :ageMax)`, { ageMax: filters.ageMax });
+        if (ageMax !== null && (!Number.isFinite(ageMax) || ageMax < 18)) {
+            throw new BadRequestException('ageMax must be a number greater than or equal to 18');
+        }
+        if (ageMin !== null && ageMax !== null && ageMin > ageMax) {
+            throw new BadRequestException('ageMin cannot be greater than ageMax');
+        }
+
+        if (ageMin !== null) {
+            qb.andWhere(`(p.dateOfBirth IS NULL OR date_part('year', age(p.dateOfBirth)) >= :ageMin)`, { ageMin });
+        }
+        if (ageMax !== null) {
+            qb.andWhere(`(p.dateOfBirth IS NULL OR date_part('year', age(p.dateOfBirth)) <= :ageMax)`, { ageMax });
         }
         if (filters.gender && filters.gender !== 'all') {
-            qb.andWhere('u.gender = :gender', { gender: filters.gender });
+            qb.andWhere('LOWER(p.gender) = LOWER(:gender)', { gender: String(filters.gender).trim() });
         }
-        if (filters.premiumOnly) {
+        if (premiumOnly) {
+            qb.innerJoin(
+                'subscriptions',
+                's',
+                's."userId" = u.id AND s.status IN (:...premiumStatuses)',
+                {
+                    premiumStatuses: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE],
+                },
+            );
             qb.leftJoin('plans', 'sp', 'sp.id = s."planId"');
-            qb.andWhere('s.status IN (:...premiumStatuses)', {
-                premiumStatuses: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE],
-            });
             qb.andWhere("COALESCE(sp.code, s.plan, 'free') != :freePlan", { freePlan: 'free' });
         }
         if (filters.country) {
@@ -679,9 +1056,9 @@ export class AdminService implements OnModuleInit {
         if (filters.city) {
             qb.andWhere('p.city ILIKE :city', { city: `%${filters.city}%` });
         }
-        if (filters.recentOnly && filters.recentDays) {
+        if (recentOnly) {
             const since = new Date();
-            since.setDate(since.getDate() - Number(filters.recentDays));
+            since.setDate(since.getDate() - (Number.isFinite(recentDays) && recentDays > 0 ? recentDays : 30));
             qb.andWhere('u.lastLoginAt >= :since', { since });
         }
 
@@ -695,17 +1072,75 @@ export class AdminService implements OnModuleInit {
 
     // â”€â”€â”€ SUPPORT TICKETS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    async getTickets(pagination: PaginationDto, status?: TicketStatus) {
-        const where: any = {};
-        if (status) where.status = status;
+    async getTickets(
+        pagination: PaginationDto,
+        statusOrFilters?: TicketStatus | AdminTicketsFilters,
+    ) {
+        const filters: AdminTicketsFilters =
+            typeof statusOrFilters === 'string'
+                ? { status: statusOrFilters }
+                : statusOrFilters || {};
 
-        const [tickets, total] = await this.ticketRepository.findAndCount({
-            where,
-            relations: ['user', 'assignedTo'],
-            order: { createdAt: 'DESC' },
-            skip: pagination.skip,
-            take: pagination.limit,
-        });
+        const qb = this.ticketRepository
+            .createQueryBuilder('ticket')
+            .leftJoinAndSelect('ticket.user', 'user')
+            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo');
+
+        if (filters.status) {
+            qb.andWhere('ticket.status = :status', { status: filters.status });
+        }
+        if (filters.priority) {
+            qb.andWhere('ticket.priority = :priority', { priority: filters.priority });
+        }
+        if (filters.userId) {
+            qb.andWhere('ticket.userId = :userId', { userId: filters.userId });
+        }
+        if (filters.assignedToId) {
+            qb.andWhere('ticket.assignedToId = :assignedToId', { assignedToId: filters.assignedToId });
+        }
+
+        const normalizedSearch = filters.search?.trim();
+        if (normalizedSearch) {
+            const likeSearch = `%${normalizedSearch}%`;
+            qb.andWhere(
+                new Brackets((searchQb) => {
+                    searchQb
+                        .where('ticket.subject ILIKE :likeSearch', { likeSearch })
+                        .orWhere('ticket.message ILIKE :likeSearch', { likeSearch })
+                        .orWhere('ticket.id::text = :exactSearch', { exactSearch: normalizedSearch })
+                        .orWhere('user.email ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user.username ILIKE :likeSearch', { likeSearch })
+                        .orWhere('assignedTo.email ILIKE :likeSearch', { likeSearch })
+                        .orWhere('assignedTo.username ILIKE :likeSearch', { likeSearch })
+                        .orWhere("CONCAT(user.firstName, ' ', user.lastName) ILIKE :likeSearch", {
+                            likeSearch,
+                        })
+                        .orWhere("CONCAT(assignedTo.firstName, ' ', assignedTo.lastName) ILIKE :likeSearch", {
+                            likeSearch,
+                        });
+                }),
+            );
+        }
+
+        if (filters.dateFrom) {
+            qb.andWhere('ticket.createdAt >= :dateFrom', { dateFrom: filters.dateFrom });
+        }
+        if (filters.dateTo) {
+            qb.andWhere('ticket.createdAt <= :dateTo', { dateTo: this.endOfDay(filters.dateTo) });
+        }
+
+        const sortColumn = this.resolveSortColumn(
+            filters.sortBy,
+            AdminService.TICKET_SORT_COLUMNS,
+            'ticket.createdAt',
+        );
+        const sortOrder = this.resolveSortOrder(filters.sortOrder);
+
+        qb.orderBy(sortColumn, sortOrder)
+            .skip(pagination.skip)
+            .take(pagination.limit);
+
+        const [tickets, total] = await qb.getManyAndCount();
         return { tickets, total, page: pagination.page, limit: pagination.limit };
     }
 
@@ -728,7 +1163,10 @@ export class AdminService implements OnModuleInit {
             { ticketId: ticket.id, status: ticket.status },
         );
 
-        return ticket;
+        return this.ticketRepository.findOne({
+            where: { id: ticket.id },
+            relations: ['user', 'assignedTo'],
+        });
     }
 
     async createTicket(userId: string, subject: string, message: string) {
@@ -819,6 +1257,7 @@ export class AdminService implements OnModuleInit {
             startDate,
             endDate,
             paymentReference: 'ADMIN_OVERRIDE',
+            paymentProvider: 'admin',
         });
 
         const savedSubscription = await this.subscriptionRepository.save(sub);
@@ -917,8 +1356,86 @@ export class AdminService implements OnModuleInit {
             await this.deactivateUserPresence(userId, status === UserStatus.BANNED ? 'banned' : 'account_closed');
         }
 
+        // Notify the user about their status change
+        if (status !== UserStatus.ACTIVE) {
+            const actionRequired = options?.actionRequired || this.inferActionRequired(status, options?.moderationReasonCode);
+            const targetScreen = this.mapActionRequiredToScreen(actionRequired);
+            const userMessage = options?.supportMessage
+                || this.buildStatusChangeMessage(status, options?.moderationReasonCode, actionRequired);
+
+            await this.notificationsService.createNotification(userId, {
+                type: 'system',
+                title: this.getStatusChangeTitle(status),
+                body: userMessage,
+                data: {
+                    newStatus: status,
+                    reason: options?.moderationReasonText || options?.reason || null,
+                    moderationReasonCode: options?.moderationReasonCode || null,
+                    actionRequired,
+                    targetScreen,
+                    route: '/trust-safety/account-status',
+                },
+            }).catch((err) => this.logger.warn(`Failed to send status notification: ${err.message}`));
+        }
+
         const updatedUser = await this.userRepository.findOne({ where: { id: userId } });
         return updatedUser ? this.normalizeUserState(updatedUser) : null;
+    }
+
+    private inferActionRequired(status: UserStatus, reasonCode?: string): string {
+        if (reasonCode === ModerationReasonCode.IDENTITY_VERIFICATION_FAILED) return ActionRequired.REUPLOAD_IDENTITY_DOCUMENT;
+        if (reasonCode === ModerationReasonCode.SELFIE_VERIFICATION_FAILED) return ActionRequired.RETAKE_SELFIE;
+        if (reasonCode === ModerationReasonCode.MARRIAGE_DOCUMENT_REQUIRED) return ActionRequired.UPLOAD_MARRIAGE_DOCUMENT;
+        if (reasonCode === ModerationReasonCode.POLICY_VIOLATION) return ActionRequired.CONTACT_SUPPORT;
+        if (status === UserStatus.PENDING_VERIFICATION) return ActionRequired.WAIT_FOR_REVIEW;
+        if (status === UserStatus.SUSPENDED || status === UserStatus.LIMITED) return ActionRequired.CONTACT_SUPPORT;
+        if (status === UserStatus.BANNED) return ActionRequired.NO_ACTION;
+        return ActionRequired.WAIT_FOR_REVIEW;
+    }
+
+    private mapActionRequiredToScreen(actionRequired: string): string {
+        switch (actionRequired) {
+            case ActionRequired.REUPLOAD_IDENTITY_DOCUMENT:
+            case ActionRequired.RETAKE_SELFIE:
+            case ActionRequired.UPLOAD_MARRIAGE_DOCUMENT:
+                return 'verification_center';
+            case ActionRequired.CONTACT_SUPPORT:
+                return 'support';
+            default:
+                return 'account_status';
+        }
+    }
+
+    private getStatusChangeTitle(status: UserStatus): string {
+        switch (status) {
+            case UserStatus.BANNED: return 'Account banned';
+            case UserStatus.SUSPENDED: return 'Account suspended';
+            case UserStatus.LIMITED: return 'Account restricted';
+            case UserStatus.SHADOW_SUSPENDED: return 'Account under review';
+            case UserStatus.PENDING_VERIFICATION: return 'Verification required';
+            case UserStatus.REJECTED: return 'Verification rejected';
+            case UserStatus.DEACTIVATED: return 'Account deactivated';
+            case UserStatus.CLOSED: return 'Account closed';
+            default: return 'Account status updated';
+        }
+    }
+
+    private buildStatusChangeMessage(status: UserStatus, reasonCode?: string, actionRequired?: string): string {
+        if (actionRequired === ActionRequired.REUPLOAD_IDENTITY_DOCUMENT
+            || actionRequired === ActionRequired.RETAKE_SELFIE
+            || actionRequired === ActionRequired.UPLOAD_MARRIAGE_DOCUMENT) {
+            return 'Your account requires additional verification. Please visit the verification center to upload the required document.';
+        }
+        if (actionRequired === ActionRequired.CONTACT_SUPPORT || reasonCode === ModerationReasonCode.POLICY_VIOLATION) {
+            return 'Your account has been restricted due to a policy violation. Please review our terms of service and contact support for assistance.';
+        }
+        if (status === UserStatus.SUSPENDED) {
+            return 'Your account has been temporarily suspended. Please contact support for more information.';
+        }
+        if (status === UserStatus.BANNED) {
+            return 'Your account has been banned. If you believe this is an error, please contact support.';
+        }
+        return 'Your account status has been updated. Please contact support if you have questions.';
     }
 
     /**
@@ -1019,28 +1536,274 @@ export class AdminService implements OnModuleInit {
         this.logger.log(`Deactivated presence for user ${userId}: ${activeMatches.length} matches closed, ${activeConversations.length} conversations locked, caches invalidated for ${affectedUserIds.size} users`);
     }
 
-    async searchUsers(query: string, pagination: PaginationDto) {
-        return this.getUsers(pagination, undefined, query);
+    async searchUsers(query: string, pagination: PaginationDto, filters?: AdminUserFilters) {
+        const mergedFilters: AdminUserFilters = { ...(filters || {}) };
+        const normalizedQuery = query?.trim();
+        if (normalizedQuery) {
+            mergedFilters.search = normalizedQuery;
+        }
+        return this.getUsers(pagination, mergedFilters);
+    }
+
+    async getVerifications(pagination: PaginationDto, filters: AdminVerificationFilters = {}) {
+        const qb = this.userRepository
+            .createQueryBuilder('user')
+            .select([...AdminService.ADMIN_USER_QUERY_SELECT_COLUMNS])
+            .distinct(true);
+
+        const selfieStatusExpr = `COALESCE(user.verification->'selfie'->>'status', CASE WHEN user."selfieUrl" IS NOT NULL AND user."selfieVerified" = true THEN :approvedStatus WHEN user."selfieUrl" IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END)`;
+        const identityStatusExpr = `COALESCE(user.verification->'identity'->>'status', CASE WHEN user."documentUrl" IS NOT NULL AND user."documentVerified" = true THEN :approvedStatus WHEN user."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN user."documentUrl" IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END)`;
+        const maritalStatusExpr = `COALESCE(user.verification->'marital_status'->>'status', :fallbackStatus)`;
+
+        qb.setParameters({
+            pendingStatus: VerificationStatus.PENDING,
+            approvedStatus: VerificationStatus.APPROVED,
+            rejectedStatus: VerificationStatus.REJECTED,
+            fallbackStatus: VerificationStatus.NOT_SUBMITTED,
+        });
+
+        const verificationType = filters.type || 'all';
+        const verificationStatus = filters.status || 'all';
+
+        if (verificationType === 'selfie') {
+            if (verificationStatus === 'pending') {
+                qb.andWhere(`${selfieStatusExpr} = :pendingStatus`);
+            } else if (verificationStatus === 'approved') {
+                qb.andWhere(`${selfieStatusExpr} = :approvedStatus`);
+            } else if (verificationStatus === 'rejected') {
+                qb.andWhere(`${selfieStatusExpr} = :rejectedStatus`);
+            } else {
+                qb.andWhere(`${selfieStatusExpr} != :fallbackStatus`);
+            }
+        } else if (verificationType === 'identity') {
+            if (verificationStatus === 'pending') {
+                qb.andWhere(`${identityStatusExpr} = :pendingStatus`);
+            } else if (verificationStatus === 'approved') {
+                qb.andWhere(`${identityStatusExpr} = :approvedStatus`);
+            } else if (verificationStatus === 'rejected') {
+                qb.andWhere(`${identityStatusExpr} = :rejectedStatus`);
+            } else {
+                qb.andWhere(`${identityStatusExpr} != :fallbackStatus`);
+            }
+        } else if (verificationType === 'marital_status') {
+            if (verificationStatus === 'pending') {
+                qb.andWhere(`${maritalStatusExpr} = :pendingStatus`);
+            } else if (verificationStatus === 'approved') {
+                qb.andWhere(`${maritalStatusExpr} = :approvedStatus`);
+            } else if (verificationStatus === 'rejected') {
+                qb.andWhere(`${maritalStatusExpr} = :rejectedStatus`);
+            } else {
+                qb.andWhere(`${maritalStatusExpr} != :fallbackStatus`);
+            }
+        } else {
+            if (verificationStatus === 'pending') {
+                qb.andWhere(`(${selfieStatusExpr} = :pendingStatus OR ${identityStatusExpr} = :pendingStatus OR ${maritalStatusExpr} = :pendingStatus)`);
+            } else if (verificationStatus === 'approved') {
+                qb.andWhere(`(${selfieStatusExpr} = :approvedStatus OR ${identityStatusExpr} = :approvedStatus OR ${maritalStatusExpr} = :approvedStatus)`);
+            } else if (verificationStatus === 'rejected') {
+                qb.andWhere(`(${selfieStatusExpr} = :rejectedStatus OR ${identityStatusExpr} = :rejectedStatus OR ${maritalStatusExpr} = :rejectedStatus)`);
+            } else {
+                qb.andWhere(`(${selfieStatusExpr} != :fallbackStatus OR ${identityStatusExpr} != :fallbackStatus OR ${maritalStatusExpr} != :fallbackStatus)`);
+            }
+        }
+
+        if (filters.userStatus) {
+            qb.andWhere('user.status = :userStatus', { userStatus: filters.userStatus });
+        }
+
+        const normalizedSearch = filters.search?.trim();
+        if (normalizedSearch) {
+            const likeSearch = `%${normalizedSearch}%`;
+            qb.andWhere(
+                new Brackets((searchQb) => {
+                    searchQb
+                        .where('user.id::text = :exactSearch', { exactSearch: normalizedSearch })
+                        .orWhere('user.firstName ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user.lastName ILIKE :likeSearch', { likeSearch })
+                        .orWhere("CONCAT(user.firstName, ' ', user.lastName) ILIKE :likeSearch", {
+                            likeSearch,
+                        })
+                        .orWhere('user.email ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user.username ILIKE :likeSearch', { likeSearch });
+                }),
+            );
+        }
+
+        if (filters.dateFrom) {
+            qb.andWhere('user.updatedAt >= :dateFrom', { dateFrom: filters.dateFrom });
+        }
+        if (filters.dateTo) {
+            qb.andWhere('user.updatedAt <= :dateTo', { dateTo: this.endOfDay(filters.dateTo) });
+        }
+
+        const sortColumn = this.resolveSortColumn(
+            filters.sortBy,
+            AdminService.VERIFICATION_SORT_COLUMNS,
+            'user.createdAt',
+        );
+        const sortOrder = this.resolveSortOrder(filters.sortOrder);
+
+        qb.orderBy(sortColumn, sortOrder)
+            .skip(pagination.skip)
+            .take(pagination.limit);
+
+        const [users, total] = await qb.getManyAndCount();
+        const normalizedUsers = users.map((user) => this.normalizeUserState(user));
+
+        return {
+            users: normalizedUsers,
+            items: normalizedUsers,
+            total,
+            page: pagination.page,
+            limit: pagination.limit,
+        };
     }
 
     async getPendingVerifications() {
-        const pendingStatus = VerificationStatus.PENDING;
-        const fallbackStatus = VerificationStatus.NOT_SUBMITTED;
-        const users = await this.userRepository
-            .createQueryBuilder('user')
-            .select([...AdminService.ADMIN_USER_QUERY_SELECT_COLUMNS])
-            .where(
-                '(COALESCE(user.verification->\'selfie\'->>\'status\', :fallbackStatus) = :pendingStatus OR (user."selfieUrl" IS NOT NULL AND user."selfieVerified" = false))',
-                { pendingStatus, fallbackStatus },
-            )
-            .orWhere(
-                'COALESCE(user.verification->\'marital_status\'->>\'status\', :fallbackStatus) = :pendingStatus',
-                { pendingStatus, fallbackStatus },
-            )
-            .orderBy('user.createdAt', 'DESC')
-            .getMany();
+        const pagination = new PaginationDto();
+        const result = await this.getVerifications(pagination, { status: 'pending' });
+        return result.users;
+    }
 
-        return users.map((user) => this.normalizeUserState(user));
+    async getAdminNotifications(
+        pagination: PaginationDto,
+        filters: AdminNotificationsFilters = {},
+    ) {
+        const qb = this.notificationRepository
+            .createQueryBuilder('notification')
+            .leftJoinAndSelect('notification.user', 'user');
+
+        if (filters.userId) {
+            qb.andWhere('notification.userId = :userId', { userId: filters.userId });
+        }
+        if (filters.type) {
+            qb.andWhere('notification.type = :type', { type: filters.type });
+        }
+        if (typeof filters.isRead === 'boolean') {
+            qb.andWhere('notification.isRead = :isRead', { isRead: filters.isRead });
+        }
+
+        const normalizedSearch = filters.search?.trim();
+        if (normalizedSearch) {
+            const likeSearch = `%${normalizedSearch}%`;
+            qb.andWhere(
+                new Brackets((searchQb) => {
+                    searchQb
+                        .where('notification.id::text = :exactSearch', { exactSearch: normalizedSearch })
+                        .orWhere('notification.title ILIKE :likeSearch', { likeSearch })
+                        .orWhere('notification.body ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user.id::text = :exactSearch', { exactSearch: normalizedSearch })
+                        .orWhere('user.email ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user.username ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user.firstName ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user.lastName ILIKE :likeSearch', { likeSearch })
+                        .orWhere("CONCAT(user.firstName, ' ', user.lastName) ILIKE :likeSearch", {
+                            likeSearch,
+                        });
+                }),
+            );
+        }
+
+        if (filters.dateFrom) {
+            qb.andWhere('notification.createdAt >= :dateFrom', { dateFrom: filters.dateFrom });
+        }
+        if (filters.dateTo) {
+            qb.andWhere('notification.createdAt <= :dateTo', { dateTo: this.endOfDay(filters.dateTo) });
+        }
+
+        const sortColumn = this.resolveSortColumn(
+            filters.sortBy,
+            AdminService.NOTIFICATION_SORT_COLUMNS,
+            'notification.createdAt',
+        );
+        const sortOrder = this.resolveSortOrder(filters.sortOrder);
+
+        qb.orderBy(sortColumn, sortOrder)
+            .skip(pagination.skip)
+            .take(pagination.limit);
+
+        const [notifications, total] = await qb.getManyAndCount();
+        return {
+            notifications: notifications.map((notification) =>
+                this.serializeAdminNotification(notification),
+            ),
+            total,
+            page: pagination.page,
+            limit: pagination.limit,
+        };
+    }
+
+    async getUserActions(userId: string, pagination: PaginationDto) {
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: { id: true, email: true },
+        });
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        const [adminLogs, loginLogs] = await Promise.all([
+            this.redisService.getAuditLogs('admin', 5000),
+            this.redisService.getAuditLogs('login', 5000),
+        ]);
+
+        const normalizedEmail = (user.email || '').toLowerCase();
+        const actionEntries = [...adminLogs, ...loginLogs]
+            .filter((entry: any) => {
+                if (!entry || typeof entry !== 'object') return false;
+                const entryEmail = String(entry.email || '').toLowerCase();
+                return (
+                    entry.targetUserId === userId ||
+                    entry.userId === userId ||
+                    (normalizedEmail && entryEmail === normalizedEmail)
+                );
+            })
+            .sort((a: any, b: any) => {
+                const aTime = new Date(a.timestamp || 0).getTime();
+                const bTime = new Date(b.timestamp || 0).getTime();
+                return bTime - aTime;
+            });
+
+        const actorIds = [...new Set(
+            actionEntries.flatMap((entry: any) => [entry.adminId, entry.userId].filter(Boolean)),
+        )];
+        const actorMap = new Map<string, Partial<User>>();
+
+        if (actorIds.length > 0) {
+            const actors = await this.userRepository.find({
+                where: actorIds.map((id) => ({ id })),
+                select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    role: true,
+                },
+            });
+            actors.forEach((actor) => actorMap.set(actor.id, actor));
+        }
+
+        const actions = actionEntries.map((entry: any, index: number) => ({
+                id: `${entry.type || 'audit'}-${entry.action || 'event'}-${index}`,
+                type: entry.type || 'audit',
+                action: entry.action || 'event',
+                timestamp: entry.timestamp || null,
+                adminId: entry.adminId || null,
+                actorUserId: entry.userId || null,
+                targetUserId: entry.targetUserId || entry.userId || userId,
+                admin: entry.adminId ? actorMap.get(entry.adminId) || null : null,
+                actor: entry.userId ? actorMap.get(entry.userId) || null : null,
+                details: entry,
+            }));
+
+        const limit = pagination.limit ?? 20;
+
+        return {
+            actions: actions.slice(pagination.skip, pagination.skip + limit),
+            total: actions.length,
+            page: pagination.page,
+            limit,
+        };
     }
 
     async setUserPremium(userId: string, startDate: Date, expiryDate: Date) {
@@ -1318,9 +2081,15 @@ export class AdminService implements OnModuleInit {
     }
 
     private normalizeUserState(user: User): User {
+        const hasActivePremium = this.hasActivePremiumEntitlement(user);
+        const verification = this.reconcileVerificationState(user);
+
         return {
             ...user,
-            verification: normalizeVerificationState(user.verification),
+            isPremium: hasActivePremium,
+            premiumStartDate: user.premiumStartDate ?? null,
+            premiumExpiryDate: user.premiumExpiryDate ?? null,
+            verification,
         };
     }
 
@@ -1337,6 +2106,45 @@ export class AdminService implements OnModuleInit {
                 conversationId: conversationId ?? null,
                 extraData,
             },
+        };
+    }
+
+    private serializeAdminNotification(notification: Notification & { user?: User }) {
+        const rawData = notification?.data ?? {};
+        const payload =
+            rawData && typeof rawData.payload === 'object' && rawData.payload
+                ? rawData.payload
+                : rawData;
+        const extraData =
+            payload && typeof payload.extraData === 'object' && payload.extraData
+                ? payload.extraData
+                : {};
+        const normalizedType =
+            typeof payload?.type === 'string' && payload.type.trim().length > 0
+                ? payload.type.trim().toLowerCase()
+                : notification.type;
+
+        return {
+            ...notification,
+            type: normalizedType,
+            deliveredAt: notification.createdAt ?? null,
+            route:
+                extraData.route ||
+                extraData.deepLink ||
+                rawData.route ||
+                null,
+            targetScreen:
+                extraData.targetScreen ||
+                rawData.targetScreen ||
+                null,
+            entityId:
+                extraData.entityId ??
+                extraData.ticketId ??
+                extraData.matchId ??
+                payload?.conversationId ??
+                payload?.userId ??
+                null,
+            payload,
         };
     }
 
@@ -1417,12 +2225,16 @@ export class AdminService implements OnModuleInit {
                 status === VerificationStatus.APPROVED
                     ? 'Your verification has been approved.'
                     : status === VerificationStatus.REJECTED
-                        ? rejectionReason || 'Your verification was rejected.'
+                        ? (field === 'selfie'
+                            ? rejectionReason || 'Your selfie verification was rejected. Please retake a clear live selfie photo.'
+                            : rejectionReason || 'Your verification was rejected.')
                         : 'Your verification is pending review.',
             data: {
                 verificationType: field,
                 status,
                 rejectionReason: status === VerificationStatus.REJECTED ? rejectionReason || null : null,
+                route: '/trust-safety/verification-status',
+                targetScreen: 'verification_center',
             },
         });
 
@@ -1465,6 +2277,227 @@ export class AdminService implements OnModuleInit {
                 createdAt: s.createdAt,
             })),
         };
+    }
+
+    private normalizeUserFilters(
+        statusOrFilters?: UserStatus | AdminUserFilters,
+        search?: string,
+        role?: UserRole | string,
+        plan?: string,
+    ): AdminUserFilters {
+        if (statusOrFilters && typeof statusOrFilters === 'object') {
+            return {
+                ...statusOrFilters,
+                role: this.normalizeUserRole(statusOrFilters.role),
+            };
+        }
+
+        return {
+            status: statusOrFilters as UserStatus | undefined,
+            search,
+            role: this.normalizeUserRole(role),
+            plan,
+        };
+    }
+
+    private reconcileVerificationState(user: User) {
+        const verification = normalizeVerificationState(user.verification);
+        const selfieUrl = (user.selfieUrl || verification.selfie.url || null) as string | null;
+        const identityUrl = (user.documentUrl || verification.identity.url || null) as string | null;
+        const maritalUrl = (verification.marital_status.url || null) as string | null;
+
+        if (user.selfieVerified === true) {
+            verification.selfie = {
+                ...verification.selfie,
+                status: VerificationStatus.APPROVED,
+                url: selfieUrl,
+                rejectionReason: null,
+            };
+        } else if (verification.selfie.status === VerificationStatus.REJECTED) {
+            verification.selfie = {
+                ...verification.selfie,
+                url: selfieUrl,
+            };
+        } else if (selfieUrl) {
+            verification.selfie = {
+                ...verification.selfie,
+                status: VerificationStatus.PENDING,
+                url: selfieUrl,
+            };
+        } else {
+            verification.selfie = {
+                ...verification.selfie,
+                status: VerificationStatus.NOT_SUBMITTED,
+                url: null,
+                rejectionReason: null,
+                submittedAt: null,
+                reviewedAt: null,
+                reviewedBy: null,
+            };
+        }
+
+        if (user.documentVerified === true) {
+            verification.identity = {
+                ...verification.identity,
+                status: VerificationStatus.APPROVED,
+                url: identityUrl,
+                rejectionReason: null,
+                reviewedAt:
+                    user.documentVerifiedAt?.toISOString() ||
+                    verification.identity.reviewedAt,
+            };
+        } else if (
+            verification.identity.status === VerificationStatus.REJECTED ||
+            !!user.documentRejectionReason
+        ) {
+            verification.identity = {
+                ...verification.identity,
+                status: VerificationStatus.REJECTED,
+                url: identityUrl,
+                rejectionReason:
+                    verification.identity.rejectionReason ||
+                    user.documentRejectionReason ||
+                    null,
+            };
+        } else if (identityUrl) {
+            verification.identity = {
+                ...verification.identity,
+                status: VerificationStatus.PENDING,
+                url: identityUrl,
+            };
+        } else {
+            verification.identity = {
+                ...verification.identity,
+                status: VerificationStatus.NOT_SUBMITTED,
+                url: null,
+                rejectionReason: null,
+                submittedAt: null,
+                reviewedAt: null,
+                reviewedBy: null,
+            };
+        }
+
+        if (verification.marital_status.status === VerificationStatus.REJECTED) {
+            verification.marital_status = {
+                ...verification.marital_status,
+                url: maritalUrl,
+            };
+        } else if (verification.marital_status.status === VerificationStatus.APPROVED) {
+            verification.marital_status = {
+                ...verification.marital_status,
+                url: maritalUrl,
+                rejectionReason: null,
+            };
+        } else if (maritalUrl) {
+            verification.marital_status = {
+                ...verification.marital_status,
+                status: VerificationStatus.PENDING,
+                url: maritalUrl,
+            };
+        } else {
+            verification.marital_status = {
+                ...verification.marital_status,
+                status: VerificationStatus.NOT_SUBMITTED,
+                url: null,
+                rejectionReason: null,
+                submittedAt: null,
+                reviewedAt: null,
+                reviewedBy: null,
+            };
+        }
+
+        return verification;
+    }
+
+    private hasActivePremiumEntitlement(
+        user:
+            | Pick<User, 'isPremium' | 'premiumStartDate' | 'premiumExpiryDate'>
+            | null
+            | undefined,
+    ): boolean {
+        if (!user || user.isPremium !== true) {
+            return false;
+        }
+
+        const now = Date.now();
+        const premiumStartDate = user.premiumStartDate
+            ? new Date(user.premiumStartDate).getTime()
+            : null;
+        const premiumExpiryDate = user.premiumExpiryDate
+            ? new Date(user.premiumExpiryDate).getTime()
+            : null;
+
+        if (premiumStartDate !== null && Number.isFinite(premiumStartDate) && premiumStartDate > now) {
+            return false;
+        }
+
+        if (premiumExpiryDate !== null && Number.isFinite(premiumExpiryDate) && premiumExpiryDate <= now) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private normalizeUserRole(value?: UserRole | string | null): UserRole | undefined {
+        if (!value) {
+            return undefined;
+        }
+
+        const normalized = value.toString().trim().toLowerCase();
+        if (normalized === 'staff') {
+            return UserRole.MODERATOR;
+        }
+        if (Object.values(UserRole).includes(normalized as UserRole)) {
+            return normalized as UserRole;
+        }
+
+        return undefined;
+    }
+
+    private parseDateInput(value: unknown, fallback: Date | null): Date | null {
+        if (value === undefined) {
+            return fallback;
+        }
+        if (value === null || value === '') {
+            return null;
+        }
+
+        const date = value instanceof Date ? value : new Date(String(value));
+        if (Number.isNaN(date.getTime())) {
+            throw new BadRequestException('Invalid date value');
+        }
+
+        return date;
+    }
+
+    private resolveSortColumn(
+        sortBy: string | undefined,
+        mapping: Record<string, string>,
+        fallback: string,
+    ): string {
+        if (!sortBy) return fallback;
+        return mapping[sortBy] || fallback;
+    }
+
+    private resolveSortOrder(order?: string): 'ASC' | 'DESC' {
+        return (order || '').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+    }
+
+    private endOfDay(date: Date): Date {
+        const end = new Date(date);
+        end.setHours(23, 59, 59, 999);
+        return end;
+    }
+
+    private parseBoolean(value: unknown): boolean | undefined {
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'number') return value !== 0;
+        if (typeof value === 'string') {
+            const normalized = value.trim().toLowerCase();
+            if (normalized === 'true' || normalized === '1') return true;
+            if (normalized === 'false' || normalized === '0') return false;
+        }
+        return undefined;
     }
 }
 

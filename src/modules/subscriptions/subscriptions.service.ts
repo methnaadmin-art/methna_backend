@@ -59,6 +59,7 @@ export class SubscriptionsService {
             status: SubscriptionStatus.ACTIVE,
             startDate: now,
             endDate,
+            paymentProvider: 'trial',
         });
 
         const saved = await this.subscriptionRepository.save(subscription);
@@ -127,7 +128,7 @@ export class SubscriptionsService {
         if (!planEntity) throw new BadRequestException('Plan not found, inactive, or hidden');
 
         if (Number(planEntity.price) > 0) {
-            throw new BadRequestException('Paid plans must be activated through checkout/webhook.');
+            throw new BadRequestException('Paid plans must be activated through Google Play purchase verification.');
         }
 
         await this.assertPlanCanBeSubscribed(userId, planEntity.code);
@@ -152,6 +153,7 @@ export class SubscriptionsService {
             startDate: now,
             endDate,
             paymentReference,
+            paymentProvider: 'manual',
         });
 
         const saved = await this.subscriptionRepository.save(subscription);
@@ -271,6 +273,7 @@ export class SubscriptionsService {
             startDate,
             endDate: expiryDate,
             paymentReference,
+            paymentProvider: 'admin',
         });
 
         const saved = await this.subscriptionRepository.save(subscription);
@@ -354,7 +357,7 @@ export class SubscriptionsService {
     async syncUserPremiumState(
         userId: string,
     ): Promise<{ isPremium: boolean; premiumStartDate: Date | null; premiumExpiryDate: Date | null }> {
-        // Check both ACTIVE and PAST_DUE (grace period while Stripe retries payment)
+        // Check both ACTIVE and PAST_DUE to support provider grace periods.
         let activeSubscription: Subscription | null;
         try {
             activeSubscription = await this.subscriptionRepository.findOne({
@@ -394,7 +397,7 @@ export class SubscriptionsService {
             const startDate = activeSubscription.startDate ? new Date(activeSubscription.startDate) : now;
             const expiryDate = activeSubscription.endDate ? new Date(activeSubscription.endDate) : null;
 
-            // PAST_DUE subscriptions still get premium access (grace period)
+            // PAST_DUE subscriptions still get premium access during grace period.
             const isPremium = activeSubscription.status === SubscriptionStatus.ACTIVE ||
                               activeSubscription.status === SubscriptionStatus.PAST_DUE;
 

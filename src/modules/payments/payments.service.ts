@@ -1,64 +1,47 @@
-import { Injectable, Logger, BadRequestException, ServiceUnavailableException, InternalServerErrorException } from '@nestjs/common';
+import {
+    BadRequestException,
+    Injectable,
+    Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Subscription, SubscriptionStatus } from '../../database/entities/subscription.entity';
-import { Plan } from '../../database/entities/plan.entity';
-import { User } from '../../database/entities/user.entity';
 import {
-    PurchaseTransaction,
-    PurchaseProvider,
-    PurchaseStatus,
-} from '../../database/entities/purchase-transaction.entity';
-import Stripe from 'stripe';
+    Plan,
+    PlanEntitlements,
+    PlanFeatureFlags,
+    PlanLimits,
+} from '../../database/entities/plan.entity';
+import {
+    Subscription,
+    SubscriptionStatus,
+} from '../../database/entities/subscription.entity';
+import { PurchaseTransaction } from '../../database/entities/purchase-transaction.entity';
+import { User } from '../../database/entities/user.entity';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { RedisService } from '../redis/redis.service';
 
 export enum PaymentProvider {
-    STRIPE = 'stripe',
-}
-
-export enum PaymentStatus {
-    PENDING = 'pending',
-    COMPLETED = 'completed',
-    FAILED = 'failed',
-    REFUNDED = 'refunded',
-}
-
-export interface AlternativeBillingMetadataDto {
-    billingModel?: string;
-    store?: string;
-    appPackageName?: string;
-    countryCode?: string;
-    disclosureVersion?: string;
-    disclosureShownAt?: string;
-    disclosureAcceptedAt?: string;
-    complianceSessionId?: string;
-    externalTransactionToken?: string;
+    GOOGLE_PLAY = 'google_play',
 }
 
 export interface CreateCheckoutSessionDto {
     planCode: string;
     provider?: PaymentProvider | string;
-    alternativeBilling?: AlternativeBillingMetadataDto;
-    alternative_billing?: AlternativeBillingMetadataDto;
-    billingMetadata?: Record<string, any>;
     platform?: string;
 }
 
 export interface PaymentResult {
     success: boolean;
-    paymentId?: string;
-    checkoutUrl?: string;
+    provider: PaymentProvider;
+    action: 'verify_purchase';
     error?: string;
-    customerId?: string;
+    managementUrl?: string;
 }
 
 @Injectable()
 export class PaymentsService {
     private readonly logger = new Logger(PaymentsService.name);
-
-    private stripe!: Stripe;
 
     constructor(
         private readonly configService: ConfigService,
@@ -72,557 +55,40 @@ export class PaymentsService {
         private readonly purchaseTransactionRepository: Repository<PurchaseTransaction>,
         private readonly subscriptionsService: SubscriptionsService,
         private readonly redisService: RedisService,
-    ) {
-        const stripeKey = this.normalizeConfigValue(
-            this.configService.get<string>('STRIPE_SECRET_KEY') ||
-            this.configService.get<string>('stripe.secretKey'),
-        );
-        if (stripeKey) {
-            this.stripe = new Stripe(stripeKey, { apiVersion: '2023-10-16' as any });
-        } else {
-            this.logger.warn('STRIPE_SECRET_KEY is missing or empty. Stripe webhook verification and checkout are disabled.');
-        }
+    ) { }
+
+    // Legacy no-op kept for auth compatibility (historically created Stripe customer).
+    async createCustomer(_email: string, _name: string): Promise<string | null> {
+        return null;
     }
-
-    // ─── CUSTOMER MANAGEMENT ─────────────────────────────────
-
-    async createCustomer(email: string, name: string): Promise<string | null> {
-        if (!this.stripe) return null;
-        try {
-            const customer = await this.stripe.customers.create({ email, name });
-            return customer.id;
-        } catch (error) {
-            this.logger.error(`Failed to create Stripe customer: ${(error as Error).message}`);
-            return null;
-        }
-    }
-
-    // ─── CREATE CHECKOUT SESSION ───────────────────────────────
 
     async createCheckoutSession(
-        userId: string,
-        dto: CreateCheckoutSessionDto,
+        _userId: string,
+        _dto: CreateCheckoutSessionDto,
     ): Promise<PaymentResult> {
-        const planCode = (dto.planCode || '').trim();
-        if (!planCode) {
-            throw new BadRequestException('planCode is required');
-        }
-
-        const provider = this.normalizeProvider(dto.provider);
-        if (provider !== PaymentProvider.STRIPE) {
-            throw new BadRequestException(
-                'Google Play and Apple checkout are retired. Use Stripe checkout only.',
-            );
-        }
-
-        // Load plan from DB — backend is source of truth
-        const plan = await this.planRepository.findOne({
-            where: { code: planCode, isActive: true, isVisible: true },
-        });
-        if (!plan) throw new BadRequestException(`Plan '${planCode}' not found, inactive, or hidden`);
-        if (plan.price === 0) throw new BadRequestException('Cannot create payment for free plan');
-
-        await this.subscriptionsService.assertPlanCanBeSubscribed(userId, plan.code);
-
-        const alternativeBilling = this.normalizeAlternativeBillingMetadata(
-            dto.alternativeBilling || dto.alternative_billing || dto.billingMetadata,
+        throw new BadRequestException(
+            'Web checkout is disabled. This backend is Google Play Billing only. Use /payments/google-play/verify from Android purchase flow.',
         );
-
-        return this.createStripeCheckoutSession(userId, plan, alternativeBilling);
     }
 
-    // ─── STRIPE CHECKOUT SESSION ──────────────────────────────
-
-    async createStripeCheckoutSession(
+    async getSubscriptionManagementUrl(
         userId: string,
-        plan: Plan,
-        alternativeBilling?: AlternativeBillingMetadataDto,
-    ): Promise<PaymentResult> {
-        if (!this.stripe) {
-            this.logger.error('Stripe secret key is not configured');
-            throw new ServiceUnavailableException('Stripe is not configured on the server.');
-        }
-
-        // Resolve stripePriceId: DB first, then env var STRIPE_PRICE_<CODE>
-        if (!plan.stripePriceId) {
-            const envKey = `STRIPE_PRICE_${plan.code.toUpperCase()}`;
-            const envPriceId = this.normalizeConfigValue(this.configService.get<string>(envKey));
-            if (envPriceId) {
-                plan.stripePriceId = envPriceId;
-                // Persist to DB so future lookups skip env resolution
-                await this.planRepository.update(plan.id, { stripePriceId: envPriceId });
-                this.logger.log(`Resolved Stripe Price ID for plan ${plan.code} from env var ${envKey}`);
-            }
-        }
-
-        if (!plan.stripePriceId) {
-            this.logger.error(`No Stripe Price ID configured for plan ${plan.code}. Set it in the DB or via env var STRIPE_PRICE_${plan.code.toUpperCase()}`);
-            throw new ServiceUnavailableException(`Stripe pricing not configured for plan: ${plan.code}`);
-        }
-
-        try {
-            const user = await this.userRepository.findOne({ where: { id: userId }, select: ['id', 'email', 'firstName', 'lastName', 'stripeCustomerId'] });
-            if (!user) throw new BadRequestException('User not found');
-
-            let customerId: string | null = user.stripeCustomerId;
-            if (!customerId) {
-                customerId = await this.createCustomer(user.email, `${user.firstName} ${user.lastName}`);
-                if (customerId) await this.userRepository.update(user.id, { stripeCustomerId: customerId });
-            }
-            if (!customerId) throw new BadRequestException('Failed to initialize Stripe customer');
-
-            const successUrl =
-                this.normalizeConfigValue(this.configService.get<string>('STRIPE_SUCCESS_URL')) ||
-                'methna://payment-success';
-            const cancelUrl =
-                this.normalizeConfigValue(this.configService.get<string>('STRIPE_CANCEL_URL')) ||
-                'methna://payment-cancel';
-
-            // Determine checkout mode based on billing cycle
-            const isOneTime = plan.billingCycle === 'one_time';
-            const mode: 'subscription' | 'payment' = isOneTime ? 'payment' : 'subscription';
-
-            const checkoutMetadata = {
-                userId,
-                planId: plan.id,
-                planCode: plan.code,
-                ...this.serializeAlternativeBillingMetadata(alternativeBilling),
-            };
-
-            const sessionParams: Stripe.Checkout.SessionCreateParams = {
-                customer: customerId,
-                mode,
-                line_items: [{ price: plan.stripePriceId, quantity: 1 }],
-                success_url: successUrl,
-                cancel_url: cancelUrl,
-                metadata: checkoutMetadata,
-            };
-
-            // Only include subscription_data for recurring plans
-            if (!isOneTime) {
-                sessionParams.subscription_data = {
-                    metadata: checkoutMetadata,
-                };
-            } else {
-                // For one-time payments, put metadata in payment_intent_data
-                sessionParams.payment_intent_data = {
-                    metadata: checkoutMetadata,
-                };
-            }
-
-            const session = await this.stripe.checkout.sessions.create(sessionParams);
-
-            await this.upsertPendingStripeTransaction(userId, plan, session, alternativeBilling);
-
-            this.logger.log(`Stripe checkout session created for user ${userId}, plan: ${plan.code}, mode: ${mode}, session: ${session.id}`);
-
-            return {
-                success: true,
-                paymentId: session.id,
-                checkoutUrl: session.url || undefined,
-                customerId,
-            };
-        } catch (error) {
-            this.logger.error('Stripe checkout session creation failed', (error as Error).message);
-            return { success: false, error: (error as Error).message };
-        }
-    }
-
-    // ─── LEGACY STRIPE SUBSCRIPTION (kept for backward compat) ──
-
-    async createStripeSubscription(
-        userId: string,
-        plan: Plan,
-        stripeCustomerId: string,
-    ): Promise<PaymentResult> {
-        // Delegate to checkout session flow
-        return this.createStripeCheckoutSession(userId, plan);
-    }
-
-    // ─── WEBHOOK HANDLER (Stripe) ────────────────────────────
-
-    async handleStripeWebhook(rawBody: string, signature: string, requestId: string = 'n/a'): Promise<void> {
-        const endpointSecret = this.normalizeConfigValue(
-            this.configService.get<string>('STRIPE_WEBHOOK_SECRET'),
-        );
-
-        this.logger.log(
-            `[StripeWebhook] requestId=${requestId} received signed event payloadBytes=${Buffer.byteLength(rawBody || '', 'utf8')}`,
-        );
-
-        if (!this.stripe || !endpointSecret) {
-            this.logger.error(
-                `[StripeWebhook] requestId=${requestId} rejected: STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET not configured`,
-            );
-            throw new ServiceUnavailableException('Stripe webhook is not configured on the server');
-        }
-
-        let event: Stripe.Event;
-        try {
-            // Verify webhook signature with Stripe SDK using raw body string
-            event = this.stripe.webhooks.constructEvent(
-                rawBody,
-                signature,
-                endpointSecret,
-            );
-            this.logger.log(
-                `[StripeWebhook] requestId=${requestId} signature verified event=${event.type} id=${event.id}`,
-            );
-        } catch (err) {
-            this.logger.warn(
-                `[StripeWebhook] requestId=${requestId} signature verification failed: ${(err as Error).message}`,
-            );
-            throw new BadRequestException('Webhook signature verification failed');
-        }
-
-        // Idempotency: skip if we already processed this event
-        const eventId = event.id;
-        if (eventId) {
-            try {
-                const alreadyProcessed = await this.isEventProcessed(eventId);
-                if (alreadyProcessed) {
-                    this.logger.log(
-                        `[StripeWebhook] requestId=${requestId} duplicate event id=${eventId} skipped`,
-                    );
-                    return;
-                }
-            } catch (err) {
-                this.logger.error(
-                    `[StripeWebhook] requestId=${requestId} idempotency read failed for event=${eventId}: ${(err as Error).message}`,
-                );
-            }
-        }
-
-        try {
-            switch (event.type) {
-                case 'checkout.session.completed':
-                    await this.handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
-                    break;
-                case 'invoice.paid':
-                    await this.handlePaymentSuccess(event.data.object as Stripe.Invoice);
-                    break;
-                case 'payment_intent.succeeded':
-                    await this.handlePaymentSuccess(event.data.object as Stripe.PaymentIntent);
-                    break;
-                case 'invoice.payment_failed':
-                case 'payment_intent.payment_failed':
-                    await this.handlePaymentFailure(event.data.object);
-                    break;
-                case 'customer.subscription.deleted':
-                case 'customer.subscription.updated':
-                    await this.handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
-                    break;
-                default:
-                    this.logger.log(
-                        `[StripeWebhook] requestId=${requestId} unsupported event=${event.type} id=${eventId ?? 'n/a'} acknowledged`,
-                    );
-            }
-        } catch (err) {
-            this.logger.error(
-                `[StripeWebhook] requestId=${requestId} handler failure event=${event.type} id=${eventId ?? 'n/a'}: ${(err as Error).message}`,
-                (err as Error).stack,
-            );
-            throw new InternalServerErrorException('Stripe webhook handler failed');
-        }
-
-        // Mark event as processed
-        if (eventId) {
-            try {
-                await this.markEventProcessed(eventId);
-            } catch (err) {
-                this.logger.error(
-                    `[StripeWebhook] requestId=${requestId} idempotency write failed for event=${eventId}: ${(err as Error).message}`,
-                );
-            }
-        }
-
-        this.logger.log(
-            `[StripeWebhook] requestId=${requestId} processed event=${event.type} id=${eventId ?? 'n/a'}`,
-        );
-    }
-
-    private async isEventProcessed(eventId: string): Promise<boolean> {
-        // Use a simple Redis key to track processed events (48h TTL)
-        const key = `stripe_event:${eventId}`;
-        const existing = await this.redisService.get(key);
-        return existing === '1';
-    }
-
-    private async markEventProcessed(eventId: string): Promise<void> {
-        const key = `stripe_event:${eventId}`;
-        // 48 hours TTL — Stripe retries for up to 3 days, but 48h is enough
-        // for idempotency protection against duplicate deliveries.
-        await this.redisService.set(key, '1', 48 * 3600);
-    }
-
-    // ─── CHECKOUT SESSION COMPLETED ──────────────────────────
-
-    private async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<void> {
-        const userId = session.metadata?.userId;
-        const planId = session.metadata?.planId;
-        const planCode = session.metadata?.planCode;
-        const sessionId = session.id;
-        const customerId = session.customer as string;
-        const subscriptionId = session.subscription as string;
-        const paymentIntentId = session.payment_intent as string;
-
-        // Resolve userId from customer if metadata missing
-        let finalUserId = userId;
-        if (!finalUserId && customerId) {
-            const user = await this.userRepository.findOne({
-                where: { stripeCustomerId: customerId },
-                select: ['id'],
-            });
-            if (user) finalUserId = user.id;
-        }
-
-        if (!finalUserId) {
-            this.logger.warn(`checkout.session.completed: unable to resolve userId for session ${sessionId}`);
-            return;
-        }
-
-        const targetUser = await this.userRepository.findOne({ where: { id: finalUserId } });
-        if (!targetUser) {
-            this.logger.warn(`checkout.session.completed references missing userId ${finalUserId}. Session: ${session.id}`);
-            return;
-        }
-
-        // Load plan from DB using planId or planCode
-        let planEntity: Plan | null = null;
-        if (planId) {
-            planEntity = await this.planRepository.findOne({ where: { id: planId } });
-        }
-        if (!planEntity && planCode) {
-            planEntity = await this.planRepository.findOne({ where: { code: planCode } });
-        }
-        // Legacy: try session.metadata.plan as enum code
-        if (!planEntity && session.metadata?.plan) {
-            planEntity = await this.planRepository.findOne({ where: { code: session.metadata.plan } });
-        }
-
-        if (!planEntity) {
-            this.logger.warn(`checkout.session.completed: plan not found (planId=${planId}, planCode=${planCode}) for session ${sessionId}`);
-            return;
-        }
-
-        this.logger.log(`Checkout session completed: user=${finalUserId} plan=${planEntity.code} session=${sessionId}`);
-
-        // Derive duration from plan
-        const durationDays = planEntity.durationDays || 30;
-        const now = new Date();
-        const endDate = new Date(now);
-        endDate.setDate(endDate.getDate() + durationDays);
-
-        // Upsert subscription
-        // Find existing active/past_due subscription for this user
-        let existingSub = await this.subscriptionRepository.findOne({
+    ): Promise<{ url: string; provider: PaymentProvider; activeSubscriptionId: string | null }> {
+        const active = await this.subscriptionRepository.findOne({
             where: [
-                { userId: finalUserId, status: SubscriptionStatus.ACTIVE },
-                { userId: finalUserId, status: SubscriptionStatus.PAST_DUE },
+                { userId, status: SubscriptionStatus.ACTIVE },
+                { userId, status: SubscriptionStatus.PAST_DUE },
+                { userId, status: SubscriptionStatus.TRIAL },
             ],
-            order: { createdAt: 'DESC' },
+            order: { updatedAt: 'DESC' },
         });
 
-        // Cancel any other active subscriptions (plan upgrade)
-        if (existingSub && existingSub.stripeSubscriptionId && existingSub.stripeSubscriptionId !== subscriptionId) {
-            existingSub.status = SubscriptionStatus.CANCELLED;
-            await this.subscriptionRepository.save(existingSub);
-            existingSub = null; // Create a new subscription below
-        }
-
-        if (existingSub) {
-            existingSub.plan = this.toLegacyPlanToken(planEntity.code) as any; // legacy compat
-            existingSub.planId = planEntity.id;
-            existingSub.planEntity = planEntity;
-            existingSub.status = SubscriptionStatus.ACTIVE;
-            existingSub.startDate = now;
-            existingSub.endDate = endDate;
-            existingSub.paymentReference = paymentIntentId || sessionId;
-            existingSub.stripeSubscriptionId = subscriptionId || null;
-            existingSub.stripeCheckoutSessionId = sessionId;
-            existingSub.billingCycle = planEntity.billingCycle;
-            if (customerId) existingSub.stripeCustomerId = customerId;
-            await this.subscriptionRepository.save(existingSub);
-        } else {
-            existingSub = this.subscriptionRepository.create({
-                userId: finalUserId,
-                plan: this.toLegacyPlanToken(planEntity.code) as any, // legacy compat
-                planId: planEntity.id,
-                planEntity,
-                status: SubscriptionStatus.ACTIVE,
-                startDate: now,
-                endDate,
-                paymentReference: paymentIntentId || sessionId,
-                stripeSubscriptionId: subscriptionId || null,
-                stripeCheckoutSessionId: sessionId,
-                stripeCustomerId: customerId || null,
-                billingCycle: planEntity.billingCycle,
-            });
-            await this.subscriptionRepository.save(existingSub);
-        }
-
-        // Link Stripe customer to user if not already linked
-        if (customerId) {
-            await this.userRepository.update(finalUserId, { stripeCustomerId: customerId });
-        }
-
-        await this.upsertVerifiedStripeTransaction(
-            finalUserId,
-            planEntity,
-            session,
-            paymentIntentId || null,
-            subscriptionId || null,
-            customerId || null,
-        );
-
-        // Invalidate entitlements cache so features unlock immediately
-        await this.redisService.del(`entitlements:${finalUserId}`);
-        await this.redisService.del(`plan:${finalUserId}`);
-        await this.redisService.del(`features:${finalUserId}`);
-        await this.redisService.del(`premium:${finalUserId}`);
-
-        await this.subscriptionsService.syncUserPremiumState(finalUserId);
-        this.logger.log(`Subscription activated via checkout for user ${finalUserId}, plan: ${planEntity.code}`);
+        return {
+            provider: PaymentProvider.GOOGLE_PLAY,
+            url: this.getGooglePlayManagementUrl(),
+            activeSubscriptionId: active?.id ?? null,
+        };
     }
-
-    private async handlePaymentSuccess(stripeObject: any): Promise<void> {
-        const userId = stripeObject?.metadata?.userId || (stripeObject.subscription_details?.metadata?.userId);
-        const planCode = stripeObject?.metadata?.planCode || stripeObject?.metadata?.plan;
-        const planId = stripeObject?.metadata?.planId;
-        
-        let subscriptionId = stripeObject.subscription;
-        if (!subscriptionId && stripeObject.id?.startsWith('sub_')) subscriptionId = stripeObject.id;
-
-        // If no metadata but we have customer, we can look up by stripeCustomerId
-        let finalUserId = userId;
-        if (!finalUserId && stripeObject.customer) {
-             const user = await this.userRepository.findOne({ where: { stripeCustomerId: stripeObject.customer as string } });
-             if (user) finalUserId = user.id;
-        }
-
-        if (!finalUserId) {
-            this.logger.warn(`Stripe object succeeded but unable to find user metadata. Object ID: ${stripeObject.id}`);
-            return;
-        }
-
-        const targetUser = await this.userRepository.findOne({ where: { id: finalUserId } });
-        if (!targetUser) {
-            this.logger.warn(`Stripe object ${stripeObject.id} references missing userId ${finalUserId}`);
-            return;
-        }
-
-        // Load plan from DB
-        let planEntity: Plan | null = null;
-        if (planId) planEntity = await this.planRepository.findOne({ where: { id: planId } });
-        if (!planEntity && planCode) planEntity = await this.planRepository.findOne({ where: { code: planCode } });
-
-        const durationDays = planEntity?.durationDays || 30;
-
-        let existingSub = await this.subscriptionRepository.findOne({
-            where: [
-                { userId: finalUserId, status: SubscriptionStatus.ACTIVE },
-                { userId: finalUserId, status: SubscriptionStatus.PAST_DUE },
-            ],
-            order: { createdAt: 'DESC' },
-        });
-        if (existingSub) {
-            if (planEntity) {
-                existingSub.plan = this.toLegacyPlanToken(planEntity.code) as any;
-                existingSub.planId = planEntity.id;
-                existingSub.planEntity = planEntity;
-            }
-            existingSub.status = SubscriptionStatus.ACTIVE;
-            existingSub.startDate = new Date();
-            existingSub.endDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
-            existingSub.paymentReference = stripeObject.id;
-            if (subscriptionId) existingSub.stripeSubscriptionId = subscriptionId as string;
-            await this.subscriptionRepository.save(existingSub);
-        } else if (planEntity) {
-            existingSub = this.subscriptionRepository.create({
-                userId: finalUserId,
-                plan: this.toLegacyPlanToken(planEntity.code) as any,
-                planId: planEntity.id,
-                planEntity,
-                status: SubscriptionStatus.ACTIVE,
-                startDate: new Date(),
-                endDate: new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000),
-                paymentReference: stripeObject.id,
-                stripeSubscriptionId: subscriptionId as string,
-            });
-            await this.subscriptionRepository.save(existingSub);
-        }
-
-        // Invalidate caches
-        await this.redisService.del(`entitlements:${finalUserId}`);
-        await this.redisService.del(`plan:${finalUserId}`);
-        await this.redisService.del(`features:${finalUserId}`);
-        await this.redisService.del(`premium:${finalUserId}`);
-
-        await this.subscriptionsService.syncUserPremiumState(finalUserId);
-        this.logger.log(`Subscription activated for user ${finalUserId}`);
-    }
-
-    private async handlePaymentFailure(stripeObject: any): Promise<void> {
-        let finalUserId = stripeObject?.metadata?.userId;
-        if (!finalUserId && stripeObject.customer) {
-             const user = await this.userRepository.findOne({ where: { stripeCustomerId: stripeObject.customer as string } });
-             if (user) finalUserId = user.id;
-        }
-        this.logger.warn(`Payment failed for user ${finalUserId}`);
-
-        // Mark as PAST_DUE — this is a retryable failure, not a permanent expiry.
-        // Stripe will retry the payment. The subscription stays active but flagged.
-        if (finalUserId) {
-            await this.subscriptionRepository.update(
-                { userId: finalUserId, status: SubscriptionStatus.ACTIVE },
-                { status: SubscriptionStatus.PAST_DUE },
-            );
-            // Do NOT revoke premium immediately — Stripe will retry.
-            // syncUserPremiumState will check PAST_DUE and keep premium until truly expired.
-        }
-    }
-
-    private async handleSubscriptionUpdated(subscription: any): Promise<void> {
-        const stripeSubscriptionId = subscription?.id;
-        let finalUserId = subscription?.metadata?.userId;
-        if (!finalUserId && subscription.customer) {
-             const user = await this.userRepository.findOne({ where: { stripeCustomerId: subscription.customer as string } });
-             if (user) finalUserId = user.id;
-        }
-        if (!finalUserId) return;
-
-        if (subscription.status === 'canceled' || subscription.status === 'unpaid') {
-            // Only cancel the specific Stripe subscription, not all user subscriptions
-            if (stripeSubscriptionId) {
-                await this.subscriptionRepository.update(
-                    { userId: finalUserId, stripeSubscriptionId },
-                    { status: SubscriptionStatus.CANCELLED },
-                );
-            } else {
-                await this.subscriptionRepository.update(
-                    { userId: finalUserId, status: SubscriptionStatus.ACTIVE },
-                    { status: SubscriptionStatus.CANCELLED },
-                );
-            }
-            await this.subscriptionsService.syncUserPremiumState(finalUserId);
-            this.logger.log(`Subscription cancelled for user ${finalUserId}`);
-        } else if (subscription.status === 'active') {
-            if (stripeSubscriptionId) {
-                await this.subscriptionRepository.update(
-                    { userId: finalUserId, stripeSubscriptionId },
-                    { status: SubscriptionStatus.ACTIVE, stripeSubscriptionId },
-                );
-            } else {
-                await this.subscriptionRepository.update(
-                    { userId: finalUserId, status: SubscriptionStatus.PAST_DUE },
-                    { status: SubscriptionStatus.ACTIVE },
-                );
-            }
-            await this.subscriptionsService.syncUserPremiumState(finalUserId);
-        }
-    }
-
-    // ─── PRICING INFO ────────────────────────────────────────
 
     async getPricing() {
         const plans = await this.planRepository.find({
@@ -631,248 +97,127 @@ export class PaymentsService {
         });
 
         return {
-            plans: plans.map(p => ({
-                id: p.id,
-                code: p.code,
-                name: p.name,
-                price: Number(p.price),
-                currency: p.currency,
-                billingCycle: p.billingCycle,
-                durationDays: p.durationDays,
-                entitlements: p.entitlements,
-                features: p.features,
-                description: p.description,
-            })),
-            providers: [PaymentProvider.STRIPE],
+            billingModel: 'google_play_billing_only',
+            providers: [PaymentProvider.GOOGLE_PLAY],
+            plans: plans.map((plan) => {
+                const entitlements = this.resolveEntitlements(plan);
+                return {
+                    id: plan.id,
+                    code: plan.code,
+                    name: plan.name,
+                    description: plan.description,
+                    price: Number(plan.price),
+                    currency: plan.currency,
+                    billingCycle: plan.billingCycle,
+                    durationDays: plan.durationDays,
+                    googleProductId: plan.googleProductId,
+                    googleBasePlanId: plan.googleBasePlanId,
+                    features: this.toFeatureFlags(plan, entitlements),
+                    limits: this.toLimits(plan, entitlements),
+                    entitlements,
+                };
+            }),
         };
     }
 
-    private normalizeProvider(provider?: string | PaymentProvider): PaymentProvider {
-        const normalized = (provider || PaymentProvider.STRIPE).toString().trim().toLowerCase();
-        if (normalized === PaymentProvider.STRIPE) {
-            return PaymentProvider.STRIPE;
-        }
-        return normalized as PaymentProvider;
+    // Legacy endpoint support: explicitly disabled for Stripe-only webhook traffic.
+    async handleStripeWebhook(_rawBody: string, _signature: string, _requestId: string = 'n/a'): Promise<void> {
+        throw new BadRequestException('Stripe webhook endpoint is disabled. Billing provider is Google Play only.');
     }
 
-    private normalizeAlternativeBillingMetadata(
-        metadata?: AlternativeBillingMetadataDto | Record<string, any>,
-    ): AlternativeBillingMetadataDto | undefined {
-        if (!metadata || typeof metadata !== 'object') {
-            return undefined;
-        }
+    // Legacy helper to keep compile compatibility where older code may call this method.
+    async createStripeCheckoutSession(_userId: string, _plan: Plan): Promise<PaymentResult> {
+        throw new BadRequestException('Stripe checkout is disabled. Use Google Play Billing verification endpoint.');
+    }
 
-        const source = metadata as Record<string, any>;
-        const normalized: AlternativeBillingMetadataDto = {
-            billingModel: this.normalizeMetadataValue(source.billingModel || source.billing_mode),
-            store: this.normalizeMetadataValue(source.store || source.appStore || source.app_store),
-            appPackageName: this.normalizeMetadataValue(source.appPackageName || source.app_package_name),
-            countryCode: this.normalizeMetadataValue(source.countryCode || source.country_code),
-            disclosureVersion: this.normalizeMetadataValue(source.disclosureVersion || source.disclosure_version),
-            disclosureShownAt: this.normalizeMetadataValue(source.disclosureShownAt || source.disclosure_shown_at),
-            disclosureAcceptedAt: this.normalizeMetadataValue(source.disclosureAcceptedAt || source.disclosure_accepted_at),
-            complianceSessionId: this.normalizeMetadataValue(source.complianceSessionId || source.compliance_session_id),
-            externalTransactionToken: this.normalizeMetadataValue(source.externalTransactionToken || source.external_transaction_token),
+    private resolveEntitlements(plan: Plan): PlanEntitlements {
+        const entitlements: PlanEntitlements = {
+            ...(plan.entitlements || {}),
         };
 
-        const hasValues = Object.values(normalized).some(
-            (value) => typeof value === 'string' && value.trim().length > 0,
+        if (entitlements.dailyLikes === undefined) {
+            entitlements.dailyLikes = plan.dailyLikesLimit;
+        }
+        if (entitlements.dailySuperLikes === undefined) {
+            entitlements.dailySuperLikes = plan.dailySuperLikesLimit;
+        }
+        if (entitlements.dailyCompliments === undefined) {
+            entitlements.dailyCompliments = plan.dailyComplimentsLimit;
+        }
+        if (entitlements.monthlyRewinds === undefined) {
+            entitlements.monthlyRewinds = plan.monthlyRewindsLimit;
+        }
+        if (entitlements.weeklyBoosts === undefined) {
+            entitlements.weeklyBoosts = plan.weeklyBoostsLimit;
+        }
+
+        if (entitlements.likesLimit === undefined && entitlements.dailyLikes !== undefined) {
+            entitlements.likesLimit = entitlements.dailyLikes;
+        }
+        if (entitlements.boostsLimit === undefined && entitlements.weeklyBoosts !== undefined) {
+            entitlements.boostsLimit = entitlements.weeklyBoosts;
+        }
+        if (entitlements.complimentsLimit === undefined && entitlements.dailyCompliments !== undefined) {
+            entitlements.complimentsLimit = entitlements.dailyCompliments;
+        }
+
+        if (entitlements.dailyLikes === -1) {
+            entitlements.unlimitedLikes = true;
+            entitlements.likes = true;
+        }
+        if (entitlements.monthlyRewinds === -1) {
+            entitlements.unlimitedRewinds = true;
+        }
+
+        return entitlements;
+    }
+
+    private toFeatureFlags(plan: Plan, entitlements: PlanEntitlements): PlanFeatureFlags {
+        return {
+            ...(plan.featureFlags || {}),
+            unlimitedLikes: entitlements.unlimitedLikes,
+            unlimitedRewinds: entitlements.unlimitedRewinds,
+            advancedFilters: entitlements.advancedFilters,
+            seeWhoLikesYou: entitlements.seeWhoLikesYou,
+            whoLikedMe: entitlements.whoLikedMe,
+            readReceipts: entitlements.readReceipts,
+            typingIndicators: entitlements.typingIndicators,
+            invisibleMode: entitlements.invisibleMode,
+            ghostMode: entitlements.ghostMode,
+            passportMode: entitlements.passportMode,
+            boost: entitlements.boost,
+            likes: entitlements.likes,
+            premiumBadge: entitlements.premiumBadge,
+            hideAds: entitlements.hideAds,
+            rematch: entitlements.rematch,
+            videoChat: entitlements.videoChat,
+            superLike: entitlements.superLike,
+            profileBoostPriority: entitlements.profileBoostPriority,
+            priorityMatching: entitlements.priorityMatching,
+            improvedVisits: entitlements.improvedVisits,
+        };
+    }
+
+    private toLimits(plan: Plan, entitlements: PlanEntitlements): PlanLimits {
+        return {
+            ...(plan.limits || {}),
+            dailyLikes: entitlements.dailyLikes,
+            dailySuperLikes: entitlements.dailySuperLikes,
+            dailyCompliments: entitlements.dailyCompliments,
+            monthlyRewinds: entitlements.monthlyRewinds,
+            weeklyBoosts: entitlements.weeklyBoosts,
+            likesLimit: entitlements.likesLimit,
+            boostsLimit: entitlements.boostsLimit,
+            complimentsLimit: entitlements.complimentsLimit,
+        };
+    }
+
+    private getGooglePlayManagementUrl(): string {
+        return this.normalizeConfigValue(
+            this.configService.get<string>('GOOGLE_PLAY_SUBSCRIPTION_MANAGEMENT_URL') ||
+            this.configService.get<string>('googlePlay.subscriptionManagementUrl') ||
+            'https://play.google.com/store/account/subscriptions',
         );
-        return hasValues ? normalized : undefined;
-    }
-
-    private serializeAlternativeBillingMetadata(
-        metadata?: AlternativeBillingMetadataDto,
-    ): Record<string, string> {
-        if (!metadata) {
-            return {};
-        }
-
-        const result: Record<string, string> = {};
-
-        const map = [
-            ['aboBillingModel', metadata.billingModel],
-            ['aboStore', metadata.store],
-            ['aboAppPackage', metadata.appPackageName],
-            ['aboCountryCode', metadata.countryCode],
-            ['aboDisclosureVersion', metadata.disclosureVersion],
-            ['aboDisclosureShownAt', metadata.disclosureShownAt],
-            ['aboDisclosureAcceptedAt', metadata.disclosureAcceptedAt],
-            ['aboComplianceSessionId', metadata.complianceSessionId],
-            ['aboExternalTransactionToken', metadata.externalTransactionToken],
-        ] as const;
-
-        for (const [key, value] of map) {
-            const normalized = this.normalizeMetadataValue(value);
-            if (normalized) {
-                result[key] = normalized;
-            }
-        }
-
-        return result;
-    }
-
-    private extractAlternativeBillingFromStripeMetadata(
-        metadata?: Stripe.Metadata | null,
-    ): AlternativeBillingMetadataDto | undefined {
-        if (!metadata) {
-            return undefined;
-        }
-
-        const parsed: AlternativeBillingMetadataDto = {
-            billingModel: this.normalizeMetadataValue(metadata.aboBillingModel),
-            store: this.normalizeMetadataValue(metadata.aboStore),
-            appPackageName: this.normalizeMetadataValue(metadata.aboAppPackage),
-            countryCode: this.normalizeMetadataValue(metadata.aboCountryCode),
-            disclosureVersion: this.normalizeMetadataValue(metadata.aboDisclosureVersion),
-            disclosureShownAt: this.normalizeMetadataValue(metadata.aboDisclosureShownAt),
-            disclosureAcceptedAt: this.normalizeMetadataValue(metadata.aboDisclosureAcceptedAt),
-            complianceSessionId: this.normalizeMetadataValue(metadata.aboComplianceSessionId),
-            externalTransactionToken: this.normalizeMetadataValue(metadata.aboExternalTransactionToken),
-        };
-
-        const hasValues = Object.values(parsed).some(
-            (value) => typeof value === 'string' && value.trim().length > 0,
-        );
-        return hasValues ? parsed : undefined;
-    }
-
-    private normalizeMetadataValue(value?: unknown): string {
-        if (value === null || value === undefined) {
-            return '';
-        }
-
-        const asString = typeof value === 'string' ? value : String(value);
-        return this.normalizeConfigValue(asString).trim();
-    }
-
-    private async upsertPendingStripeTransaction(
-        userId: string,
-        plan: Plan,
-        session: Stripe.Checkout.Session,
-        alternativeBilling?: AlternativeBillingMetadataDto,
-    ): Promise<void> {
-        const sessionId = session.id;
-        if (!sessionId) {
-            return;
-        }
-
-        const existing = await this.purchaseTransactionRepository.findOne({
-            where: { purchaseToken: sessionId },
-        });
-
-        const transactionDate = session.created
-            ? new Date(session.created * 1000)
-            : new Date();
-
-        const rawVerification = {
-            provider: 'stripe',
-            phase: 'checkout_session_created',
-            checkoutSessionId: session.id,
-            stripeCustomerId: session.customer || null,
-            mode: session.mode,
-            planCode: plan.code,
-            planId: plan.id,
-            alternativeBilling: alternativeBilling || null,
-        };
-
-        if (existing) {
-            existing.userId = userId;
-            existing.planId = plan.id;
-            existing.provider = PurchaseProvider.STRIPE;
-            existing.productId = plan.stripePriceId || plan.code;
-            existing.status = PurchaseStatus.PENDING;
-            existing.rawVerification = {
-                ...(existing.rawVerification || {}),
-                ...rawVerification,
-            };
-            existing.transactionDate = transactionDate;
-            await this.purchaseTransactionRepository.save(existing);
-            return;
-        }
-
-        const transaction = this.purchaseTransactionRepository.create({
-            userId,
-            planId: plan.id,
-            provider: PurchaseProvider.STRIPE,
-            purchaseToken: sessionId,
-            productId: plan.stripePriceId || plan.code,
-            orderId: null,
-            status: PurchaseStatus.PENDING,
-            rawVerification,
-            transactionDate,
-            expiryDate: null,
-            paymentReference: null,
-        });
-
-        await this.purchaseTransactionRepository.save(transaction);
-    }
-
-    private async upsertVerifiedStripeTransaction(
-        userId: string,
-        plan: Plan,
-        session: Stripe.Checkout.Session,
-        paymentIntentId: string | null,
-        subscriptionId: string | null,
-        customerId: string | null,
-    ): Promise<void> {
-        const sessionId = session.id;
-        if (!sessionId) {
-            return;
-        }
-
-        const existing = await this.purchaseTransactionRepository.findOne({
-            where: { purchaseToken: sessionId },
-        });
-
-        const rawVerification = {
-            provider: 'stripe',
-            phase: 'checkout_session_completed',
-            checkoutSessionId: sessionId,
-            paymentIntentId,
-            subscriptionId,
-            stripeCustomerId: customerId,
-            planCode: plan.code,
-            planId: plan.id,
-            alternativeBilling: this.extractAlternativeBillingFromStripeMetadata(session.metadata || null) || null,
-        };
-
-        if (existing) {
-            existing.userId = userId;
-            existing.planId = plan.id;
-            existing.provider = PurchaseProvider.STRIPE;
-            existing.productId = plan.stripePriceId || plan.code;
-            existing.orderId = paymentIntentId || existing.orderId;
-            existing.status = PurchaseStatus.VERIFIED;
-            existing.rawVerification = {
-                ...(existing.rawVerification || {}),
-                ...rawVerification,
-            };
-            existing.paymentReference = subscriptionId || paymentIntentId || sessionId;
-            existing.transactionDate = session.created
-                ? new Date(session.created * 1000)
-                : existing.transactionDate || new Date();
-            await this.purchaseTransactionRepository.save(existing);
-            return;
-        }
-
-        const transaction = this.purchaseTransactionRepository.create({
-            userId,
-            planId: plan.id,
-            provider: PurchaseProvider.STRIPE,
-            purchaseToken: sessionId,
-            productId: plan.stripePriceId || plan.code,
-            orderId: paymentIntentId,
-            status: PurchaseStatus.VERIFIED,
-            rawVerification,
-            transactionDate: session.created
-                ? new Date(session.created * 1000)
-                : new Date(),
-            expiryDate: null,
-            paymentReference: subscriptionId || paymentIntentId || sessionId,
-        });
-
-        await this.purchaseTransactionRepository.save(transaction);
     }
 
     private normalizeConfigValue(value?: string): string {
@@ -882,16 +227,4 @@ export class PaymentsService {
         const trimmed = value.trim();
         return trimmed.replace(/^"|"$/g, '').replace(/^'|'$/g, '').trim();
     }
-
-    private toLegacyPlanToken(planCode: string): string {
-        const normalized = (planCode || '').trim().toLowerCase();
-        if (normalized === 'free' || normalized === 'premium' || normalized === 'gold') {
-            return normalized;
-        }
-        if (normalized.includes('free')) {
-            return 'free';
-        }
-        return 'premium';
-    }
 }
-

@@ -33,6 +33,39 @@ export class SecurityController {
         return this.securityService.getUserDevices(userId);
     }
 
+    @Post('devices/register')
+    @ApiOperation({ summary: 'Register or refresh the current device (biometric/device trust setup)' })
+    async registerDevice(
+        @CurrentUser('sub') userId: string,
+        @Req() req: Request,
+        @Body()
+        body: {
+            fingerprint: string;
+            name?: string;
+            platform?: string;
+            osVersion?: string;
+            appVersion?: string;
+            ipAddress?: string;
+        },
+    ) {
+        const device = await this.securityService.registerDevice(userId, {
+            fingerprint: body.fingerprint,
+            name: body.name,
+            platform: body.platform,
+            osVersion: body.osVersion,
+            appVersion: body.appVersion,
+            ipAddress:
+                body.ipAddress ||
+                req.ip ||
+                req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim(),
+        });
+
+        return {
+            message: 'Device registered successfully',
+            device,
+        };
+    }
+
     @Delete('devices/:id')
     @ApiOperation({ summary: 'Revoke a device' })
     async revokeDevice(

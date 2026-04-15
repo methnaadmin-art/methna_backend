@@ -21,6 +21,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         let message = 'Internal server error';
         let errors: any = null;
         let businessStatus: string | null = null;
+        let extraPayload: Record<string, any> = {};
 
         if (exception instanceof HttpException) {
             status = exception.getStatus();
@@ -33,6 +34,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
                 message = resp.message || message;
                 errors = resp.errors || null;
                 businessStatus = typeof resp.status === 'string' ? resp.status : null;
+
+                const {
+                    message: _message,
+                    errors: _errors,
+                    status: _status,
+                    success: _success,
+                    statusCode: _statusCode,
+                    timestamp: _timestamp,
+                    path: _path,
+                    ...rest
+                } = resp;
+                extraPayload = rest;
             }
         } else if (exception instanceof Error) {
             // Log full error internally but never expose to client
@@ -52,6 +65,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
             status: businessStatus,
             message,
             errors,
+            ...extraPayload,
             timestamp: new Date().toISOString(),
             path: request.url,
         });

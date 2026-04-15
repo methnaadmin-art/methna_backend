@@ -118,6 +118,13 @@ export class NotificationsService {
         );
     }
 
+    async markAsUnread(userId: string, notificationId: string): Promise<void> {
+        await this.notificationRepository.update(
+            { id: notificationId, userId },
+            { isRead: false },
+        );
+    }
+
     async markAllAsRead(userId: string): Promise<void> {
         await this.notificationRepository.update(
             { userId, isRead: false },
@@ -127,6 +134,10 @@ export class NotificationsService {
 
     async deleteNotification(userId: string, notificationId: string): Promise<void> {
         await this.notificationRepository.delete({ id: notificationId, userId });
+    }
+
+    async clearAllNotifications(userId: string): Promise<void> {
+        await this.notificationRepository.delete({ userId });
     }
 
     async getUnreadCount(userId: string): Promise<number> {
@@ -648,6 +659,8 @@ export class NotificationsService {
             extraData: this.normalizeExtraData(payload.extraData),
         };
 
+        normalizedPayload.extraData = this.enrichNavigationMetadata(normalizedPayload);
+
         switch (normalizedPayload.type) {
             case NotificationType.MATCH:
                 if (!normalizedPayload.userId) {
@@ -680,6 +693,53 @@ export class NotificationsService {
         }
 
         return normalizedPayload;
+    }
+
+    private enrichNavigationMetadata(payload: NotificationPayload): Record<string, any> {
+        const extraData = this.normalizeExtraData(payload.extraData);
+        const hasRoute = typeof extraData.route === 'string' && extraData.route.trim().length > 0;
+        const routeFromType = this.defaultRouteByType(payload);
+
+        const route = hasRoute ? extraData.route : routeFromType.route;
+        const targetScreen = extraData.targetScreen || routeFromType.targetScreen;
+
+        return {
+            ...extraData,
+            route,
+            targetScreen,
+            conversationId: payload.conversationId || extraData.conversationId || null,
+            userId: payload.userId ?? extraData.userId ?? null,
+        };
+    }
+
+    private defaultRouteByType(payload: NotificationPayload): {
+        route: string;
+        targetScreen: string;
+    } {
+        switch (payload.type) {
+            case NotificationType.MATCH:
+                return { route: '/chat', targetScreen: 'conversation' };
+            case NotificationType.MESSAGE:
+                return { route: '/chat', targetScreen: 'conversation' };
+            case NotificationType.LIKE:
+                if (payload.extraData?.isAnonymousLike === true) {
+                    return { route: '/subscriptions', targetScreen: 'subscription_plans' };
+                }
+                return { route: '/swipes/who-liked-me', targetScreen: 'who_liked_me' };
+            case NotificationType.SUBSCRIPTION:
+                return { route: '/subscriptions', targetScreen: 'subscription_status' };
+            case NotificationType.TICKET:
+                return { route: '/support/tickets', targetScreen: 'support_tickets' };
+            case NotificationType.VERIFICATION:
+                return {
+                    route: '/trust-safety/verification-status',
+                    targetScreen: 'verification_center',
+                };
+            case NotificationType.PROFILE_VIEW:
+                return { route: '/profile-views', targetScreen: 'profile_views' };
+            default:
+                return { route: '/notifications', targetScreen: 'notifications' };
+        }
     }
 
     private normalizeExtraData(value: unknown): Record<string, any> {

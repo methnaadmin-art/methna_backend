@@ -54,10 +54,6 @@ export default () => {
             privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
         },
 
-        google: {
-            webClientId: process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '',
-        },
-
         otp: {
             expirySeconds: parseInt(process.env.OTP_EXPIRY_SECONDS || '300', 10),
             cooldownSeconds: parseInt(process.env.OTP_COOLDOWN_SECONDS || '60', 10),
@@ -68,8 +64,26 @@ export default () => {
             secretKey: process.env.STRIPE_SECRET_KEY || '',
             publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
             webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+            successUrl: process.env.STRIPE_SUCCESS_URL || 'methna://payment-success',
+            cancelUrl: process.env.STRIPE_CANCEL_URL || 'methna://payment-cancel',
+            managementUrl: process.env.STRIPE_MANAGEMENT_URL || 'https://billing.stripe.com/p/login',
             pricePremium: process.env.STRIPE_PRICE_PREMIUM || '',
             priceGold: process.env.STRIPE_PRICE_GOLD || '',
+        },
+
+        googlePlay: {
+            clientEmail: process.env.GOOGLE_PLAY_CLIENT_EMAIL || '',
+            privateKey: (process.env.GOOGLE_PLAY_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+            packageName: process.env.GOOGLE_PLAY_PACKAGE_NAME || '',
+            licensingPublicKey: process.env.GOOGLE_PLAY_LICENSING_PUBLIC_KEY || '',
+            subscriptionManagementUrl:
+                process.env.GOOGLE_PLAY_SUBSCRIPTION_MANAGEMENT_URL ||
+                'https://play.google.com/store/account/subscriptions',
+            ucbEligibleCountries: process.env.GOOGLE_PLAY_UCB_ELIGIBLE_COUNTRIES || 'GB',
+        },
+
+        google: {
+            webClientId: process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '',
         },
 
         throttle: {

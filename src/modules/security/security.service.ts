@@ -1,4 +1,4 @@
-import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { User } from '../../database/entities/user.entity';
@@ -36,8 +36,13 @@ export class SecurityService {
             ipAddress?: string;
         },
     ): Promise<UserDevice> {
+        const fingerprint = (deviceInfo.fingerprint || '').trim();
+        if (!fingerprint) {
+            throw new BadRequestException('Device fingerprint is required to register this device.');
+        }
+
         let device = await this.deviceRepository.findOne({
-            where: { userId, deviceFingerprint: deviceInfo.fingerprint },
+            where: { userId, deviceFingerprint: fingerprint },
         });
 
         if (device) {
@@ -55,7 +60,7 @@ export class SecurityService {
 
         device = this.deviceRepository.create({
             userId,
-            deviceFingerprint: deviceInfo.fingerprint,
+            deviceFingerprint: fingerprint,
             deviceName: deviceInfo.name,
             platform: deviceInfo.platform,
             osVersion: deviceInfo.osVersion,

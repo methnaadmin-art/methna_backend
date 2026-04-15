@@ -303,27 +303,7 @@ export class AuthService {
             otpAttempts: 0,
         });
 
-        // Grant 3-day free premium trial
-        try {
-            await this.subscriptionsService.createTrialSubscription(user.id, 3);
-            this.logger.log(`[OTP] 🎁 Trial subscription granted to ${email}`);
-        } catch (trialErr) {
-            this.logger.error(`[OTP] ❌ Failed to grant trial to ${email}: ${(trialErr as Error).message}`);
-        }
-
-        // Stripe Customer Creation
-        try {
-            const stripeCustomerId = await this.paymentsService.createCustomer(
-                user.email,
-                `${user.firstName} ${user.lastName}`,
-            );
-            if (stripeCustomerId) {
-                await this.userRepository.update(user.id, { stripeCustomerId });
-                this.logger.log(`[Stripe] ✅ Created Stripe customer for ${email}`);
-            }
-        } catch (stripeErr) {
-            this.logger.error(`[Stripe] ❌ Failed to create customer for ${email}: ${(stripeErr as Error).message}`);
-        }
+        await this.tryGrantTrialIfEnabled(user.id, email, 3, 'otp_verification');
 
         // Generate tokens
         user.status = UserStatus.ACTIVE;
@@ -612,7 +592,7 @@ export class AuthService {
 
             const blockedLoginMessage = this.getBlockedLoginMessage(user.status);
             if (blockedLoginMessage) {
-                this.throwAuthStatusException(user.status, blockedLoginMessage, HttpStatus.FORBIDDEN);
+                this.throwAuthStatusException(user, blockedLoginMessage, HttpStatus.FORBIDDEN);
             }
 
             this.logger.log(`[GoogleSignIn] Existing user found: ${user.id}`);
@@ -669,22 +649,8 @@ export class AuthService {
             await this.userRepository.save(user);
             this.logger.log(`[GoogleSignIn] New user created: ${user.id}`);
 
-            // Grant trial subscription for new users
-            try {
-                await this.subscriptionsService.createTrialSubscription(user.id);
-            } catch (err) {
-                this.logger.warn(`[GoogleSignIn] Trial grant failed: ${err.message}`);
-            }
+            await this.tryGrantTrialIfEnabled(user.id, email, undefined, 'google_signup');
 
-            // Create Stripe customer
-            try {
-                const stripeCustomerId = await this.paymentsService.createCustomer(email, `${firstName} ${lastName}`);
-                if (stripeCustomerId) {
-                    await this.userRepository.update(user.id, { stripeCustomerId });
-                }
-            } catch (err) {
-                this.logger.warn(`[GoogleSignIn] Stripe customer creation failed: ${err.message}`);
-            }
         }
 
         await this.subscriptionsService.syncUserPremiumState(user.id);
@@ -884,11 +850,17 @@ export class AuthService {
 
         const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
         if (!isPasswordValid) {
-            throw new BadRequestException('Current password is incorrect');
+            throw new BadRequestException({
+                message: 'Current password is incorrect',
+                code: 'CURRENT_PASSWORD_INCORRECT',
+            });
         }
 
         if (oldPassword === newPassword) {
-            throw new BadRequestException('New password must be different from the current password');
+            throw new BadRequestException({
+                message: 'New password must be different from the current password',
+                code: 'PASSWORD_UNCHANGED',
+            });
         }
 
         const salt = await bcrypt.genSalt(12);
@@ -896,7 +868,10 @@ export class AuthService {
 
         await this.userRepository.update(userId, {
             password: hashedPassword,
+            refreshToken: null as any,
         });
+
+        await this.redisService.invalidateAllUserSessions(userId);
 
         this.redisService
             .appendAuditLog({
@@ -906,7 +881,11 @@ export class AuthService {
             })
             .catch(() => {});
 
-        return { message: 'Password changed successfully' };
+        return {
+            success: true,
+            message: 'Password changed successfully. Active sessions were revoked for your security.',
+            sessionsRevoked: true,
+        };
     }
 
     async refreshTokens(refreshToken: string) {
@@ -1087,6 +1066,42 @@ export class AuthService {
         return randomInt(100000, 999999).toString();
     }
 
+    private isAutoTrialEnabled(): boolean {
+        const rawValue =
+            this.configService.get<string>('features.autoTrialOnSignup') ||
+            this.configService.get<string>('features.autoTrialEnabled') ||
+            process.env.ENABLE_AUTO_TRIAL_ON_SIGNUP ||
+            process.env.AUTO_TRIAL_ENABLED ||
+            'false';
+
+        return ['1', 'true', 'yes', 'on'].includes(rawValue.trim().toLowerCase());
+    }
+
+    private async tryGrantTrialIfEnabled(
+        userId: string,
+        email: string,
+        trialDays?: number,
+        source: 'otp_verification' | 'google_signup' = 'otp_verification',
+    ): Promise<void> {
+        if (!this.isAutoTrialEnabled()) {
+            this.logger.log(`[Trial] Auto trial disabled. Skipping for ${source}: ${email}`);
+            return;
+        }
+
+        try {
+            if (typeof trialDays === 'number') {
+                await this.subscriptionsService.createTrialSubscription(userId, trialDays);
+            } else {
+                await this.subscriptionsService.createTrialSubscription(userId);
+            }
+            this.logger.log(`[Trial] Auto trial granted for ${source}: ${email}`);
+        } catch (error) {
+            this.logger.warn(
+                `[Trial] Auto trial grant failed for ${source}: ${email} - ${(error as Error).message}`,
+            );
+        }
+    }
+
     private async generateTokens(user: User, existingFamilyId?: string) {
         const familyId = existingFamilyId || randomUUID();
         const accessJti = randomUUID();
@@ -1143,15 +1158,17 @@ export class AuthService {
     private getBlockedLoginMessage(status: UserStatus): string | null {
         switch (status) {
             case UserStatus.PENDING_VERIFICATION:
-                return 'Your account is under review';
+                return 'Your account is pending verification approval.';
             case UserStatus.REJECTED:
-                return 'Your verification was rejected';
+                return 'Your verification was rejected. Please resubmit your verification details.';
             case UserStatus.BANNED:
-                return 'Your account is banned';
+                return 'Your account is banned.';
             case UserStatus.SUSPENDED:
-                return 'Account suspended, contact support';
+                return 'Your account is suspended. Please contact support.';
             case UserStatus.DEACTIVATED:
-                return 'Account suspended, contact support';
+                return 'Your account is deactivated. Please contact support.';
+            case UserStatus.CLOSED:
+                return 'Your account is closed. Contact support if you need to restore access.';
             // LIMITED and SHADOW_SUSPENDED users CAN log in
             case UserStatus.LIMITED:
             case UserStatus.SHADOW_SUSPENDED:
@@ -1233,6 +1250,10 @@ export class AuthService {
                 return 'Your account has been permanently banned for violating our terms of service.';
             case UserStatus.SUSPENDED:
                 return 'Your account has been temporarily suspended. Please contact support for more information.';
+            case UserStatus.DEACTIVATED:
+                return 'Your account is currently deactivated. Please contact support to restore access.';
+            case UserStatus.CLOSED:
+                return 'Your account has been closed and is no longer active.';
             default:
                 return 'Account access is restricted.';
         }

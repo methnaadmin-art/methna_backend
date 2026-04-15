@@ -101,6 +101,10 @@ export class SwipesService {
 
         const isPositive = action !== SwipeAction.PASS;
 
+        if (isPositive) {
+            await this.assertProfileReadyForPositiveSwipe(userId);
+        }
+
         // Check duplicate swipe. Allow a one-way upgrade from PASS -> LIKE/SUPER_LIKE/COMPLIMENT.
         const existingSwipe = await this.likeRepository.findOne({
             where: { likerId: userId, likedId: targetUserId },
@@ -108,7 +112,14 @@ export class SwipesService {
         if (existingSwipe) {
             const canUpgradePassToPositive = existingSwipe.isLike === false && isPositive;
             if (!canUpgradePassToPositive) {
-                throw new BadRequestException('Already swiped on this user');
+                const existingActiveMatch = await this.findActiveMatch(userId, targetUserId);
+                return {
+                    liked: existingSwipe.isLike,
+                    matched: !!existingActiveMatch,
+                    matchId: existingActiveMatch?.id ?? null,
+                    action: existingSwipe.type,
+                    duplicate: true,
+                };
             }
 
             if (action === SwipeAction.LIKE) {
@@ -135,7 +146,7 @@ export class SwipesService {
 
             if (mutualLike) {
                 const match = await this.createMatch(userId, targetUserId);
-                await this.invalidateDiscoveryCaches(targetUserId);
+                await this.invalidateDiscoveryCaches(targetUserId, userId);
                 this.logger.log(`Match created between ${userId} and ${targetUserId} (upgraded pass)`);
                 return { liked: true, matched: true, matchId: match.id, action, upgradedFromPass: true };
             }
@@ -178,7 +189,7 @@ export class SwipesService {
 
             if (mutualLike) {
                 const match = await this.createMatch(userId, targetUserId);
-                await this.invalidateDiscoveryCaches(targetUserId);
+                await this.invalidateDiscoveryCaches(targetUserId, userId);
                 this.logger.log(`Match created between ${userId} and ${targetUserId}`);
                 return { liked: true, matched: true, matchId: match.id, action };
             }
@@ -281,10 +292,17 @@ export class SwipesService {
             take: Math.min(limit, 500),
         });
 
+        const matchedUserIds = await this.getMatchedUserIdsSet(userId);
+        const invisibleStatuses = [UserStatus.BANNED, UserStatus.CLOSED, UserStatus.DEACTIVATED];
+
         const liked: any[] = [];
         const passed: any[] = [];
 
         for (const swipe of allSwipes) {
+            if (swipe.liked && invisibleStatuses.includes(swipe.liked.status as UserStatus)) {
+                continue;
+            }
+
             const entry = {
                 userId: swipe.likedId,
                 firstName: swipe.liked?.firstName ?? null,
@@ -292,6 +310,7 @@ export class SwipesService {
                 action: swipe.isLike ? 'like' : 'pass',
                 type: swipe.type,
                 complimentMessage: swipe.complimentMessage ?? null,
+                matched: matchedUserIds.has(swipe.likedId),
                 createdAt: swipe.createdAt,
             };
             if (swipe.isLike) {
@@ -312,14 +331,21 @@ export class SwipesService {
             take: 100,
         });
 
+        const matchedUserIds = await this.getMatchedUserIdsSet(userId);
+        const invisibleStatuses = [UserStatus.BANNED, UserStatus.CLOSED, UserStatus.DEACTIVATED];
+        const visibleLikes = likes.filter(
+            (like) => !like.liked || !invisibleStatuses.includes(like.liked.status as UserStatus),
+        );
+
         return {
-            count: likes.length,
-            users: likes.map((l) => ({
+            count: visibleLikes.length,
+            users: visibleLikes.map((l) => ({
                 userId: l.likedId,
                 firstName: l.liked?.firstName ?? null,
                 lastName: l.liked?.lastName ?? null,
                 type: l.type,
                 complimentMessage: l.complimentMessage ?? null,
+                matched: matchedUserIds.has(l.likedId),
                 createdAt: l.createdAt,
             })),
         };
@@ -445,42 +471,119 @@ export class SwipesService {
     private async createMatch(user1Id: string, user2Id: string): Promise<Match> {
         const [first, second] = [user1Id, user2Id].sort();
 
-        const match = this.matchRepository.create({
-            user1Id: first,
-            user2Id: second,
-            status: MatchStatus.ACTIVE,
+        let match = await this.matchRepository.findOne({
+            where: { user1Id: first, user2Id: second },
         });
-        const savedMatch = await this.matchRepository.save(match);
+        let transitionedToActive = false;
 
-        // Create conversation for this match
-        const conversation = this.conversationRepository.create({
-            user1Id: first,
-            user2Id: second,
-            matchId: savedMatch.id,
+        if (!match) {
+            try {
+                const created = this.matchRepository.create({
+                    user1Id: first,
+                    user2Id: second,
+                    status: MatchStatus.ACTIVE,
+                });
+                match = await this.matchRepository.save(created);
+                transitionedToActive = true;
+            } catch (error) {
+                if (!this.isUniqueConstraintViolation(error)) {
+                    throw error;
+                }
+
+                match = await this.matchRepository.findOne({
+                    where: { user1Id: first, user2Id: second },
+                });
+            }
+        }
+
+        if (!match) {
+            throw new BadRequestException('Unable to create match at the moment. Please try again.');
+        }
+
+        if (match.status !== MatchStatus.ACTIVE) {
+            match.status = MatchStatus.ACTIVE;
+            match = await this.matchRepository.save(match);
+            transitionedToActive = true;
+        }
+
+        let conversation = await this.conversationRepository.findOne({
+            where: { user1Id: first, user2Id: second },
         });
-        await this.conversationRepository.save(conversation);
 
-        // Notify both users
-        await Promise.all([
-            this.notificationsService.createNotification(user1Id, {
-                type: 'match',
-                userId: user2Id,
-                conversationId: conversation.id,
-                title: 'New Match!',
-                body: 'You have a new match! Start a conversation.',
-                extraData: { matchId: savedMatch.id },
-            }),
-            this.notificationsService.createNotification(user2Id, {
-                type: 'match',
-                userId: user1Id,
-                conversationId: conversation.id,
-                title: 'New Match!',
-                body: 'You have a new match! Start a conversation.',
-                extraData: { matchId: savedMatch.id },
-            }),
-        ]);
+        if (!conversation) {
+            try {
+                const createdConversation = this.conversationRepository.create({
+                    user1Id: first,
+                    user2Id: second,
+                    matchId: match.id,
+                    isActive: true,
+                    isLocked: false,
+                    lockReason: null,
+                });
+                conversation = await this.conversationRepository.save(createdConversation);
+            } catch (error) {
+                if (!this.isUniqueConstraintViolation(error)) {
+                    throw error;
+                }
 
-        return savedMatch;
+                conversation = await this.conversationRepository.findOne({
+                    where: { user1Id: first, user2Id: second },
+                });
+            }
+        }
+
+        if (!conversation) {
+            throw new BadRequestException('Unable to open conversation for this match.');
+        }
+
+        let shouldNotify = transitionedToActive;
+        if (
+            conversation.matchId !== match.id ||
+            conversation.isActive !== true ||
+            conversation.isLocked === true ||
+            conversation.lockReason
+        ) {
+            conversation.matchId = match.id;
+            conversation.isActive = true;
+            conversation.isLocked = false;
+            conversation.lockReason = null;
+            conversation = await this.conversationRepository.save(conversation);
+            shouldNotify = true;
+        }
+
+        if (shouldNotify) {
+            const matchEventKey = `match:${match.id}`;
+            await Promise.all([
+                this.notificationsService.createNotification(user1Id, {
+                    type: 'match',
+                    userId: user2Id,
+                    conversationId: conversation.id,
+                    title: 'New Match!',
+                    body: 'You have a new match! Start a conversation.',
+                    extraData: {
+                        matchId: match.id,
+                        route: '/chat',
+                        targetScreen: 'conversation',
+                        eventKey: matchEventKey,
+                    },
+                }),
+                this.notificationsService.createNotification(user2Id, {
+                    type: 'match',
+                    userId: user1Id,
+                    conversationId: conversation.id,
+                    title: 'New Match!',
+                    body: 'You have a new match! Start a conversation.',
+                    extraData: {
+                        matchId: match.id,
+                        route: '/chat',
+                        targetScreen: 'conversation',
+                        eventKey: matchEventKey,
+                    },
+                }),
+            ]);
+        }
+
+        return match;
     }
 
     private async isPremiumUser(userId: string): Promise<boolean> {
@@ -548,9 +651,69 @@ export class SwipesService {
                 this.redisService.del(`excludeIds:${id}`),
                 this.redisService.del(`discovery:${id}`),
                 this.redisService.del(`suggestions:${id}`),
+                this.redisService.del(`matches:${id}`),
+                this.redisService.del(`conversations:${id}`),
                 this.redisService.delByPattern(`search:${id}:*`),
             ]),
         );
+    }
+
+    private async assertProfileReadyForPositiveSwipe(userId: string): Promise<void> {
+        const profile = await this.profileRepository.findOne({
+            where: { userId },
+            select: {
+                userId: true,
+                isComplete: true,
+                profileCompletionPercentage: true,
+            },
+        });
+
+        if (profile?.isComplete) {
+            return;
+        }
+
+        throw new ForbiddenException({
+            message: 'Complete your profile before liking members.',
+            code: 'PROFILE_INCOMPLETE',
+            actionRequired: 'COMPLETE_PROFILE',
+            minimumCompletion: 60,
+            currentCompletion: profile?.profileCompletionPercentage ?? 0,
+        });
+    }
+
+    private async findActiveMatch(userA: string, userB: string): Promise<Match | null> {
+        const [first, second] = [userA, userB].sort();
+        return this.matchRepository.findOne({
+            where: {
+                user1Id: first,
+                user2Id: second,
+                status: MatchStatus.ACTIVE,
+            },
+        });
+    }
+
+    private async getMatchedUserIdsSet(userId: string): Promise<Set<string>> {
+        const matches = await this.matchRepository.find({
+            where: [
+                { user1Id: userId, status: MatchStatus.ACTIVE },
+                { user2Id: userId, status: MatchStatus.ACTIVE },
+            ],
+            select: {
+                user1Id: true,
+                user2Id: true,
+            },
+        });
+
+        const ids = new Set<string>();
+        for (const match of matches) {
+            ids.add(match.user1Id === userId ? match.user2Id : match.user1Id);
+        }
+        return ids;
+    }
+
+    private isUniqueConstraintViolation(error: unknown): boolean {
+        const code = (error as any)?.code ?? (error as any)?.driverError?.code;
+        return code === '23505';
     }
     // Rematch / second chance (premium feature)
 

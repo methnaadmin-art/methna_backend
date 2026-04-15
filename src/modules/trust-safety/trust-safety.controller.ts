@@ -40,6 +40,11 @@ export class TrustSafetyController {
             type: 'object',
             properties: {
                 selfie: { type: 'string', format: 'binary' },
+                captureSource: {
+                    type: 'string',
+                    enum: ['camera', 'live_capture'],
+                    description: 'Optional capture source hint. If provided, only live camera capture is accepted.',
+                },
             },
         },
     })
@@ -47,8 +52,9 @@ export class TrustSafetyController {
     async uploadSelfie(
         @CurrentUser('sub') userId: string,
         @UploadedFile() file: Express.Multer.File,
+        @Body('captureSource') captureSource?: string,
     ) {
-        return this.trustSafetyService.uploadSelfie(userId, file);
+        return this.trustSafetyService.uploadSelfie(userId, file, captureSource);
     }
 
     @Post('selfie-verify')

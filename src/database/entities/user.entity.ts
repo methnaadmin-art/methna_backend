@@ -73,6 +73,7 @@ export interface UserVerificationItem {
 
 export interface UserVerificationState {
     selfie: UserVerificationItem;
+    identity: UserVerificationItem;
     marital_status: UserVerificationItem;
 }
 
@@ -92,6 +93,7 @@ export function createVerificationItem(
 export function createDefaultVerificationState(): UserVerificationState {
     return {
         selfie: createVerificationItem(),
+        identity: createVerificationItem(),
         marital_status: createVerificationItem(),
     };
 }
@@ -136,6 +138,7 @@ export function normalizeVerificationState(
     verification?:
         | Partial<{
               selfie: Partial<UserVerificationItem> | VerificationStatus | string | null;
+              identity: Partial<UserVerificationItem> | VerificationStatus | string | null;
               marital_status: Partial<UserVerificationItem> | VerificationStatus | string | null;
           }>
         | null,
@@ -144,6 +147,7 @@ export function normalizeVerificationState(
 
     return {
         selfie: normalizeVerificationItem(verification?.selfie, defaults.selfie),
+        identity: normalizeVerificationItem(verification?.identity, defaults.identity),
         marital_status: normalizeVerificationItem(verification?.marital_status, defaults.marital_status),
     };
 }
@@ -393,6 +397,16 @@ export class User {
     // Stripe Customer ID
     @Column({ nullable: true, select: false })
     stripeCustomerId: string;
+
+    // Consumable balances (incremented by consumable purchases, decremented by usage)
+    @Column({ type: 'int', default: 0 })
+    likesBalance: number;
+
+    @Column({ type: 'int', default: 0 })
+    complimentsBalance: number;
+
+    @Column({ type: 'int', default: 0 })
+    boostsBalance: number;
 
     @CreateDateColumn()
     createdAt: Date;

@@ -56,8 +56,23 @@ export class TrustSafetyService {
 
     // â”€â”€â”€ VERIFICATION UPLOADS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    async uploadSelfie(userId: string, file: Express.Multer.File) {
+    async uploadSelfie(
+        userId: string,
+        file: Express.Multer.File,
+        captureSource?: string,
+    ) {
         if (!file) throw new BadRequestException('No selfie file provided');
+
+        const normalizedCaptureSource = (captureSource || '').trim().toLowerCase();
+        if (
+            normalizedCaptureSource &&
+            normalizedCaptureSource !== 'camera' &&
+            normalizedCaptureSource !== 'live_capture'
+        ) {
+            throw new BadRequestException(
+                'Selfie verification requires a live camera photo. Gallery uploads are not accepted for verification.',
+            );
+        }
 
         const result = await this.cloudinaryService.uploadImage(file);
         const user = await this.userRepository.findOne({ where: { id: userId } });
@@ -83,9 +98,13 @@ export class TrustSafetyService {
 
         this.logger.log(`Selfie uploaded for user ${userId}`);
         return {
-            message: 'Selfie uploaded successfully. Verification review will begin automatically.',
+            message:
+                'Selfie uploaded successfully. Please ensure it is a clear live photo; verification review will begin automatically.',
             selfieUrl: result.secure_url,
             status: VerificationStatus.PENDING,
+            captureRequired: true,
+            acceptedCaptureSources: ['camera', 'live_capture'],
+            verificationType: 'selfie',
         };
     }
 
@@ -102,12 +121,27 @@ export class TrustSafetyService {
             : 'national_id';
 
         const result = await this.cloudinaryService.uploadImage(file);
+        const user = await this.userRepository.findOne({ where: { id: userId } });
+        if (!user) throw new BadRequestException('User not found');
+
+        const verification = normalizeVerificationState(user.verification);
+        verification.identity = {
+            ...verification.identity,
+            status: VerificationStatus.PENDING,
+            url: result.secure_url,
+            rejectionReason: null,
+            submittedAt: new Date().toISOString(),
+            reviewedAt: null,
+            reviewedBy: null,
+        };
+
         await this.userRepository.update(userId, {
             documentUrl: result.secure_url,
             documentType: normalizedDocumentType,
             documentVerified: false,
             documentVerifiedAt: null,
             documentRejectionReason: null,
+            verification,
         } as any);
 
         await this.redisService.set(`id_doc:${userId}`, result.secure_url, 0);
@@ -201,33 +235,84 @@ export class TrustSafetyService {
         const verification = normalizeVerificationState(user?.verification);
         const marriageCertUrl =
             verification.marital_status.url || (await this.redisService.get(`marriage_cert:${userId}`));
-        const selfieStatus = verification.selfie.status;
-        const idDocumentStatus = user?.documentVerified
+        const identityUrl = verification.identity.url || user?.documentUrl || idDocUrl || null;
+
+        const selfieUrl = verification.selfie.url || user?.selfieUrl || null;
+        const selfieStatus = user?.selfieVerified
+            ? VerificationStatus.APPROVED
+            : verification.selfie.status === VerificationStatus.REJECTED
+                ? VerificationStatus.REJECTED
+                : selfieUrl
+                    ? VerificationStatus.PENDING
+                    : VerificationStatus.NOT_SUBMITTED;
+
+        const idDocumentStatus = user?.documentVerified || verification.identity.status === VerificationStatus.APPROVED
             ? 'verified'
+            : verification.identity.status === VerificationStatus.REJECTED
+                ? 'reverify_required'
             : (await this.redisService.get(this.idDocumentStatusKey(userId))) ||
               (user?.documentRejectionReason
                   ? 'reverify_required'
-                  : ((idDocUrl || user?.documentUrl) ? 'pending_review' : 'not_uploaded'));
-        const marriageCertStatus = verification.marital_status.status;
+                  : (identityUrl ? 'pending_review' : 'not_uploaded'));
+        const marriageCertStatus =
+            verification.marital_status.status === VerificationStatus.REJECTED
+                ? VerificationStatus.REJECTED
+                : verification.marital_status.status === VerificationStatus.APPROVED
+                    ? VerificationStatus.APPROVED
+                    : marriageCertUrl
+                        ? VerificationStatus.PENDING
+                        : VerificationStatus.NOT_SUBMITTED;
+
+        const selfieRejectionReason =
+            selfieStatus === VerificationStatus.REJECTED
+                ? verification.selfie.rejectionReason || 'Please retake a clear live selfie photo.'
+                : null;
+
+        const marriageRejectionReason =
+            marriageCertStatus === VerificationStatus.REJECTED
+                ? verification.marital_status.rejectionReason || null
+                : null;
+        const identityRejectionReason =
+            idDocumentStatus === 'reverify_required'
+                ? verification.identity.rejectionReason || user?.documentRejectionReason || null
+                : null;
 
         return {
             emailVerified: user?.emailVerified ?? false,
-            selfieVerified: user?.selfieVerified ?? false,
-            selfieUploaded: !!verification.selfie.url,
+            selfieVerified: selfieStatus === VerificationStatus.APPROVED,
+            selfieUploaded: !!selfieUrl,
             selfieStatus,
-            selfieUrl: verification.selfie.url || user?.selfieUrl || null,
-            selfieRejectionReason: verification.selfie.rejectionReason || null,
-            idDocumentUploaded: !!(idDocUrl || user?.documentUrl),
+            selfieUrl,
+            selfieRejectionReason,
+            idDocumentUploaded: !!identityUrl,
             idDocumentStatus,
-            documentUrl: user?.documentUrl || idDocUrl || null,
+            documentUrl: identityUrl,
             documentType: user?.documentType || null,
-            documentVerified: user?.documentVerified ?? false,
+            documentVerified: idDocumentStatus === 'verified',
             documentVerifiedAt: user?.documentVerifiedAt ?? null,
-            documentRejectionReason: user?.documentRejectionReason || null,
+            documentRejectionReason: identityRejectionReason,
             marriageCertUploaded: !!marriageCertUrl,
             marriageCertStatus,
             marriageCertUrl,
-            marriageCertRejectionReason: verification.marital_status.rejectionReason || null,
+            marriageCertRejectionReason: marriageRejectionReason,
+            selfieVerification: {
+                status: selfieStatus,
+                uploaded: !!selfieUrl,
+                rejectionReason: selfieRejectionReason,
+                captureRequired: true,
+                acceptedCaptureSources: ['camera', 'live_capture'],
+            },
+            identityVerification: {
+                status: idDocumentStatus,
+                uploaded: !!identityUrl,
+                rejectionReason: identityRejectionReason,
+                documentType: user?.documentType || null,
+            },
+            maritalStatusVerification: {
+                status: marriageCertStatus,
+                uploaded: !!marriageCertUrl,
+                rejectionReason: marriageRejectionReason,
+            },
             trustScore: user?.trustScore ?? 100,
         };
     }
@@ -466,7 +551,7 @@ export class TrustSafetyService {
         return {
             match: false,
             confidence: 0,
-            message: 'Selfie submitted for manual review.',
+            message: 'Selfie submitted for manual review. We only accept clear live selfie photos.',
             status: VerificationStatus.PENDING,
         };
     }
@@ -560,14 +645,15 @@ export class TrustSafetyService {
             const normalizedContent = (flag.content ?? '').toLowerCase();
 
             if (normalizedContent.includes('id document')) {
-                await this.userRepository.update(flag.userId, {
-                    documentVerified: approved,
-                    documentVerifiedAt: approved ? new Date() : null,
-                    documentRejectionReason: approved
+                await this.updateUserVerificationField(
+                    flag.userId,
+                    'identity',
+                    approved ? VerificationStatus.APPROVED : VerificationStatus.REJECTED,
+                    approved
                         ? null
                         : (note ??
                               "Please upload a clearer passport, national ID, or driver's license."),
-                } as any);
+                );
                 await this.redisService.set(
                     this.idDocumentStatusKey(flag.userId),
                     approved ? 'verified' : 'reverify_required',
@@ -591,13 +677,23 @@ export class TrustSafetyService {
 
     private async updateUserVerificationField(
         userId: string,
-        field: 'selfie' | 'marital_status',
+        field: 'selfie' | 'identity' | 'marital_status',
         status: VerificationStatus,
         rejectionReason?: string | null,
     ): Promise<void> {
         const user = await this.userRepository.findOne({
             where: { id: userId },
-            select: ['id', 'selfieUrl', 'selfieVerified', 'verification'],
+            select: [
+                'id',
+                'selfieUrl',
+                'selfieVerified',
+                'documentUrl',
+                'documentType',
+                'documentVerified',
+                'documentVerifiedAt',
+                'documentRejectionReason',
+                'verification',
+            ],
         });
 
         if (!user) {
@@ -607,6 +703,12 @@ export class TrustSafetyService {
         const verification = normalizeVerificationState(user.verification);
         const now = new Date().toISOString();
         const current = verification[field];
+        const currentUrl =
+            field === 'selfie'
+                ? user.selfieUrl || current.url
+                : field === 'identity'
+                    ? user.documentUrl || current.url
+                    : current.url;
 
         verification[field] = {
             ...current,
@@ -621,7 +723,7 @@ export class TrustSafetyService {
                 status === VerificationStatus.NOT_SUBMITTED
                     ? null
                     : current.submittedAt || now,
-            url: status === VerificationStatus.NOT_SUBMITTED ? null : current.url,
+            url: status === VerificationStatus.NOT_SUBMITTED ? null : currentUrl,
         };
 
         const updateData: any = {
@@ -631,6 +733,15 @@ export class TrustSafetyService {
         if (field === 'selfie') {
             updateData.selfieVerified = status === VerificationStatus.APPROVED;
             updateData.selfieUrl = verification.selfie.url;
+        }
+
+        if (field === 'identity') {
+            updateData.documentVerified = status === VerificationStatus.APPROVED;
+            updateData.documentVerifiedAt =
+                status === VerificationStatus.APPROVED ? new Date(now) : null;
+            updateData.documentRejectionReason =
+                status === VerificationStatus.REJECTED ? rejectionReason ?? null : null;
+            updateData.documentUrl = verification.identity.url;
         }
 
         await this.userRepository.update(userId, updateData);

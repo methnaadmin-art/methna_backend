@@ -23,7 +23,7 @@ import { UserRole, UserStatus, ModerationReasonCode, ActionRequired } from '../.
 import { ReportStatus } from '../../database/entities/report.entity';
 import { PhotoModerationStatus } from '../../database/entities/photo.entity';
 import { LikeType } from '../../database/entities/like.entity';
-import { TicketStatus } from '../../database/entities/support-ticket.entity';
+import { TicketStatus, TicketPriority } from '../../database/entities/support-ticket.entity';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import {
     IsEnum,
@@ -31,11 +31,16 @@ import {
     IsString,
     IsEmail,
     IsBoolean,
+    IsInt,
+    IsIn,
     MinLength,
+    Min,
+    Max,
     IsDateString,
     IsObject,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import { VerificationStatus } from '../../database/entities/user.entity';
 
 class UpdateUserStatusDto {
@@ -78,10 +83,9 @@ class UpdateUserStatusDto {
     @IsDateString()
     expiresAt?: string;
 
-    @ApiPropertyOptional()
-    @IsOptional()
+    @ApiProperty({ description: 'Required when status is not active. Explains why the action was taken.' })
     @IsString()
-    internalAdminNote?: string;
+    internalAdminNote: string;
 }
 
 class ResolveReportDto {
@@ -111,6 +115,7 @@ class CreateUserDto {
     @ApiProperty() @IsString() @MinLength(6) password: string;
     @ApiProperty() @IsString() firstName: string;
     @ApiProperty() @IsString() lastName: string;
+    @ApiPropertyOptional() @IsOptional() @IsString() username?: string;
     @ApiPropertyOptional({ enum: UserRole }) @IsOptional() @IsEnum(UserRole) role?: UserRole;
     @ApiPropertyOptional({ enum: UserStatus }) @IsOptional() @IsEnum(UserStatus) status?: UserStatus;
 }
@@ -152,10 +157,221 @@ class VerificationModerationDto {
     rejectionReason?: string;
 }
 
+const SORT_ORDERS = ['asc', 'desc'] as const;
+const USER_PREMIUM_STATES = ['all', 'premium', 'not_premium', 'expired'] as const;
+const USER_VERIFICATION_STATES = ['all', 'pending', 'approved', 'rejected'] as const;
+const VERIFICATION_TYPES = ['all', 'selfie', 'identity', 'marital_status'] as const;
+
+class AdminUsersQueryDto extends PaginationDto {
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    search?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    query?: string;
+
+    @ApiPropertyOptional({ enum: UserStatus })
+    @IsOptional()
+    @IsEnum(UserStatus)
+    status?: UserStatus;
+
+    @ApiPropertyOptional({ enum: UserRole })
+    @IsOptional()
+    @IsEnum(UserRole)
+    role?: UserRole;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    plan?: string;
+
+    @ApiPropertyOptional({ enum: USER_PREMIUM_STATES })
+    @IsOptional()
+    @IsIn(USER_PREMIUM_STATES)
+    premiumState?: (typeof USER_PREMIUM_STATES)[number];
+
+    @ApiPropertyOptional({ enum: USER_VERIFICATION_STATES })
+    @IsOptional()
+    @IsIn(USER_VERIFICATION_STATES)
+    verificationState?: (typeof USER_VERIFICATION_STATES)[number];
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsDateString()
+    dateFrom?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsDateString()
+    dateTo?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    sortBy?: string;
+
+    @ApiPropertyOptional({ enum: SORT_ORDERS })
+    @IsOptional()
+    @IsIn(SORT_ORDERS)
+    sortOrder?: (typeof SORT_ORDERS)[number];
+}
+
+class AdminVerificationQueryDto extends PaginationDto {
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    search?: string;
+
+    @ApiPropertyOptional({ enum: USER_VERIFICATION_STATES })
+    @IsOptional()
+    @IsIn(USER_VERIFICATION_STATES)
+    status?: (typeof USER_VERIFICATION_STATES)[number];
+
+    @ApiPropertyOptional({ enum: VERIFICATION_TYPES })
+    @IsOptional()
+    @IsIn(VERIFICATION_TYPES)
+    type?: (typeof VERIFICATION_TYPES)[number];
+
+    @ApiPropertyOptional({ enum: UserStatus })
+    @IsOptional()
+    @IsEnum(UserStatus)
+    userStatus?: UserStatus;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsDateString()
+    dateFrom?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsDateString()
+    dateTo?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    sortBy?: string;
+
+    @ApiPropertyOptional({ enum: SORT_ORDERS })
+    @IsOptional()
+    @IsIn(SORT_ORDERS)
+    sortOrder?: (typeof SORT_ORDERS)[number];
+}
+
+class AdminNotificationsQueryDto extends PaginationDto {
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    search?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    userId?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    type?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @Type(() => Boolean)
+    @IsBoolean()
+    isRead?: boolean;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsDateString()
+    dateFrom?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsDateString()
+    dateTo?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    sortBy?: string;
+
+    @ApiPropertyOptional({ enum: SORT_ORDERS })
+    @IsOptional()
+    @IsIn(SORT_ORDERS)
+    sortOrder?: (typeof SORT_ORDERS)[number];
+}
+
+class AdminTicketsQueryDto extends PaginationDto {
+    @ApiPropertyOptional({ enum: TicketStatus })
+    @IsOptional()
+    @IsEnum(TicketStatus)
+    status?: TicketStatus;
+
+    @ApiPropertyOptional({ enum: TicketPriority })
+    @IsOptional()
+    @IsEnum(TicketPriority)
+    priority?: TicketPriority;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    search?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    userId?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    assignedToId?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsDateString()
+    dateFrom?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsDateString()
+    dateTo?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    sortBy?: string;
+
+    @ApiPropertyOptional({ enum: SORT_ORDERS })
+    @IsOptional()
+    @IsIn(SORT_ORDERS)
+    sortOrder?: (typeof SORT_ORDERS)[number];
+}
+
+class UserActionsQueryDto extends PaginationDto {
+    @ApiPropertyOptional({ default: 1, minimum: 1 })
+    @IsOptional()
+    @Type(() => Number)
+    @IsInt()
+    @Min(1)
+    page?: number = 1;
+
+    @ApiPropertyOptional({ default: 30, minimum: 1, maximum: 100 })
+    @IsOptional()
+    @Type(() => Number)
+    @IsInt()
+    @Min(1)
+    @Max(100)
+    limit?: number = 30;
+}
+
 @ApiTags('admin')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.ADMIN)
+@Roles(UserRole.ADMIN, UserRole.MODERATOR)
 @Controller('admin')
 export class AdminController {
     constructor(
@@ -167,31 +383,57 @@ export class AdminController {
 
     @Get('users')
     @ApiOperation({ summary: 'List all users with search and filters' })
-    async getUsers(
-        @Query() pagination: PaginationDto,
-        @Query('status') status?: UserStatus,
-        @Query('search') search?: string,
-        @Query('role') role?: UserRole,
-        @Query('plan') plan?: string,
-    ) {
-        return this.adminService.getUsers(pagination, status, search, role, plan);
+    async getUsers(@Query() query: AdminUsersQueryDto) {
+        const searchText = (query.search || query.query || '').trim() || undefined;
+        return this.adminService.getUsers(query, {
+            status: query.status,
+            search: searchText,
+            role: query.role,
+            plan: query.plan,
+            premiumState: query.premiumState,
+            verificationState: query.verificationState,
+            dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
+            dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
+            sortBy: query.sortBy,
+            sortOrder: query.sortOrder,
+        });
     }
 
-    @Roles(UserRole.ADMIN)
+    @Get('search/users')
+    @ApiOperation({ summary: 'Search users by name, email, or userId' })
+    async searchUsersLegacy(@Query() query: AdminUsersQueryDto) {
+        return this.handleUserSearch(query);
+    }
+
     @Get('users/search')
     @ApiOperation({ summary: 'Search users by name, email, or userId' })
-    async searchUsers(
-        @Query() pagination: PaginationDto,
-        @Query('query') query?: string,
-    ) {
-        return this.adminService.searchUsers(query || '', pagination);
+    async searchUsers(@Query() query: AdminUsersQueryDto) {
+        return this.handleUserSearch(query);
+    }
+
+    private handleUserSearch(query: AdminUsersQueryDto) {
+        const searchText = (query.query || query.search || '').trim();
+        return this.adminService.searchUsers(searchText, query, {
+            status: query.status,
+            role: this.normalizeRoleInput(query.role),
+            plan: query.plan,
+            premiumState: query.premiumState,
+            verificationState: query.verificationState,
+            dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
+            dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
+            sortBy: query.sortBy,
+            sortOrder: query.sortOrder,
+        });
     }
 
     @Roles(UserRole.ADMIN)
     @Post('users')
     @ApiOperation({ summary: 'Create a new user (admin)' })
     async createUser(@Body() dto: CreateUserDto) {
-        return this.adminService.createUser(dto);
+        return this.adminService.createUser({
+            ...dto,
+            role: this.normalizeRoleInput(dto.role),
+        });
     }
 
     @Get('users/:id')
@@ -212,10 +454,30 @@ export class AdminController {
         return this.adminService.getUserSubscriptionHistory(userId);
     }
 
+    @Get('users/:id/actions')
+    @ApiOperation({ summary: 'Get admin/staff action timeline for a user' })
+    async getUserActions(
+        @Param('id') userId: string,
+        @Query() pagination: UserActionsQueryDto,
+    ) {
+        return this.adminService.getUserActions(userId, pagination);
+    }
+
+    @Roles(UserRole.ADMIN)
     @Patch('users/:id')
-    @Put('users/:id')
     @ApiOperation({ summary: 'Update user fields' })
     async updateUser(@Param('id') userId: string, @Body() dto: any) {
+        return this.updateUserFields(userId, dto);
+    }
+
+    @Roles(UserRole.ADMIN)
+    @Put('users/:id')
+    @ApiOperation({ summary: 'Replace user fields' })
+    async replaceUser(@Param('id') userId: string, @Body() dto: any) {
+        return this.updateUserFields(userId, dto);
+    }
+
+    private updateUserFields(userId: string, dto: any) {
         return this.adminService.updateUser(userId, dto);
     }
 
@@ -344,11 +606,34 @@ export class AdminController {
         return this.adminService.getPendingDocuments();
     }
 
-    @Roles(UserRole.ADMIN)
+    @Get('verifications')
+    @ApiOperation({ summary: 'List verification queue with filters and search' })
+    async getVerifications(@Query() query: AdminVerificationQueryDto) {
+        return this.adminService.getVerifications(query, {
+            search: query.search,
+            status: query.status,
+            type: query.type,
+            userStatus: query.userStatus,
+            dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
+            dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
+            sortBy: query.sortBy,
+            sortOrder: query.sortOrder,
+        });
+    }
+
     @Get('verifications/pending')
     @ApiOperation({ summary: 'Get all users with pending selfie or marital-status verification' })
-    async getPendingVerifications() {
-        return this.adminService.getPendingVerifications();
+    async getPendingVerifications(@Query() query: AdminVerificationQueryDto) {
+        return this.adminService.getVerifications(query, {
+            search: query.search,
+            status: 'pending',
+            type: query.type,
+            userStatus: query.userStatus,
+            dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
+            dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
+            sortBy: query.sortBy,
+            sortOrder: query.sortOrder,
+        });
     }
 
     @Patch('documents/:userId/verify')
@@ -432,8 +717,13 @@ export class AdminController {
     async getConversations(
         @Query() pagination: PaginationDto,
         @Query('search') search?: string,
+        @Query('locked') locked?: string,
+        @Query('flagged') flagged?: string,
     ) {
-        return this.adminService.getConversations(pagination, search);
+        const filters: { locked?: boolean; flagged?: boolean } = {};
+        if (locked === 'true') filters.locked = true;
+        if (flagged === 'true') filters.flagged = true;
+        return this.adminService.getConversations(pagination, search, Object.keys(filters).length > 0 ? filters : undefined);
     }
 
     @Get('conversations/:id/messages')
@@ -517,6 +807,22 @@ export class AdminController {
 
     // â”€â”€â”€ NOTIFICATIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+    @Get('notifications')
+    @ApiOperation({ summary: 'List sent notifications with search and filters' })
+    async getNotifications(@Query() query: AdminNotificationsQueryDto) {
+        return this.adminService.getAdminNotifications(query, {
+            search: query.search,
+            userId: query.userId,
+            type: query.type,
+            isRead: query.isRead,
+            dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
+            dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
+            sortBy: query.sortBy,
+            sortOrder: query.sortOrder,
+        });
+    }
+
+    @Roles(UserRole.ADMIN)
     @Post('notifications/send')
     @ApiOperation({ summary: 'Send notification to user or broadcast to all' })
     async sendNotification(
@@ -534,6 +840,7 @@ export class AdminController {
         return this.adminService.sendNotification(dto);
     }
 
+    @Roles(UserRole.ADMIN)
     @Post('notifications/preview')
     @ApiOperation({ summary: 'Preview recipient count for filtered broadcast' })
     async previewNotificationRecipients(@Body() filters: Record<string, any>) {
@@ -544,11 +851,18 @@ export class AdminController {
 
     @Get('tickets')
     @ApiOperation({ summary: 'List support tickets' })
-    async getTickets(
-        @Query() pagination: PaginationDto,
-        @Query('status') status?: TicketStatus,
-    ) {
-        return this.adminService.getTickets(pagination, status);
+    async getTickets(@Query() query: AdminTicketsQueryDto) {
+        return this.adminService.getTickets(query, {
+            status: query.status,
+            priority: query.priority,
+            search: query.search,
+            userId: query.userId,
+            assignedToId: query.assignedToId,
+            dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
+            dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
+            sortBy: query.sortBy,
+            sortOrder: query.sortOrder,
+        });
     }
 
     @Patch('tickets/:id/reply')
@@ -706,6 +1020,22 @@ export class AdminController {
             this.redisService.getAuditLogs('suspicious', 50),
         ]);
         return { login, admin, suspicious };
+    }
+
+    private normalizeRoleInput(role?: string | UserRole): UserRole | undefined {
+        if (!role) {
+            return undefined;
+        }
+
+        const normalized = role.toString().trim().toLowerCase();
+        if (normalized === 'staff') {
+            return UserRole.MODERATOR;
+        }
+        if (Object.values(UserRole).includes(normalized as UserRole)) {
+            return normalized as UserRole;
+        }
+
+        return undefined;
     }
 }
 

@@ -60,7 +60,7 @@ export class SearchService {
 
         const page = filters.page ?? 1;
         const limit = filters.limit ?? 20;
-        const cacheKey = `search:${userId}:${JSON.stringify(filters)}`;
+        const cacheKey = this.buildSearchCacheKey(userId, filters);
 
         if (!filters.forceRefresh) {
             try {
@@ -76,7 +76,7 @@ export class SearchService {
             }
         } else {
             try {
-                await this.redisService.del(cacheKey);
+                await this.redisService.delByPattern(`search:${userId}:*`);
             } catch (_) { }
         }
 
@@ -1252,6 +1252,58 @@ export class SearchService {
 
     private normalizeValue(value: string | null | undefined): string {
         return (value ?? '').trim().toLowerCase();
+    }
+
+    private buildSearchCacheKey(userId: string, filters: SearchFiltersDto): string {
+        const { forceRefresh, ...rawFilters } = filters as SearchFiltersDto & {
+            forceRefresh?: boolean;
+        };
+
+        const normalized = this.normalizeFilterPayload(rawFilters as Record<string, any>);
+        return `search:${userId}:${JSON.stringify(normalized)}`;
+    }
+
+    private normalizeFilterPayload(input: unknown): unknown {
+        if (input == null) {
+            return null;
+        }
+
+        if (Array.isArray(input)) {
+            const normalizedValues = input
+                .map((item) => this.normalizeFilterPayload(item))
+                .filter((item) => item !== null && item !== undefined && item !== '');
+
+            if (normalizedValues.every((item) => typeof item === 'string')) {
+                return Array.from(
+                    new Set((normalizedValues as string[]).map((item) => item.trim().toLowerCase())),
+                ).sort();
+            }
+
+            return normalizedValues;
+        }
+
+        if (typeof input === 'object') {
+            const record = input as Record<string, any>;
+            const sortedKeys = Object.keys(record).sort();
+            const normalizedRecord: Record<string, unknown> = {};
+
+            for (const key of sortedKeys) {
+                const value = this.normalizeFilterPayload(record[key]);
+                if (value === undefined || value === null || value === '') {
+                    continue;
+                }
+                normalizedRecord[key] = value;
+            }
+
+            return normalizedRecord;
+        }
+
+        if (typeof input === 'string') {
+            const trimmed = input.trim();
+            return trimmed.length > 0 ? trimmed.toLowerCase() : '';
+        }
+
+        return input;
     }
 
     private normalizeCommunicationStyle(value: string | null | undefined): string {

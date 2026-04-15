@@ -7,7 +7,6 @@ import { User } from '../../database/entities/user.entity';
 import { PurchaseTransaction } from '../../database/entities/purchase-transaction.entity';
 import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
-import { StripeWebhookController } from './stripe-webhook.controller';
 import { GooglePlayBillingService } from './google-play-billing.service';
 import { GooglePlayBillingController } from './google-play-billing.controller';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
@@ -20,7 +19,7 @@ import { RedisModule } from '../redis/redis.module';
         SubscriptionsModule,
         RedisModule,
     ],
-    controllers: [PaymentsController, StripeWebhookController, GooglePlayBillingController],
+    controllers: [PaymentsController, GooglePlayBillingController],
     providers: [PaymentsService, GooglePlayBillingService],
     exports: [PaymentsService, GooglePlayBillingService],
 })

@@ -13,6 +13,7 @@ import { Plan, PlanEntitlements } from '../../database/entities/plan.entity';
 import { Boost, BoostType } from '../../database/entities/boost.entity';
 import { RedisService } from '../redis/redis.service';
 import { PlansService } from '../plans/plans.service';
+import { ConsumableService } from '../consumables/consumable.service';
 
 export enum FeatureFlag {
     UNLIMITED_LIKES = 'unlimited_likes',
@@ -81,6 +82,7 @@ export class MonetizationService {
         private readonly boostRepository: Repository<Boost>,
         private readonly redisService: RedisService,
         private readonly plansService: PlansService,
+        private readonly consumableService: ConsumableService,
     ) { }
 
     async getEffectivePlan(userId: string): Promise<Plan | null> {
@@ -141,6 +143,7 @@ export class MonetizationService {
             endDate,
             paymentReference: paymentReference || 'NO_PAYMENT_PLAN',
             billingCycle: planEntity.billingCycle,
+            paymentProvider: 'trial',
         });
 
         const saved = await this.subscriptionRepository.save(sub);
@@ -226,12 +229,25 @@ export class MonetizationService {
         return { rewinds, weeklyBoosts };
     }
 
-    async getRemainingLikes(userId: string): Promise<{ remaining: number; limit: number; isUnlimited: boolean }> {
+    async getRemainingLikes(userId: string): Promise<{ remaining: number; limit: number; isUnlimited: boolean; consumableBalance: number }> {
         const { likes } = await this.getDailyLimits(userId);
-        return this.getRemainingDailyCounter(`likes_used:${userId}:${this.todayKey()}`, likes);
+        const dailyResult = await this.getRemainingDailyCounter(`likes_used:${userId}:${this.todayKey()}`, likes);
+        const balances = await this.consumableService.getUserBalances(userId);
+        return {
+            ...dailyResult,
+            remaining: dailyResult.remaining + balances.likes,
+            consumableBalance: balances.likes,
+        };
     }
 
     async useLike(userId: string): Promise<{ success: boolean; remaining: number }> {
+        // Try consumable balance first
+        const balanceResult = await this.consumableService.consumeBalance(userId, 'likes', 1);
+        if (balanceResult.success) {
+            return { success: true, remaining: balanceResult.remaining };
+        }
+
+        // Fall back to subscription-based daily limit
         const { likes } = await this.getDailyLimits(userId);
         return this.consumeCounter(
             `likes_used:${userId}:${this.todayKey()}`,
@@ -274,15 +290,28 @@ export class MonetizationService {
         );
     }
 
-    async getRemainingCompliments(userId: string): Promise<{ remaining: number; limit: number; isUnlimited: boolean }> {
+    async getRemainingCompliments(userId: string): Promise<{ remaining: number; limit: number; isUnlimited: boolean; consumableBalance: number }> {
         const limits = await this.getDailyLimits(userId);
-        return this.getRemainingDailyCounter(
+        const dailyResult = await this.getRemainingDailyCounter(
             `compliments_used:${userId}:${this.todayKey()}`,
             limits.complimentCredits,
         );
+        const balances = await this.consumableService.getUserBalances(userId);
+        return {
+            ...dailyResult,
+            remaining: dailyResult.remaining + balances.compliments,
+            consumableBalance: balances.compliments,
+        };
     }
 
     async useComplimentCredit(userId: string): Promise<void> {
+        // Try consumable balance first
+        const balanceResult = await this.consumableService.consumeBalance(userId, 'compliments', 1);
+        if (balanceResult.success) {
+            return;
+        }
+
+        // Fall back to subscription-based daily limit
         await this.consumeCounter(
             `compliments_used:${userId}:${this.todayKey()}`,
             (await this.getDailyLimits(userId)).complimentCredits,
@@ -328,6 +357,13 @@ export class MonetizationService {
         });
         if (activeBoost) throw new BadRequestException('You already have an active boost');
 
+        // Try consumable balance first
+        const balanceResult = await this.consumableService.activateBoost(userId, durationMinutes);
+        if (balanceResult.success && balanceResult.boost) {
+            return balanceResult.boost;
+        }
+
+        // Fall back to subscription-based weekly boost limit
         const monthlyLimits = await this.getMonthlyLimits(userId);
         await this.consumeCounter(
             `boosts_used:${userId}:${this.weekKey()}`,
@@ -566,6 +602,7 @@ export class MonetizationService {
             planId: plan.id,
             subscriptionPlanId: user?.subscriptionPlanId ?? plan.id,
             status: subscription?.status ?? 'free',
+            paymentProvider: subscription?.paymentProvider ?? null,
             entitlements,
             features,
             planFeatures,

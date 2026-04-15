@@ -145,8 +145,24 @@ export class ModerationGuard implements CanActivate {
     private isBlocked(status: UserStatus, level: ModerationLevel): boolean {
         const blocked: Record<ModerationLevel, UserStatus[]> = {
             none: [UserStatus.BANNED],
-            limited: [UserStatus.LIMITED, UserStatus.SUSPENDED, UserStatus.SHADOW_SUSPENDED, UserStatus.BANNED],
-            suspended: [UserStatus.SUSPENDED, UserStatus.BANNED],
+            limited: [
+                UserStatus.PENDING_VERIFICATION,
+                UserStatus.REJECTED,
+                UserStatus.DEACTIVATED,
+                UserStatus.CLOSED,
+                UserStatus.LIMITED,
+                UserStatus.SUSPENDED,
+                UserStatus.SHADOW_SUSPENDED,
+                UserStatus.BANNED,
+            ],
+            suspended: [
+                UserStatus.PENDING_VERIFICATION,
+                UserStatus.REJECTED,
+                UserStatus.DEACTIVATED,
+                UserStatus.CLOSED,
+                UserStatus.SUSPENDED,
+                UserStatus.BANNED,
+            ],
             banned: [UserStatus.BANNED],
         };
         return blocked[level]?.includes(status) ?? false;
@@ -154,10 +170,18 @@ export class ModerationGuard implements CanActivate {
 
     private getBlockedMessage(status: UserStatus): string {
         switch (status) {
+            case UserStatus.PENDING_VERIFICATION:
+                return 'Your account is pending verification. Please complete verification and wait for approval.';
+            case UserStatus.REJECTED:
+                return 'Your verification was rejected. Please review the reason and submit new verification documents.';
             case UserStatus.BANNED:
                 return 'Your account has been banned. Contact support for more information.';
             case UserStatus.SUSPENDED:
                 return 'Your account is suspended. Contact support for more information.';
+            case UserStatus.DEACTIVATED:
+                return 'Your account is deactivated. Contact support to restore access.';
+            case UserStatus.CLOSED:
+                return 'Your account is closed. Contact support if this was a mistake.';
             case UserStatus.LIMITED:
                 return 'Your account has limited access. Some features are restricted.';
             case UserStatus.SHADOW_SUSPENDED:

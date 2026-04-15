@@ -136,6 +136,9 @@ export class MatchesService {
             await this.conversationRepository.remove(conversation);
             this.logger.log(`Deleted conversation ${conversation.id} for unmatched match ${matchId}`);
         }
+
+        const counterpartUserId = match.user1Id === userId ? match.user2Id : match.user1Id;
+        await this.invalidateDiscoveryCaches(userId, counterpartUserId);
     }
 
     // ─── NEARBY USERS RADAR ─────────────────────────────────
@@ -712,6 +715,27 @@ export class MatchesService {
         const excludeIds = [...new Set([userId, ...blockedIds, ...swipedIds, ...matchedIds])];
         await this.redisService.setJson(cacheKey, excludeIds, 60);
         return excludeIds;
+    }
+
+    private async invalidateDiscoveryCaches(...userIds: string[]): Promise<void> {
+        const uniqueIds = [
+            ...new Set(userIds.map((id) => id?.trim()).filter((id): id is string => !!id)),
+        ];
+
+        if (uniqueIds.length === 0) {
+            return;
+        }
+
+        await Promise.all(
+            uniqueIds.flatMap((id) => [
+                this.redisService.del(`excludeIds:${id}`),
+                this.redisService.del(`discovery:${id}`),
+                this.redisService.del(`suggestions:${id}`),
+                this.redisService.del(`matches:${id}`),
+                this.redisService.del(`conversations:${id}`),
+                this.redisService.delByPattern(`search:${id}:*`),
+            ]),
+        );
     }
 
     private haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {

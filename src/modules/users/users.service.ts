@@ -9,6 +9,7 @@ import { Repository } from 'typeorm';
 import {
     User,
     UserStatus,
+    VerificationStatus,
     normalizeVerificationState,
 } from '../../database/entities/user.entity';
 import { Profile } from '../../database/entities/profile.entity';
@@ -622,13 +623,82 @@ export class UsersService {
 
     private normalizeUserState(user: User): User {
         const hasActivePremium = this.hasActivePremiumEntitlement(user);
+        const verification = this.reconcileVerificationState(user);
+
         return {
             ...user,
             isPremium: hasActivePremium,
             premiumStartDate: user.premiumStartDate ?? null,
             premiumExpiryDate: user.premiumExpiryDate ?? null,
-            verification: normalizeVerificationState(user.verification),
+            verification,
         };
+    }
+
+    private reconcileVerificationState(user: User) {
+        const verification = normalizeVerificationState(user.verification);
+        const selfieUrl = (user.selfieUrl || verification.selfie.url || null) as string | null;
+
+        if (user.selfieVerified === true) {
+            verification.selfie = {
+                ...verification.selfie,
+                status: VerificationStatus.APPROVED,
+                url: selfieUrl,
+                rejectionReason: null,
+            };
+        } else if (verification.selfie.status === VerificationStatus.REJECTED) {
+            verification.selfie = {
+                ...verification.selfie,
+                url: selfieUrl,
+            };
+        } else if (selfieUrl) {
+            verification.selfie = {
+                ...verification.selfie,
+                status: VerificationStatus.PENDING,
+                url: selfieUrl,
+            };
+        } else {
+            verification.selfie = {
+                ...verification.selfie,
+                status: VerificationStatus.NOT_SUBMITTED,
+                url: null,
+                rejectionReason: null,
+                submittedAt: null,
+                reviewedAt: null,
+                reviewedBy: null,
+            };
+        }
+
+        const maritalUrl = (verification.marital_status.url || null) as string | null;
+        if (verification.marital_status.status === VerificationStatus.REJECTED) {
+            verification.marital_status = {
+                ...verification.marital_status,
+                url: maritalUrl,
+            };
+        } else if (verification.marital_status.status === VerificationStatus.APPROVED) {
+            verification.marital_status = {
+                ...verification.marital_status,
+                url: maritalUrl,
+                rejectionReason: null,
+            };
+        } else if (maritalUrl) {
+            verification.marital_status = {
+                ...verification.marital_status,
+                status: VerificationStatus.PENDING,
+                url: maritalUrl,
+            };
+        } else {
+            verification.marital_status = {
+                ...verification.marital_status,
+                status: VerificationStatus.NOT_SUBMITTED,
+                url: null,
+                rejectionReason: null,
+                submittedAt: null,
+                reviewedAt: null,
+                reviewedBy: null,
+            };
+        }
+
+        return verification;
     }
 
     private hasActivePremiumEntitlement(

@@ -5,10 +5,11 @@ import { SearchService } from './search.service';
 import { SearchFiltersDto } from './dto/search.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { ModerationGuard } from '../../common/guards/moderation.guard';
 
 @ApiTags('search')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ModerationGuard)
 @Controller('search')
 export class SearchController {
     private readonly logger = new Logger(SearchController.name);

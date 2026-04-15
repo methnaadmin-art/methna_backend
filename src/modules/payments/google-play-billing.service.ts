@@ -1,27 +1,35 @@
 import {
+    BadRequestException,
     Injectable,
     Logger,
-    BadRequestException,
-    NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { google } from 'googleapis';
 import {
-    PurchaseTransaction,
+    Plan,
+    PlanEntitlements,
+    PlanFeatureFlags,
+    PlanLimits,
+} from '../../database/entities/plan.entity';
+import {
     PurchaseProvider,
     PurchaseStatus,
+    PurchaseTransaction,
 } from '../../database/entities/purchase-transaction.entity';
-import { Plan } from '../../database/entities/plan.entity';
-import { Subscription, SubscriptionStatus } from '../../database/entities/subscription.entity';
+import {
+    Subscription,
+    SubscriptionStatus,
+} from '../../database/entities/subscription.entity';
 import { User } from '../../database/entities/user.entity';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 export interface VerifyPurchaseDto {
-    platform: string;
-    provider: string;
+    platform?: string;
+    provider?: string;
     productId: string;
+    basePlanId?: string;
     purchaseId?: string;
     purchaseToken: string;
     verificationData?: string;
@@ -33,6 +41,14 @@ export interface VerifyPurchaseDto {
 export interface RestorePurchaseDto {
     purchaseToken: string;
     productId: string;
+    basePlanId?: string;
+}
+
+interface GooglePlayVerificationSnapshot {
+    raw: Record<string, any>;
+    verified: boolean;
+    orderId: string | null;
+    expiryDate: Date | null;
 }
 
 @Injectable()
@@ -56,14 +72,605 @@ export class GooglePlayBillingService {
         this.initGooglePlayClient();
     }
 
-    private initGooglePlayClient() {
+    async verifyAndActivatePurchase(userId: string, dto: VerifyPurchaseDto) {
+        const productId = String(dto.productId || '').trim();
+        const purchaseToken = String(dto.purchaseToken || '').trim();
+        const provider = String(dto.provider || 'google_play').trim().toLowerCase();
+        const platform = String(dto.platform || 'android').trim().toLowerCase();
+
+        if (!productId || !purchaseToken) {
+            throw new BadRequestException('productId and purchaseToken are required');
+        }
+        if (provider !== 'google_play') {
+            throw new BadRequestException('Only google_play provider is supported.');
+        }
+        if (platform !== 'android') {
+            throw new BadRequestException('Google Play verification is only valid for Android platform.');
+        }
+
+        const plan = await this.resolveGooglePlayPlan(productId, dto.basePlanId);
+        await this.ensureUserExists(userId);
+
+        const existingPurchase = await this.purchaseRepo.findOne({ where: { purchaseToken } });
+        if (existingPurchase?.status === PurchaseStatus.VERIFIED) {
+            const existingSubscription = await this.subscriptionRepo.findOne({
+                where: [
+                    { id: existingPurchase.paymentReference || undefined },
+                    { userId, googlePurchaseToken: purchaseToken },
+                ],
+                relations: ['planEntity'],
+                order: { updatedAt: 'DESC' },
+            });
+
+            if (existingSubscription && this.isSubscriptionStillActive(existingSubscription)) {
+                await this.subscriptionsService.syncUserPremiumState(userId);
+                return {
+                    status: 'already_verified',
+                    provider: 'google_play',
+                    plan: this.serializePlan(plan),
+                    subscription: this.serializeSubscription(existingSubscription),
+                    entitlements: this.buildEntitlementSnapshot(plan),
+                };
+            }
+        }
+
+        const verification = await this.verifyWithGooglePlay(productId, purchaseToken);
+        if (!verification.verified) {
+            await this.recordFailedPurchase(userId, plan, dto, verification.raw);
+            throw new BadRequestException('Google Play purchase verification failed. Purchase is invalid or expired.');
+        }
+
+        const transactionDate = this.resolveTransactionDate(dto.transactionDate);
+        const expiryDate = verification.expiryDate || this.defaultExpiryFromPlan(plan, transactionDate);
+
+        const subscription = await this.dataSource.transaction(async (manager) => {
+            const purchaseRepository = manager.getRepository(PurchaseTransaction);
+            const subscriptionRepository = manager.getRepository(Subscription);
+
+            const purchase = existingPurchase || purchaseRepository.create({
+                userId,
+                planId: plan.id,
+                provider: PurchaseProvider.GOOGLE_PLAY,
+                purchaseToken,
+                productId,
+                orderId: dto.purchaseId || verification.orderId,
+                status: PurchaseStatus.PENDING,
+                rawVerification: {},
+                transactionDate,
+                expiryDate,
+                paymentReference: null,
+            });
+
+            purchase.userId = userId;
+            purchase.planId = plan.id;
+            purchase.provider = PurchaseProvider.GOOGLE_PLAY;
+            purchase.purchaseToken = purchaseToken;
+            purchase.productId = productId;
+            purchase.orderId = dto.purchaseId || verification.orderId;
+            purchase.status = PurchaseStatus.VERIFIED;
+            purchase.rawVerification = {
+                ...(purchase.rawVerification || {}),
+                verifiedAt: new Date().toISOString(),
+                restored: !!dto.restored,
+                verificationSource: dto.verificationSource || null,
+                verificationData: dto.verificationData || null,
+                googlePlay: verification.raw,
+            };
+            purchase.transactionDate = transactionDate;
+            purchase.expiryDate = expiryDate;
+
+            const savedPurchase = await purchaseRepository.save(purchase);
+
+            await subscriptionRepository.update(
+                {
+                    userId,
+                    status: SubscriptionStatus.ACTIVE,
+                },
+                {
+                    status: SubscriptionStatus.CANCELLED,
+                },
+            );
+            await subscriptionRepository.update(
+                {
+                    userId,
+                    status: SubscriptionStatus.PAST_DUE,
+                },
+                {
+                    status: SubscriptionStatus.CANCELLED,
+                },
+            );
+            await subscriptionRepository.update(
+                {
+                    userId,
+                    status: SubscriptionStatus.TRIAL,
+                },
+                {
+                    status: SubscriptionStatus.CANCELLED,
+                },
+            );
+
+            const createdSubscription = subscriptionRepository.create({
+                userId,
+                plan: plan.code,
+                planId: plan.id,
+                planEntity: plan,
+                status: SubscriptionStatus.ACTIVE,
+                startDate: transactionDate,
+                endDate: expiryDate,
+                paymentReference: savedPurchase.id,
+                paymentProvider: PurchaseProvider.GOOGLE_PLAY,
+                googleProductId: productId,
+                googlePurchaseToken: purchaseToken,
+                googleOrderId: dto.purchaseId || verification.orderId,
+                stripeSubscriptionId: null,
+                stripeCheckoutSessionId: null,
+                stripeCustomerId: null,
+                billingCycle: plan.billingCycle,
+            });
+
+            const savedSubscription = await subscriptionRepository.save(createdSubscription);
+            savedPurchase.paymentReference = savedSubscription.id;
+            await purchaseRepository.save(savedPurchase);
+
+            return savedSubscription;
+        });
+
+        await this.subscriptionsService.syncUserPremiumState(userId);
+
+        return {
+            status: 'verified',
+            provider: 'google_play',
+            restored: !!dto.restored,
+            plan: this.serializePlan(plan),
+            subscription: this.serializeSubscription(subscription),
+            entitlements: this.buildEntitlementSnapshot(plan),
+        };
+    }
+
+    async restorePurchase(userId: string, dto: RestorePurchaseDto) {
+        return this.verifyAndActivatePurchase(userId, {
+            platform: 'android',
+            provider: 'google_play',
+            productId: dto.productId,
+            basePlanId: dto.basePlanId,
+            purchaseToken: dto.purchaseToken,
+            restored: true,
+        });
+    }
+
+    /**
+     * Verify a consumable (one-time) Google Play purchase.
+     * Uses purchases.products.get instead of purchases.subscriptions.get.
+     * Returns verification snapshot without creating a subscription.
+     */
+    async verifyAndActivateConsumablePurchase(
+        userId: string,
+        consumableProductId: string,
+        dto: VerifyPurchaseDto,
+    ): Promise<{ verified: boolean; rawVerification: Record<string, any>; transactionDate: Date | null }> {
+        const productId = String(dto.productId || '').trim();
+        const purchaseToken = String(dto.purchaseToken || '').trim();
+
+        if (!productId || !purchaseToken) {
+            throw new BadRequestException('productId and purchaseToken are required');
+        }
+
+        await this.ensureUserExists(userId);
+
+        // Check for duplicate purchase token (idempotency)
+        const existingPurchase = await this.purchaseRepo.findOne({ where: { purchaseToken } });
+        if (existingPurchase?.status === PurchaseStatus.VERIFIED) {
+            return {
+                verified: true,
+                rawVerification: existingPurchase.rawVerification || {},
+                transactionDate: existingPurchase.transactionDate,
+            };
+        }
+
+        // Verify with Google Play using products.get (consumable, not subscription)
+        const verification = await this.verifyConsumableWithGooglePlay(productId, purchaseToken);
+        if (!verification.verified) {
+            await this.recordFailedPurchase(userId, null, dto, verification.raw);
+            throw new BadRequestException('Google Play consumable purchase verification failed. Purchase is invalid or expired.');
+        }
+
+        const transactionDate = this.resolveTransactionDate(dto.transactionDate);
+
+        // Record the verified purchase (no subscription created — consumable is handled by ConsumableService.grantBalance)
+        const purchase = existingPurchase || this.purchaseRepo.create({
+            userId,
+            consumableProductId,
+            provider: PurchaseProvider.GOOGLE_PLAY,
+            purchaseToken,
+            productId,
+            orderId: dto.purchaseId || verification.orderId,
+            status: PurchaseStatus.PENDING,
+            rawVerification: {},
+            transactionDate,
+            expiryDate: null,
+            paymentReference: null,
+        });
+
+        purchase.status = PurchaseStatus.VERIFIED;
+        purchase.rawVerification = {
+            ...(purchase.rawVerification || {}),
+            verifiedAt: new Date().toISOString(),
+            purchaseType: 'consumable',
+            googlePlay: verification.raw,
+        };
+
+        await this.purchaseRepo.save(purchase);
+
+        this.logger.log(`Consumable purchase verified: user=${userId} productId=${productId}`);
+
+        return {
+            verified: true,
+            rawVerification: purchase.rawVerification,
+            transactionDate,
+        };
+    }
+
+    private async ensureUserExists(userId: string): Promise<void> {
+        const user = await this.userRepo.findOne({ where: { id: userId }, select: ['id'] });
+        if (!user) {
+            throw new BadRequestException('User not found');
+        }
+    }
+
+    private async resolveGooglePlayPlan(productId: string, basePlanId?: string): Promise<Plan> {
+        const plan = await this.planRepo.findOne({
+            where: {
+                googleProductId: productId,
+                isActive: true,
+            },
+        });
+
+        if (!plan) {
+            throw new BadRequestException(`No active plan mapped to googleProductId '${productId}'`);
+        }
+
+        const normalizedBasePlanId = String(basePlanId || '').trim();
+        if (normalizedBasePlanId && plan.googleBasePlanId && plan.googleBasePlanId !== normalizedBasePlanId) {
+            throw new BadRequestException('Provided basePlanId does not match configured backend plan mapping.');
+        }
+
+        return plan;
+    }
+
+    private resolveTransactionDate(transactionDate?: string): Date {
+        const parsed = Number(transactionDate || 0);
+        if (Number.isFinite(parsed) && parsed > 0) {
+            return new Date(parsed);
+        }
+        return new Date();
+    }
+
+    private defaultExpiryFromPlan(plan: Plan, startDate: Date): Date {
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + (plan.durationDays || 30));
+        return endDate;
+    }
+
+    private async verifyWithGooglePlay(productId: string, purchaseToken: string): Promise<GooglePlayVerificationSnapshot> {
+        if (!this.androidPublisher) {
+            const allowUnverified = this.configService.get<string>('GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS') === 'true';
+            if (!allowUnverified) {
+                throw new BadRequestException('Google Play developer API credentials are missing on backend.');
+            }
+
+            this.logger.warn(
+                `[GooglePlay] GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS=true, trusting purchase token for productId=${productId}`,
+            );
+
+            return {
+                verified: true,
+                orderId: null,
+                expiryDate: null,
+                raw: {
+                    verificationMode: 'trusted_device_token',
+                    warning: 'Server-side Google Play verification bypass is enabled',
+                },
+            };
+        }
+
+        const packageName = this.resolvePackageName();
+
+        try {
+            const response = await this.androidPublisher.purchases.subscriptions.get({
+                packageName,
+                subscriptionId: productId,
+                token: purchaseToken,
+            });
+
+            const payload = response?.data || {};
+            const paymentState = Number(payload.paymentState);
+            const purchaseState = Number(payload.purchaseState);
+            const expiryTimeMillis = Number(payload.expiryTimeMillis || 0);
+            const expiryDate = Number.isFinite(expiryTimeMillis) && expiryTimeMillis > 0
+                ? new Date(expiryTimeMillis)
+                : null;
+
+            const purchased = !Number.isFinite(paymentState) || paymentState === 1 || paymentState === 2;
+            const notCancelledBeforePurchase = !Number.isFinite(purchaseState) || purchaseState === 0;
+            const notExpired = !expiryDate || expiryDate.getTime() > Date.now();
+
+            return {
+                verified: purchased && notCancelledBeforePurchase && notExpired,
+                orderId: typeof payload.orderId === 'string' ? payload.orderId : null,
+                expiryDate,
+                raw: payload,
+            };
+        } catch (error) {
+            const gError: any = error;
+            const status = gError?.response?.status ?? gError?.code;
+            this.logger.error(
+                `[GooglePlay] verification failed for productId=${productId}, status=${status}: ${gError?.message || gError}`,
+            );
+
+            return {
+                verified: false,
+                orderId: null,
+                expiryDate: null,
+                raw: {
+                    status,
+                    error: gError?.message || 'Google Play verification error',
+                },
+            };
+        }
+    }
+
+    private resolvePackageName(): string {
+        return (
+            this.configService.get<string>('GOOGLE_PLAY_PACKAGE_NAME') ||
+            this.configService.get<string>('googlePlay.packageName') ||
+            'com.methnapp.app'
+        ).trim();
+    }
+
+    /**
+     * Verify a consumable (one-time) purchase using Google Play purchases.products.get.
+     * Unlike subscriptions, consumables have no expiry — they are consumed once.
+     */
+    private async verifyConsumableWithGooglePlay(productId: string, purchaseToken: string): Promise<GooglePlayVerificationSnapshot> {
+        if (!this.androidPublisher) {
+            const allowUnverified = this.configService.get<string>('GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS') === 'true';
+            if (!allowUnverified) {
+                throw new BadRequestException('Google Play developer API credentials are missing on backend.');
+            }
+
+            this.logger.warn(
+                `[GooglePlay] GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS=true, trusting consumable purchase token for productId=${productId}`,
+            );
+
+            return {
+                verified: true,
+                orderId: null,
+                expiryDate: null,
+                raw: {
+                    verificationMode: 'trusted_device_token',
+                    purchaseType: 'consumable',
+                    warning: 'Server-side Google Play verification bypass is enabled',
+                },
+            };
+        }
+
+        const packageName = this.resolvePackageName();
+
+        try {
+            // Use products.get for consumable purchases (not subscriptions.get)
+            const response = await this.androidPublisher.purchases.products.get({
+                packageName,
+                productId,
+                token: purchaseToken,
+            });
+
+            const payload = response?.data || {};
+            const purchaseState = Number(payload.purchaseState);
+            const consumptionState = Number(payload.consumptionState);
+
+            // purchaseState: 0 = purchased, 1 = cancelled
+            // consumptionState: 0 = not consumed yet, 1 = already consumed
+            const isPurchased = !Number.isFinite(purchaseState) || purchaseState === 0;
+            const isNotAlreadyConsumed = !Number.isFinite(consumptionState) || consumptionState === 0;
+
+            return {
+                verified: isPurchased && isNotAlreadyConsumed,
+                orderId: typeof payload.orderId === 'string' ? payload.orderId : null,
+                expiryDate: null, // consumables have no expiry
+                raw: payload,
+            };
+        } catch (error) {
+            const gError: any = error;
+            const status = gError?.response?.status ?? gError?.code;
+            this.logger.error(
+                `[GooglePlay] consumable verification failed for productId=${productId}, status=${status}: ${gError?.message || gError}`,
+            );
+
+            return {
+                verified: false,
+                orderId: null,
+                expiryDate: null,
+                raw: {
+                    status,
+                    error: gError?.message || 'Google Play consumable verification error',
+                },
+            };
+        }
+    }
+
+    private async recordFailedPurchase(
+        userId: string,
+        plan: Plan | null,
+        dto: VerifyPurchaseDto,
+        rawVerification: Record<string, any>,
+    ): Promise<void> {
+        const existing = await this.purchaseRepo.findOne({ where: { purchaseToken: dto.purchaseToken } });
+
+        const purchase = existing || this.purchaseRepo.create({
+            userId,
+            planId: plan?.id ?? null,
+            provider: PurchaseProvider.GOOGLE_PLAY,
+            purchaseToken: dto.purchaseToken,
+            productId: dto.productId,
+            orderId: dto.purchaseId || null,
+            status: PurchaseStatus.FAILED,
+            rawVerification: {},
+            transactionDate: this.resolveTransactionDate(dto.transactionDate),
+            expiryDate: null,
+            paymentReference: null,
+        });
+
+        purchase.userId = userId;
+        purchase.planId = plan?.id ?? null;
+        purchase.provider = PurchaseProvider.GOOGLE_PLAY;
+        purchase.purchaseToken = dto.purchaseToken;
+        purchase.productId = dto.productId;
+        purchase.orderId = dto.purchaseId || null;
+        purchase.status = PurchaseStatus.FAILED;
+        purchase.rawVerification = {
+            ...(purchase.rawVerification || {}),
+            failedAt: new Date().toISOString(),
+            restored: !!dto.restored,
+            verificationData: dto.verificationData || null,
+            verificationSource: dto.verificationSource || null,
+            googlePlay: rawVerification || {},
+        };
+
+        await this.purchaseRepo.save(purchase);
+    }
+
+    private buildEntitlementSnapshot(plan: Plan) {
+        const entitlements = this.resolveEntitlements(plan);
+        return {
+            features: this.toFeatureFlags(plan, entitlements),
+            limits: this.toLimits(plan, entitlements),
+            entitlements,
+        };
+    }
+
+    private resolveEntitlements(plan: Plan): PlanEntitlements {
+        const entitlements: PlanEntitlements = {
+            ...(plan.entitlements || {}),
+        };
+
+        if (entitlements.dailyLikes === undefined) {
+            entitlements.dailyLikes = plan.dailyLikesLimit;
+        }
+        if (entitlements.dailySuperLikes === undefined) {
+            entitlements.dailySuperLikes = plan.dailySuperLikesLimit;
+        }
+        if (entitlements.dailyCompliments === undefined) {
+            entitlements.dailyCompliments = plan.dailyComplimentsLimit;
+        }
+        if (entitlements.monthlyRewinds === undefined) {
+            entitlements.monthlyRewinds = plan.monthlyRewindsLimit;
+        }
+        if (entitlements.weeklyBoosts === undefined) {
+            entitlements.weeklyBoosts = plan.weeklyBoostsLimit;
+        }
+
+        if (entitlements.likesLimit === undefined && entitlements.dailyLikes !== undefined) {
+            entitlements.likesLimit = entitlements.dailyLikes;
+        }
+        if (entitlements.boostsLimit === undefined && entitlements.weeklyBoosts !== undefined) {
+            entitlements.boostsLimit = entitlements.weeklyBoosts;
+        }
+        if (entitlements.complimentsLimit === undefined && entitlements.dailyCompliments !== undefined) {
+            entitlements.complimentsLimit = entitlements.dailyCompliments;
+        }
+
+        return entitlements;
+    }
+
+    private toFeatureFlags(plan: Plan, entitlements: PlanEntitlements): PlanFeatureFlags {
+        return {
+            ...(plan.featureFlags || {}),
+            unlimitedLikes: entitlements.unlimitedLikes,
+            unlimitedRewinds: entitlements.unlimitedRewinds,
+            advancedFilters: entitlements.advancedFilters,
+            seeWhoLikesYou: entitlements.seeWhoLikesYou,
+            whoLikedMe: entitlements.whoLikedMe,
+            readReceipts: entitlements.readReceipts,
+            typingIndicators: entitlements.typingIndicators,
+            invisibleMode: entitlements.invisibleMode,
+            ghostMode: entitlements.ghostMode,
+            passportMode: entitlements.passportMode,
+            boost: entitlements.boost,
+            likes: entitlements.likes,
+            premiumBadge: entitlements.premiumBadge,
+            hideAds: entitlements.hideAds,
+            rematch: entitlements.rematch,
+            videoChat: entitlements.videoChat,
+            superLike: entitlements.superLike,
+            profileBoostPriority: entitlements.profileBoostPriority,
+            priorityMatching: entitlements.priorityMatching,
+            improvedVisits: entitlements.improvedVisits,
+        };
+    }
+
+    private toLimits(plan: Plan, entitlements: PlanEntitlements): PlanLimits {
+        return {
+            ...(plan.limits || {}),
+            dailyLikes: entitlements.dailyLikes,
+            dailySuperLikes: entitlements.dailySuperLikes,
+            dailyCompliments: entitlements.dailyCompliments,
+            monthlyRewinds: entitlements.monthlyRewinds,
+            weeklyBoosts: entitlements.weeklyBoosts,
+            likesLimit: entitlements.likesLimit,
+            boostsLimit: entitlements.boostsLimit,
+            complimentsLimit: entitlements.complimentsLimit,
+        };
+    }
+
+    private serializePlan(plan: Plan) {
+        return {
+            id: plan.id,
+            code: plan.code,
+            name: plan.name,
+            price: Number(plan.price),
+            currency: plan.currency,
+            billingCycle: plan.billingCycle,
+            durationDays: plan.durationDays,
+            googleProductId: plan.googleProductId,
+            googleBasePlanId: plan.googleBasePlanId,
+        };
+    }
+
+    private serializeSubscription(subscription: Subscription) {
+        return {
+            id: subscription.id,
+            status: subscription.status,
+            startDate: subscription.startDate,
+            endDate: subscription.endDate,
+            paymentProvider: subscription.paymentProvider,
+            googleProductId: subscription.googleProductId,
+            googleOrderId: subscription.googleOrderId,
+        };
+    }
+
+    private isSubscriptionStillActive(subscription: Subscription): boolean {
+        if (
+            subscription.status !== SubscriptionStatus.ACTIVE &&
+            subscription.status !== SubscriptionStatus.PAST_DUE &&
+            subscription.status !== SubscriptionStatus.TRIAL
+        ) {
+            return false;
+        }
+
+        if (!subscription.endDate) {
+            return true;
+        }
+
+        return new Date(subscription.endDate).getTime() > Date.now();
+    }
+
+    private initGooglePlayClient(): void {
         const clientEmail = this.configService.get<string>('GOOGLE_PLAY_CLIENT_EMAIL');
         const privateKey = this.configService.get<string>('GOOGLE_PLAY_PRIVATE_KEY');
 
         if (!clientEmail || !privateKey) {
             this.logger.warn(
-                'GOOGLE_PLAY_CLIENT_EMAIL or GOOGLE_PLAY_PRIVATE_KEY not set. ' +
-                'Google Play purchase verification will use token-based trust (no server-side verification).',
+                'GOOGLE_PLAY_CLIENT_EMAIL or GOOGLE_PLAY_PRIVATE_KEY not set. Server-side verification disabled unless GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS=true.',
             );
             return;
         }
@@ -80,224 +687,9 @@ export class GooglePlayBillingService {
                 auth: jwtClient,
             });
 
-            this.logger.log('Google Play Developer API client initialized');
+            this.logger.log('Google Play Developer API client initialized.');
         } catch (error) {
-            this.logger.error(
-                `Failed to initialize Google Play client: ${(error as Error).message}`,
-            );
+            this.logger.error(`Failed to initialize Google Play client: ${(error as Error).message}`);
         }
-    }
-
-    /**
-     * Verify a Google Play purchase and activate the subscription.
-     * This is the main endpoint called from the Flutter app.
-     */
-    async verifyAndActivatePurchase(userId: string, dto: VerifyPurchaseDto) {
-        const { productId, purchaseToken } = dto;
-
-        if (!productId || !purchaseToken) {
-            throw new BadRequestException('productId and purchaseToken are required');
-        }
-
-        // 1) Find the plan by googleProductId
-        const plan = await this.planRepo.findOne({
-            where: { googleProductId: productId, isActive: true },
-        });
-
-        if (!plan) {
-            this.logger.warn(`No active plan found for googleProductId: ${productId}`);
-            // Don't throw — we still record the transaction for later reconciliation
-        }
-
-        // 2) Idempotency: check if this purchaseToken was already processed
-        const existing = await this.purchaseRepo.findOne({
-            where: { purchaseToken },
-        });
-
-        if (existing && existing.status === PurchaseStatus.VERIFIED) {
-            this.logger.log(
-                `Purchase ${purchaseToken} already verified for user ${existing.userId}`,
-            );
-            return {
-                status: 'already_verified',
-                planCode: plan?.code ?? null,
-                subscriptionId: existing.paymentReference,
-            };
-        }
-
-        // 3) Verify with Google Play Developer API (if available)
-        let verificationResult: any = null;
-        let isVerified = false;
-
-        if (this.androidPublisher) {
-            try {
-                const packageName = this.configService.get<string>(
-                    'GOOGLE_PLAY_PACKAGE_NAME',
-                    'com.methnapp.app',
-                );
-
-                const response = await this.androidPublisher.purchases.subscriptions.get({
-                    packageName,
-                    subscriptionId: productId,
-                    token: purchaseToken,
-                });
-
-                verificationResult = response.data;
-                isVerified = true;
-
-                this.logger.log(
-                    `Google Play API verified purchase for ${productId}: ` +
-                    `paymentState=${verificationResult.paymentState}, ` +
-                    `purchaseState=${verificationResult.purchaseState}`,
-                );
-            } catch (error) {
-                const gError = error as any;
-                const status = gError?.response?.status ?? gError?.code;
-
-                if (status === 404 || status === 410) {
-                    this.logger.warn(
-                        `Google Play API: purchase not found or expired for token ${purchaseToken.substring(0, 12)}...`,
-                    );
-                    isVerified = false;
-                } else {
-                    this.logger.error(
-                        `Google Play API verification error: ${gError?.message ?? gError}`,
-                    );
-                    // On transient API errors, do NOT trust the purchase blindly.
-                    // Mark as pending so the client retries later.
-                    isVerified = false;
-                }
-            }
-        } else {
-            // No Google Play API client — trust the purchase token from the device
-            // This is acceptable for initial launch; upgrade to server-side verification ASAP
-            this.logger.log(
-                `No Google Play API client — trusting device purchase token for ${productId}`,
-            );
-            isVerified = true;
-        }
-
-        if (!isVerified) {
-            // Record failed verification
-            await this.recordPurchase(userId, plan, dto, PurchaseStatus.FAILED, verificationResult);
-            throw new BadRequestException('Purchase verification failed. The purchase may be expired or invalid.');
-        }
-
-        // 4) Activate subscription in a transaction
-        const subscription = await this.dataSource.transaction(async (manager) => {
-            // Record / update the purchase transaction
-            const purchase = existing
-                ? existing
-                : manager.create(PurchaseTransaction, {
-                    userId,
-                    planId: plan?.id ?? null,
-                    provider: PurchaseProvider.GOOGLE_PLAY,
-                    purchaseToken,
-                    productId,
-                    orderId: dto.purchaseId ?? null,
-                    status: PurchaseStatus.VERIFIED,
-                    rawVerification: verificationResult ?? {},
-                    transactionDate: dto.transactionDate
-                        ? new Date(parseInt(dto.transactionDate))
-                        : new Date(),
-                    paymentReference: null,
-                });
-
-            purchase.status = PurchaseStatus.VERIFIED;
-            purchase.rawVerification = verificationResult ?? {};
-            await manager.save(PurchaseTransaction, purchase);
-
-            // Cancel existing active subscriptions for this user
-            await manager.update(
-                Subscription,
-                { userId, status: SubscriptionStatus.ACTIVE },
-                { status: SubscriptionStatus.CANCELLED },
-            );
-
-            // Create new subscription
-            const now = new Date();
-            const endDate = new Date(now);
-            endDate.setDate(endDate.getDate() + (plan?.durationDays ?? 30));
-
-            const subscription = manager.create(Subscription, {
-                userId,
-                plan: plan?.code ?? 'premium',
-                planId: plan?.id ?? null,
-                planEntity: plan ?? null,
-                status: SubscriptionStatus.ACTIVE,
-                startDate: now,
-                endDate,
-                paymentReference: purchase.id,
-                stripeSubscriptionId: null,
-                stripeCheckoutSessionId: null,
-                stripeCustomerId: null,
-                billingCycle: plan?.billingCycle ?? null,
-            });
-
-            const saved = await manager.save(Subscription, subscription);
-            purchase.paymentReference = saved.id;
-            await manager.save(PurchaseTransaction, purchase);
-
-            return saved;
-        });
-
-        // 5) Update user premium state
-        await this.subscriptionsService.updateUserPremiumState(
-            userId,
-            true,
-            subscription.startDate,
-            subscription.endDate,
-        );
-
-        this.logger.log(
-            `Google Play purchase activated: user=${userId} plan=${plan?.code ?? 'unknown'} ` +
-            `productId=${productId}`,
-        );
-
-        return {
-            status: 'verified',
-            planCode: plan?.code ?? null,
-            subscriptionId: subscription.id,
-        };
-    }
-
-    /**
-     * Restore a previously purchased Google Play subscription.
-     */
-    async restorePurchase(userId: string, dto: RestorePurchaseDto) {
-        return this.verifyAndActivatePurchase(userId, {
-            platform: 'android',
-            provider: 'google_play',
-            productId: dto.productId,
-            purchaseToken: dto.purchaseToken,
-            restored: true,
-        });
-    }
-
-    /**
-     * Record a purchase transaction (for failed/pending states).
-     */
-    private async recordPurchase(
-        userId: string,
-        plan: Plan | null,
-        dto: VerifyPurchaseDto,
-        status: PurchaseStatus,
-        rawVerification: any,
-    ) {
-        const purchase = this.purchaseRepo.create({
-            userId,
-            planId: plan?.id ?? null,
-            provider: PurchaseProvider.GOOGLE_PLAY,
-            purchaseToken: dto.purchaseToken,
-            productId: dto.productId,
-            orderId: dto.purchaseId ?? null,
-            status,
-            rawVerification: rawVerification ?? {},
-            transactionDate: dto.transactionDate
-                ? new Date(parseInt(dto.transactionDate))
-                : new Date(),
-        });
-
-        await this.purchaseRepo.save(purchase);
     }
 }

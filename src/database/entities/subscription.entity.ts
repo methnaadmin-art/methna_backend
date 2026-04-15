@@ -66,6 +66,19 @@ export class Subscription {
     paymentReference: string | null;
 
     @Column({ type: 'varchar', nullable: true })
+    paymentProvider: string | null;
+
+    @Column({ type: 'varchar', nullable: true })
+    googleProductId: string | null;
+
+    @Index()
+    @Column({ type: 'varchar', nullable: true })
+    googlePurchaseToken: string | null;
+
+    @Column({ type: 'varchar', nullable: true })
+    googleOrderId: string | null;
+
+    @Column({ type: 'varchar', nullable: true })
     stripeSubscriptionId: string | null;
 
     @Column({ type: 'varchar', nullable: true })

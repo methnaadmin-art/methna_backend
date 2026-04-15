@@ -23,3 +23,4 @@ export * from './app-content.entity';
 export * from './faq.entity';
 export * from './job-vacancy.entity';
 export * from './partner.entity';
+export * from './consumable-product.entity';

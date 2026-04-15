@@ -1,30 +1,25 @@
 import {
+    Body,
     Controller,
     Get,
     Post,
-    Body,
-    Headers,
-    UseGuards,
     Request,
-    Req,
-    RawBodyRequest,
-    Logger,
-    HttpCode,
-    HttpException,
-    InternalServerErrorException,
+    UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiBody, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { PaymentsService, CreateCheckoutSessionDto, PaymentProvider } from './payments.service';
+import {
+    CreateCheckoutSessionDto,
+    PaymentsService,
+} from './payments.service';
 
 @ApiTags('payments')
 @Controller('payments')
 export class PaymentsController {
-    private readonly logger = new Logger(PaymentsController.name);
-
     constructor(private readonly paymentsService: PaymentsService) { }
 
     @Get('pricing')
+    @ApiOperation({ summary: 'Get active Google Play plan catalog' })
     getPricing() {
         return this.paymentsService.getPricing();
     }
@@ -32,27 +27,14 @@ export class PaymentsController {
     @ApiBearerAuth()
     @UseGuards(JwtAuthGuard)
     @Post('create-checkout-session')
+    @ApiOperation({ summary: 'Legacy web checkout endpoint (disabled)' })
     @ApiBody({
         schema: {
             type: 'object',
             properties: {
-                planCode: { type: 'string', description: 'Plan code from DB (e.g. premium, gold)' },
-                provider: { type: 'string', enum: [PaymentProvider.STRIPE], default: PaymentProvider.STRIPE },
-                alternativeBilling: {
-                    type: 'object',
-                    description: 'Optional Google Play Alternative Billing Only reporting metadata',
-                    properties: {
-                        billingModel: { type: 'string', example: 'alternative_billing_only' },
-                        store: { type: 'string', example: 'google_play' },
-                        appPackageName: { type: 'string', example: 'com.methnapp.app' },
-                        countryCode: { type: 'string', example: 'US' },
-                        disclosureVersion: { type: 'string', example: 'abo_v1' },
-                        disclosureShownAt: { type: 'string', example: '2026-01-10T14:34:22.000Z' },
-                        disclosureAcceptedAt: { type: 'string', example: '2026-01-10T14:34:29.000Z' },
-                        complianceSessionId: { type: 'string', example: 'abo_abc123' },
-                        externalTransactionToken: { type: 'string', example: 'ext_txn_123' },
-                    },
-                },
+                planCode: { type: 'string', description: 'Plan code from DB' },
+                provider: { type: 'string', example: 'google_play' },
+                platform: { type: 'string', example: 'android' },
             },
             required: ['planCode'],
         },
@@ -61,20 +43,17 @@ export class PaymentsController {
         return this.paymentsService.createCheckoutSession(req.user.id, dto);
     }
 
-    // Legacy endpoint kept for backward compat
     @ApiBearerAuth()
     @UseGuards(JwtAuthGuard)
     @Post('create-intent')
+    @ApiOperation({ summary: 'Legacy payment intent endpoint (disabled)' })
     @ApiBody({
         schema: {
             type: 'object',
             properties: {
                 planCode: { type: 'string' },
-                provider: { type: 'string', enum: [PaymentProvider.STRIPE], default: PaymentProvider.STRIPE },
-                alternativeBilling: {
-                    type: 'object',
-                    description: 'Optional Google Play Alternative Billing Only reporting metadata',
-                },
+                provider: { type: 'string', example: 'google_play' },
+                platform: { type: 'string', example: 'android' },
             },
             required: ['planCode'],
         },
@@ -83,45 +62,11 @@ export class PaymentsController {
         return this.paymentsService.createCheckoutSession(req.user.id, dto);
     }
 
-    @Post('webhook/stripe')
-    @HttpCode(200)
-    @ApiExcludeEndpoint()
-    async stripeWebhook(
-        @Req() req: RawBodyRequest<any>,
-        @Headers('stripe-signature') signature: string,
-    ) {
-        // NestJS rawBody: true stores raw body as a Buffer on req.rawBody
-        const rawBody = req.rawBody
-            ? (Buffer.isBuffer(req.rawBody) ? req.rawBody.toString('utf8') : req.rawBody)
-            : (typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
-
-        const requestId = String(
-            req.headers['x-railway-request-id'] ||
-            req.headers['x-request-id'] ||
-            `stripe_${Date.now()}`,
-        );
-
-        this.logger.log(
-            `[PaymentsController] requestId=${requestId} signaturePresent=${!!signature} payloadBytes=${Buffer.byteLength(rawBody || '', 'utf8')}`,
-        );
-
-        if (!signature) {
-            this.logger.warn(`[PaymentsController] requestId=${requestId} missing stripe-signature header`);
-            return { received: false, error: 'Missing stripe-signature header', requestId };
-        }
-
-        try {
-            await this.paymentsService.handleStripeWebhook(rawBody, signature, requestId);
-            return { received: true, requestId };
-        } catch (err) {
-            if (err instanceof HttpException) {
-                throw err;
-            }
-            this.logger.error(
-                `[PaymentsController] requestId=${requestId} unhandled error: ${(err as Error).message}`,
-                (err as Error).stack,
-            );
-            throw new InternalServerErrorException('Unhandled Stripe webhook controller error');
-        }
+    @ApiBearerAuth()
+    @UseGuards(JwtAuthGuard)
+    @Get('manage-url')
+    @ApiOperation({ summary: 'Get Google Play subscription management URL' })
+    async getManageSubscriptionUrl(@Request() req) {
+        return this.paymentsService.getSubscriptionManagementUrl(req.user.id);
     }
 }

@@ -44,6 +44,42 @@ export interface PlanEntitlements {
     improvedVisits?: boolean;
 }
 
+/** Boolean feature contract exposed to clients/admin for plan authoring. */
+export interface PlanFeatureFlags {
+    unlimitedLikes?: boolean;
+    unlimitedRewinds?: boolean;
+    advancedFilters?: boolean;
+    seeWhoLikesYou?: boolean;
+    readReceipts?: boolean;
+    typingIndicators?: boolean;
+    invisibleMode?: boolean;
+    ghostMode?: boolean;
+    passportMode?: boolean;
+    whoLikedMe?: boolean;
+    boost?: boolean;
+    likes?: boolean;
+    premiumBadge?: boolean;
+    hideAds?: boolean;
+    rematch?: boolean;
+    videoChat?: boolean;
+    superLike?: boolean;
+    profileBoostPriority?: boolean;
+    priorityMatching?: boolean;
+    improvedVisits?: boolean;
+}
+
+/** Numeric limits contract exposed to clients/admin for plan authoring. */
+export interface PlanLimits {
+    dailyLikes?: number;
+    dailySuperLikes?: number;
+    dailyCompliments?: number;
+    monthlyRewinds?: number;
+    weeklyBoosts?: number;
+    likesLimit?: number;
+    boostsLimit?: number;
+    complimentsLimit?: number;
+}
+
 export enum BillingCycle {
     MONTHLY = 'monthly',
     YEARLY = 'yearly',
@@ -78,11 +114,21 @@ export class Plan {
     @Column({ type: 'varchar', nullable: true })
     stripePriceId: string | null;
 
+    /** Stripe product ID (e.g. 'prod_xxx'). Used to map Stripe subscriptions to internal plans. */
+    @Index()
+    @Column({ type: 'varchar', nullable: true })
+    stripeProductId: string | null;
+
     /** Google Play Billing product ID (e.g. 'com.methna.app.premium_monthly').
      *  Used to map Android in-app purchases to internal plans. */
     @Index()
     @Column({ type: 'varchar', nullable: true })
     googleProductId: string | null;
+
+    /** Google Play base plan ID (e.g. 'monthly001') for subscription offers mapping. */
+    @Index()
+    @Column({ type: 'varchar', nullable: true })
+    googleBasePlanId: string | null;
 
     @Column({ default: 30 })
     durationDays: number;
@@ -102,6 +148,14 @@ export class Plan {
      */
     @Column({ type: 'jsonb', default: '{}' })
     entitlements: PlanEntitlements;
+
+    /** Structured client-facing feature contract derived from entitlements. */
+    @Column({ type: 'jsonb', default: '{}' })
+    featureFlags: PlanFeatureFlags;
+
+    /** Structured client-facing limits contract derived from entitlements. */
+    @Column({ type: 'jsonb', default: '{}' })
+    limits: PlanLimits;
 
     // Legacy feature flags array (kept for backward compat)
     @Column({ type: 'jsonb', default: [] })
