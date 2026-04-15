@@ -12,7 +12,7 @@ import {
     MaxLength,
     MinLength,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import {
     Gender,
@@ -35,6 +35,56 @@ import {
     AlcoholUsage,
     HijabStatus,
 } from '../../../database/entities/profile.entity';
+
+const normalizeEnumToken = (value: unknown): string =>
+    String(value ?? '')
+        .trim()
+        .toLowerCase()
+        .replace(/-/g, '_')
+        .replace(/\s+/g, '_');
+
+const normalizeCommunicationStyleAlias = (value: unknown): unknown => {
+    const normalized = normalizeEnumToken(value);
+    switch (normalized) {
+        case 'chatty_cathy':
+        case 'storyteller':
+            return CommunicationStyle.EXPRESSIVE;
+        case 'listener':
+        case 'deep_thinker':
+            return CommunicationStyle.RESERVED;
+        case 'joker':
+        case 'sarcastic_wit':
+            return CommunicationStyle.HUMOROUS;
+        case 'easygoing':
+            return CommunicationStyle.GENTLE;
+        case 'straight_shooter':
+            return CommunicationStyle.DIRECT;
+        default:
+            return normalized;
+    }
+};
+
+const normalizeMarriageTimelineAlias = (value: unknown): unknown => {
+    const normalized = normalizeEnumToken(value);
+    switch (normalized) {
+        case '1_3_months':
+        case 'within_months':
+            return MarriageIntention.WITHIN_MONTHS;
+        case '3_6_months':
+        case 'up_to_1_year':
+        case 'within_year':
+            return MarriageIntention.WITHIN_YEAR;
+        case '1_2_years':
+        case 'one_to_two_years':
+            return MarriageIntention.ONE_TO_TWO_YEARS;
+        case 'not_sure':
+            return MarriageIntention.NOT_SURE;
+        case 'just_exploring':
+            return MarriageIntention.JUST_EXPLORING;
+        default:
+            return normalized;
+    }
+};
 
 export class CreateProfileDto {
     @ApiPropertyOptional({ maxLength: 500 })
@@ -157,13 +207,24 @@ export class CreateProfileDto {
 
     @ApiPropertyOptional({ enum: CommunicationStyle })
     @IsOptional()
+    @Transform(({ value }) => normalizeCommunicationStyleAlias(value))
     @IsEnum(CommunicationStyle)
     communicationStyle?: CommunicationStyle;
 
     @ApiPropertyOptional({ enum: MarriageIntention })
     @IsOptional()
+    @Transform(({ value }) => normalizeMarriageTimelineAlias(value))
     @IsEnum(MarriageIntention)
     marriageIntention?: MarriageIntention;
+
+    @ApiPropertyOptional({
+        enum: MarriageIntention,
+        description: 'Legacy timeline alias from older clients',
+    })
+    @IsOptional()
+    @Transform(({ value }) => normalizeMarriageTimelineAlias(value))
+    @IsEnum(MarriageIntention)
+    marriageTimeline?: MarriageIntention;
 
     @ApiPropertyOptional({ enum: IntentMode })
     @IsOptional()

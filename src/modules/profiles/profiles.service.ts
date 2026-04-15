@@ -4,7 +4,12 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Profile } from '../../database/entities/profile.entity';
+import {
+    CommunicationStyle,
+    IntentMode,
+    MarriageIntention,
+    Profile,
+} from '../../database/entities/profile.entity';
 import { UserPreference } from '../../database/entities/user-preference.entity';
 import { RedisService } from '../redis/redis.service';
 import { CategoriesService } from '../categories/categories.service';
@@ -190,6 +195,28 @@ export class ProfilesService {
     ): Promise<CreateProfileDto | UpdateProfileDto> {
         const sanitized = { ...dto } as Record<string, any>;
 
+        const normalizedCommunicationStyle = this.normalizeCommunicationStyle(
+            sanitized.communicationStyle,
+        );
+        if (normalizedCommunicationStyle) {
+            sanitized.communicationStyle = normalizedCommunicationStyle;
+        } else if (sanitized.communicationStyle !== undefined) {
+            delete sanitized.communicationStyle;
+        }
+
+        const normalizedTimeline = this.normalizeMarriageTimeline(
+            sanitized.marriageTimeline ?? sanitized.marriageIntention,
+        );
+        if (normalizedTimeline) {
+            sanitized.marriageIntention = normalizedTimeline;
+            if (!sanitized.intentMode) {
+                sanitized.intentMode = this.intentModeForMarriageTimeline(
+                    normalizedTimeline,
+                );
+            }
+        }
+        delete sanitized.marriageTimeline;
+
         const textFields = [
             'bio',
             'aboutPartner',
@@ -234,5 +261,77 @@ export class ProfilesService {
         }
 
         return sanitized as CreateProfileDto | UpdateProfileDto;
+    }
+
+    private normalizeCommunicationStyle(value: unknown): CommunicationStyle | null {
+        const normalized = String(value ?? '')
+            .trim()
+            .toLowerCase()
+            .replace(/-/g, '_')
+            .replace(/\s+/g, '_');
+
+        switch (normalized) {
+            case CommunicationStyle.EXPRESSIVE:
+            case 'chatty_cathy':
+            case 'storyteller':
+                return CommunicationStyle.EXPRESSIVE;
+            case CommunicationStyle.RESERVED:
+            case 'listener':
+            case 'deep_thinker':
+                return CommunicationStyle.RESERVED;
+            case CommunicationStyle.HUMOROUS:
+            case 'joker':
+            case 'sarcastic_wit':
+                return CommunicationStyle.HUMOROUS;
+            case CommunicationStyle.GENTLE:
+            case 'easygoing':
+                return CommunicationStyle.GENTLE;
+            case CommunicationStyle.DIRECT:
+            case 'straight_shooter':
+                return CommunicationStyle.DIRECT;
+            default:
+                return null;
+        }
+    }
+
+    private normalizeMarriageTimeline(value: unknown): MarriageIntention | null {
+        const normalized = String(value ?? '')
+            .trim()
+            .toLowerCase()
+            .replace(/-/g, '_')
+            .replace(/\s+/g, '_');
+
+        switch (normalized) {
+            case '1_3_months':
+            case MarriageIntention.WITHIN_MONTHS:
+                return MarriageIntention.WITHIN_MONTHS;
+            case '3_6_months':
+            case 'up_to_1_year':
+            case MarriageIntention.WITHIN_YEAR:
+                return MarriageIntention.WITHIN_YEAR;
+            case '1_2_years':
+            case MarriageIntention.ONE_TO_TWO_YEARS:
+                return MarriageIntention.ONE_TO_TWO_YEARS;
+            case MarriageIntention.NOT_SURE:
+                return MarriageIntention.NOT_SURE;
+            case MarriageIntention.JUST_EXPLORING:
+                return MarriageIntention.JUST_EXPLORING;
+            default:
+                return null;
+        }
+    }
+
+    private intentModeForMarriageTimeline(value: MarriageIntention): IntentMode {
+        switch (value) {
+            case MarriageIntention.WITHIN_MONTHS:
+                return IntentMode.FAMILY_INTRODUCTION;
+            case MarriageIntention.WITHIN_YEAR:
+            case MarriageIntention.ONE_TO_TWO_YEARS:
+                return IntentMode.SERIOUS_MARRIAGE;
+            case MarriageIntention.NOT_SURE:
+            case MarriageIntention.JUST_EXPLORING:
+            default:
+                return IntentMode.EXPLORING;
+        }
     }
 }

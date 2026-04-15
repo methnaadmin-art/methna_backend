@@ -6,7 +6,10 @@ import {
     Gender,
     EducationLevel,
     ReligiousLevel,
+    MarriageIntention,
+    IntentMode,
 } from '../../database/entities/profile.entity';
+import { User } from '../../database/entities/user.entity';
 import { Photo, PhotoModerationStatus } from '../../database/entities/photo.entity';
 import { BlockedUser } from '../../database/entities/blocked-user.entity';
 import { Like } from '../../database/entities/like.entity';
@@ -104,9 +107,15 @@ export class SearchService {
             return { users: [], total: 0, page, limit };
         }
 
+        const effectiveViewerProfile = this.resolveEffectiveProfileLocation(currentProfile);
+        const effectiveFilters = this.withPassportCountryOverride(
+            filters,
+            currentProfile.user as User | undefined,
+        );
+
         const excludeIds = [userId, ...blockedIds].filter(Boolean);
         const activeCutoff = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
-        const hasUserLocation = !!(currentProfile.latitude && currentProfile.longitude);
+        const hasUserLocation = !!(effectiveViewerProfile.latitude && effectiveViewerProfile.longitude);
         const candidateFetchLimit = Math.min(Math.max(page * limit * 10, 200), 1000);
 
         const query = this.profileRepository
@@ -168,13 +177,14 @@ export class SearchService {
                 activeCutoff,
             });
 
-        this.applyGenderFilter(query, filters, currentProfile, currentPreference);
-        this.applyExplicitFilters(query, filters, currentProfile, hasUserLocation);
+        this.applyGenderFilter(query, effectiveFilters, effectiveViewerProfile, currentPreference);
+        this.applyExplicitFilters(query, effectiveFilters, effectiveViewerProfile, hasUserLocation);
         this.applySavedPreferenceFilters(
             query,
             currentPreference,
-            currentProfile,
+            effectiveViewerProfile,
             hasUserLocation,
+            effectiveFilters,
         );
 
         // Always compute distance when user has location (needed for ranking + response)
@@ -183,12 +193,12 @@ export class SearchService {
                 `(6371 * acos(LEAST(1.0, cos(radians(:orderLat)) * cos(radians(profile.latitude)) * cos(radians(profile.longitude) - radians(:orderLng)) + sin(radians(:orderLat)) * sin(radians(profile.latitude)))))`,
                 'distance',
             );
-            query.setParameter('orderLat', currentProfile.latitude);
-            query.setParameter('orderLng', currentProfile.longitude);
+            query.setParameter('orderLat', effectiveViewerProfile.latitude);
+            query.setParameter('orderLng', effectiveViewerProfile.longitude);
         }
 
         // SQL-level ordering depends on sortBy
-        const effectiveSortBy = filters.sortBy ?? SearchSortBy.DISTANCE;
+        const effectiveSortBy = effectiveFilters.sortBy ?? SearchSortBy.DISTANCE;
         if (effectiveSortBy === SearchSortBy.DISTANCE && hasUserLocation) {
             query.orderBy('distance', 'ASC');
         } else if (effectiveSortBy === SearchSortBy.NEWEST) {
@@ -262,11 +272,16 @@ export class SearchService {
             if (!photosMap.has(photo.userId)) {
                 photosMap.set(photo.userId, []);
             }
+            const variants = CloudinaryService.buildImageUrls(photo.url);
             photosMap.get(photo.userId)!.push({
                 id: photo.id,
-                url: photo.url,
-                thumbnailUrl: CloudinaryService.thumbnailUrl(photo.url),
-                mediumUrl: CloudinaryService.mediumUrl(photo.url),
+                originalUrl: variants.originalUrl,
+                url: variants.cardUrl,
+                thumbnailUrl: variants.thumbnailUrl,
+                mediumUrl: variants.cardUrl,
+                cardUrl: variants.cardUrl,
+                profileUrl: variants.profileUrl,
+                fullscreenUrl: variants.fullscreenUrl,
                 publicId: photo.publicId,
                 isMain: photo.isMain,
                 isSelfieVerification: photo.isSelfieVerification,
@@ -277,38 +292,62 @@ export class SearchService {
             });
         }
         const onlineUserSet = new Set(onlineUsers);
+        const restrictGalleryForViewer = this.isViewerGalleryRestricted(
+            currentProfile,
+        );
 
         const rankedCandidates = candidateProfiles
             .filter((candidate) =>
-                this.matchesPreference(currentPreference, candidate, currentProfile),
+                this.matchesPreference(
+                    currentPreference,
+                    this.resolveEffectiveProfileLocation(candidate),
+                    effectiveViewerProfile,
+                ),
             )
             .filter((candidate) =>
                 this.matchesPreference(
                     candidatePreferenceMap.get(candidate.userId),
-                    currentProfile,
-                    candidate,
+                    effectiveViewerProfile,
+                    this.resolveEffectiveProfileLocation(candidate),
                 ),
             )
             .map((candidate) => {
-                const candidatePhotos = photosMap.get(candidate.userId) ?? [];
+                const effectiveCandidateProfile = this.resolveEffectiveProfileLocation(candidate);
+                const maskedByGhost = this.shouldMaskGhostProfile(
+                    candidate.user as User | undefined,
+                    userId,
+                );
+
+                const candidatePhotos = this.applyViewerPhotoAccessPolicy(
+                    photosMap.get(candidate.userId) ?? [],
+                    candidate.userId,
+                    restrictGalleryForViewer,
+                );
+                const publicPhotos = maskedByGhost
+                    ? this.applyGhostPhotoMask(candidatePhotos, candidate.userId)
+                    : candidatePhotos;
                 const compatibilityScore = this.computeCompatibility(
-                    currentProfile,
-                    candidate,
-                    currentProfile.user?.selfieVerified ?? false,
+                    effectiveViewerProfile,
+                    effectiveCandidateProfile,
+                    effectiveViewerProfile.user?.selfieVerified ?? false,
                     candidate.user?.selfieVerified ?? false,
                 );
                 const commonInterests = this.getCommonInterests(
-                    currentProfile.interests,
-                    candidate.interests,
+                    effectiveViewerProfile.interests,
+                    effectiveCandidateProfile.interests,
                 );
-                const distanceKm = this.calculateDistanceKm(currentProfile, candidate);
+                const distanceKm = this.calculateDistanceKm(
+                    effectiveViewerProfile,
+                    effectiveCandidateProfile,
+                );
                 const lastActiveAt = candidate.user?.lastLoginAt
                     ? new Date(candidate.user.lastLoginAt).getTime()
                     : 0;
 
                 return {
-                    profile: candidate,
-                    photos: candidatePhotos,
+                    profile: effectiveCandidateProfile,
+                    photos: publicPhotos,
+                    maskedByGhost,
                     compatibilityScore,
                     commonInterests,
                     distanceKm,
@@ -370,16 +409,17 @@ export class SearchService {
             ({
                 profile,
                 photos: profilePhotos,
+                maskedByGhost,
                 compatibilityScore,
                 commonInterests,
                 distanceKm,
             }) => ({
                 id: profile.userId,
-                username: profile.user?.username ?? null,
-                email: profile.user?.email ?? '',
-                firstName: profile.user?.firstName ?? null,
-                lastName: profile.user?.lastName ?? null,
-                phone: profile.user?.phone ?? null,
+                username: maskedByGhost ? null : profile.user?.username ?? null,
+                email: maskedByGhost ? '' : profile.user?.email ?? '',
+                firstName: maskedByGhost ? 'Ghost' : profile.user?.firstName ?? null,
+                lastName: maskedByGhost ? 'Member' : profile.user?.lastName ?? null,
+                phone: maskedByGhost ? null : profile.user?.phone ?? null,
                 role: profile.user?.role ?? 'user',
                 status: profile.user?.status ?? 'active',
                 emailVerified: profile.user?.emailVerified ?? false,
@@ -389,6 +429,14 @@ export class SearchService {
                 flagCount: profile.user?.flagCount ?? 0,
                 deviceCount: profile.user?.deviceCount ?? 0,
                 notificationsEnabled: profile.user?.notificationsEnabled ?? true,
+                isGhostModeEnabled: profile.user?.isGhostModeEnabled ?? false,
+                isPassportActive:
+                    profile.user?.isPassportActive === true &&
+                    this.extractPassportLocation(profile.user as User | undefined) != null,
+                isPremium: this.hasActivePremiumEntitlement(profile.user),
+                premiumStartDate: profile.user?.premiumStartDate ?? null,
+                premiumExpiryDate: profile.user?.premiumExpiryDate ?? null,
+                canViewAllPhotos: !restrictGalleryForViewer && !maskedByGhost,
                 lastLoginAt: profile.user?.lastLoginAt ?? null,
                 createdAt: profile.user?.createdAt ?? new Date(),
                 updatedAt: profile.user?.updatedAt ?? new Date(),
@@ -402,7 +450,7 @@ export class SearchService {
                     id: profile.id,
                     gender: profile.gender,
                     dateOfBirth: profile.dateOfBirth,
-                    bio: profile.bio,
+                    bio: maskedByGhost ? null : profile.bio,
                     ethnicity: profile.ethnicity,
                     nationality: profile.nationality,
                     nationalities: profile.nationalities,
@@ -487,16 +535,46 @@ export class SearchService {
         hasUserLocation: boolean,
     ): void {
         if (filters.city) {
-            query.andWhere('LOWER(profile.city) LIKE LOWER(:city)', {
-                city: `%${filters.city}%`,
-            });
+            const normalizedCity = filters.city.trim();
+            query.andWhere(
+                `(
+                    LOWER(profile.city) LIKE LOWER(:cityLike)
+                    OR (
+                        user."isPassportActive" = true
+                        AND LOWER(COALESCE(user."passportLocation"->>'city', '')) LIKE LOWER(:cityLike)
+                    )
+                )`,
+                {
+                    cityLike: `%${normalizedCity}%`,
+                },
+            );
         }
 
         if (filters.country) {
-            query.andWhere('LOWER(profile.country) LIKE LOWER(:country)', {
-                country: `%${filters.country}%`,
-            });
+            const normalizedCountry = filters.country.trim();
+            query.andWhere(
+                `(
+                    LOWER(TRIM(profile.country)) = LOWER(TRIM(:countryExact))
+                    OR LOWER(profile.country) LIKE LOWER(:countryLike)
+                    OR (
+                        user."isPassportActive" = true
+                        AND LOWER(TRIM(COALESCE(user."passportLocation"->>'country', ''))) = LOWER(TRIM(:countryExact))
+                    )
+                    OR (
+                        user."isPassportActive" = true
+                        AND LOWER(COALESCE(user."passportLocation"->>'country', '')) LIKE LOWER(:countryLike)
+                    )
+                )`,
+                {
+                    countryExact: normalizedCountry,
+                    countryLike: `%${normalizedCountry}%`,
+                },
+            );
         }
+
+        const effectiveTimeFrame = this.normalizeValue(
+            filters.timeFrame || filters.marriageIntention,
+        );
 
         if (filters.maritalStatus) {
             query.andWhere('profile.maritalStatus = :maritalStatus', {
@@ -548,9 +626,28 @@ export class SearchService {
             });
         }
 
-        if (filters.marriageIntention) {
-            query.andWhere('profile.marriageIntention = :marriageIntention', {
-                marriageIntention: filters.marriageIntention,
+        if (effectiveTimeFrame) {
+            const legacyIntentModes = this.legacyIntentModesForTimeFrame(
+                effectiveTimeFrame,
+            );
+            if (legacyIntentModes.length > 0) {
+                query.andWhere(
+                    '(profile.marriageIntention = :effectiveTimeFrame OR profile.intentMode IN (:...legacyIntentModes))',
+                    {
+                        effectiveTimeFrame,
+                        legacyIntentModes,
+                    },
+                );
+            } else {
+                query.andWhere('profile.marriageIntention = :effectiveTimeFrame', {
+                    effectiveTimeFrame,
+                });
+            }
+        }
+
+        if (!effectiveTimeFrame && filters.intentMode) {
+            query.andWhere('profile.intentMode = :intentMode', {
+                intentMode: filters.intentMode,
             });
         }
 
@@ -563,8 +660,8 @@ export class SearchService {
         if (filters.interests && filters.interests.length > 0) {
             const interestConditions = filters.interests.map((interest, index) => {
                 const parameterName = `interest_${index}`;
-                query.setParameter(parameterName, `%${interest}%`);
-                return `profile.interests LIKE :${parameterName}`;
+                query.setParameter(parameterName, `%${this.normalizeValue(interest)}%`);
+                return `LOWER(profile.interests) LIKE :${parameterName}`;
             });
             query.andWhere(`(${interestConditions.join(' OR ')})`);
         }
@@ -572,8 +669,8 @@ export class SearchService {
         if (filters.languages && filters.languages.length > 0) {
             const languageConditions = filters.languages.map((language, index) => {
                 const parameterName = `language_${index}`;
-                query.setParameter(parameterName, `%${language}%`);
-                return `profile.languages LIKE :${parameterName}`;
+                query.setParameter(parameterName, `%${this.normalizeValue(language)}%`);
+                return `LOWER(profile.languages) LIKE :${parameterName}`;
             });
             query.andWhere(`(${languageConditions.join(' OR ')})`);
         }
@@ -581,8 +678,21 @@ export class SearchService {
         if (filters.familyValues && filters.familyValues.length > 0) {
             const familyValueConditions = filters.familyValues.map((familyValue, index) => {
                 const parameterName = `familyValue_${index}`;
-                query.setParameter(parameterName, `%${familyValue}%`);
-                return `profile.familyValues LIKE :${parameterName}`;
+                const normalizedValue = this.normalizeValue(familyValue);
+                query.setParameter(parameterName, `%${normalizedValue}%`);
+                query.setParameter(
+                    `${parameterName}_spaces`,
+                    `%${normalizedValue.replace(/_/g, ' ')}%`,
+                );
+                query.setParameter(
+                    `${parameterName}_underscores`,
+                    `%${normalizedValue.replace(/\s+/g, '_')}%`,
+                );
+                return `(
+                    LOWER(profile.familyValues) LIKE :${parameterName}
+                    OR LOWER(profile.familyValues) LIKE :${parameterName}_spaces
+                    OR LOWER(profile.familyValues) LIKE :${parameterName}_underscores
+                )`;
             });
             query.andWhere(`(${familyValueConditions.join(' OR ')})`);
         }
@@ -590,8 +700,11 @@ export class SearchService {
         if (filters.nationalities && filters.nationalities.length > 0) {
             const nationalityConditions = filters.nationalities.map((nationality, index) => {
                 const parameterName = `nationality_${index}`;
-                query.setParameter(parameterName, `%${nationality}%`);
-                return `(LOWER(profile.nationality) LIKE LOWER(:${parameterName}) OR profile.nationalities LIKE :${parameterName})`;
+                query.setParameter(parameterName, `%${this.normalizeValue(nationality)}%`);
+                return `(
+                    LOWER(profile.nationality) LIKE :${parameterName}
+                    OR LOWER(profile.nationalities) LIKE :${parameterName}
+                )`;
             });
             query.andWhere(`(${nationalityConditions.join(' OR ')})`);
         }
@@ -604,6 +717,56 @@ export class SearchService {
             query.andWhere('user.lastLoginAt >= :recentCutoff', {
                 recentCutoff: new Date(Date.now() - 5 * 60 * 1000),
             });
+        }
+
+        if (filters.recentlyActiveOnly) {
+            query.andWhere('user.lastLoginAt >= :recentlyActiveCutoff', {
+                recentlyActiveCutoff: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            });
+        }
+
+        if (filters.withPhotosOnly) {
+            query.andWhere(
+                (qb) => {
+                    const subQuery = qb
+                        .subQuery()
+                        .select('1')
+                        .from(Photo, 'wp_photo')
+                        .where('wp_photo.userId = profile.userId')
+                        .andWhere('wp_photo.moderationStatus = :wpApprovedStatus')
+                        .getQuery();
+                    return `EXISTS ${subQuery}`;
+                },
+                { wpApprovedStatus: PhotoModerationStatus.APPROVED },
+            );
+        }
+
+        if (filters.minTrustScore && filters.minTrustScore > 0) {
+            query.andWhere('user.trustScore >= :minTrustScore', {
+                minTrustScore: filters.minTrustScore,
+            });
+        }
+
+        if (filters.backgroundCheckStatus) {
+            query.andWhere('user.backgroundCheckStatus = :bgCheckStatus', {
+                bgCheckStatus: filters.backgroundCheckStatus,
+            });
+        }
+
+        if (filters.communicationStyles && filters.communicationStyles.length > 0) {
+            const normalizedStyles = Array.from(
+                new Set(
+                    filters.communicationStyles
+                        .map((style) => this.normalizeCommunicationStyle(style))
+                        .filter(Boolean),
+                ),
+            );
+            if (normalizedStyles.length > 0) {
+                query.andWhere(
+                    'LOWER(profile.communicationStyle) IN (:...communicationStyles)',
+                    { communicationStyles: normalizedStyles },
+                );
+            }
         }
 
         if (filters.maxDistance && hasUserLocation) {
@@ -629,13 +792,14 @@ export class SearchService {
         currentPreference: UserPreference | null,
         currentProfile: Profile,
         hasUserLocation: boolean,
+        filters: SearchFiltersDto,
     ): void {
         if (!currentPreference) {
             return;
         }
 
         const now = new Date();
-        if (currentPreference.maxAge) {
+        if (!filters.maxAge && currentPreference.maxAge) {
             const minDate = new Date(
                 now.getFullYear() - currentPreference.maxAge,
                 now.getMonth(),
@@ -645,7 +809,7 @@ export class SearchService {
                 savedMinDate: minDate,
             });
         }
-        if (currentPreference.minAge) {
+        if (!filters.minAge && currentPreference.minAge) {
             const maxDate = new Date(
                 now.getFullYear() - currentPreference.minAge,
                 now.getMonth(),
@@ -655,33 +819,57 @@ export class SearchService {
                 savedMaxDate: maxDate,
             });
         }
-        if (currentPreference.preferredReligiousLevel) {
+        if (!filters.religiousLevel && currentPreference.preferredReligiousLevel) {
             query.andWhere('profile.religiousLevel = :savedReligiousLevel', {
                 savedReligiousLevel: currentPreference.preferredReligiousLevel,
             });
         }
-        if (currentPreference.preferredMaritalStatus) {
+        if (!filters.maritalStatus && currentPreference.preferredMaritalStatus) {
             query.andWhere('profile.maritalStatus = :savedMaritalStatus', {
                 savedMaritalStatus: currentPreference.preferredMaritalStatus,
             });
         }
-        if (currentPreference.preferredLanguages?.length) {
+        if (
+            (!filters.languages || filters.languages.length === 0) &&
+            currentPreference.preferredLanguages?.length
+        ) {
             const preferredLanguageConditions = currentPreference.preferredLanguages.map((language, index) => {
                 const parameterName = `savedLanguage_${index}`;
-                query.setParameter(parameterName, `%${language}%`);
-                return `profile.languages LIKE :${parameterName}`;
+                query.setParameter(parameterName, `%${this.normalizeValue(language)}%`);
+                return `LOWER(profile.languages) LIKE :${parameterName}`;
             });
             query.andWhere(`(${preferredLanguageConditions.join(' OR ')})`);
         }
-        if (currentPreference.preferredFamilyValues?.length) {
+        if (
+            (!filters.familyValues || filters.familyValues.length === 0) &&
+            currentPreference.preferredFamilyValues?.length
+        ) {
             const preferredFamilyConditions = currentPreference.preferredFamilyValues.map((familyValue, index) => {
                 const parameterName = `savedFamilyValue_${index}`;
-                query.setParameter(parameterName, `%${familyValue}%`);
-                return `profile.familyValues LIKE :${parameterName}`;
+                const normalizedValue = this.normalizeValue(familyValue);
+                query.setParameter(parameterName, `%${normalizedValue}%`);
+                query.setParameter(
+                    `${parameterName}_spaces`,
+                    `%${normalizedValue.replace(/_/g, ' ')}%`,
+                );
+                query.setParameter(
+                    `${parameterName}_underscores`,
+                    `%${normalizedValue.replace(/\s+/g, '_')}%`,
+                );
+                return `(
+                    LOWER(profile.familyValues) LIKE :${parameterName}
+                    OR LOWER(profile.familyValues) LIKE :${parameterName}_spaces
+                    OR LOWER(profile.familyValues) LIKE :${parameterName}_underscores
+                )`;
             });
             query.andWhere(`(${preferredFamilyConditions.join(' OR ')})`);
         }
-        if (currentPreference.maxDistance && hasUserLocation) {
+        if (
+            currentPreference.maxDistance &&
+            hasUserLocation &&
+            !filters.maxDistance &&
+            !filters.goGlobal
+        ) {
             this.applyDistanceConstraint(
                 query,
                 currentProfile,
@@ -690,6 +878,22 @@ export class SearchService {
             );
         }
     }
+
+    private legacyIntentModesForTimeFrame(timeFrame: string): IntentMode[] {
+        switch (timeFrame) {
+            case MarriageIntention.WITHIN_MONTHS:
+                return [IntentMode.FAMILY_INTRODUCTION, IntentMode.SERIOUS_MARRIAGE];
+            case MarriageIntention.WITHIN_YEAR:
+            case MarriageIntention.ONE_TO_TWO_YEARS:
+                return [IntentMode.SERIOUS_MARRIAGE];
+            case MarriageIntention.JUST_EXPLORING:
+                return [IntentMode.EXPLORING];
+            case MarriageIntention.NOT_SURE:
+            default:
+                return [];
+        }
+    }
+
     private applyDistanceConstraint(
         query: SelectQueryBuilder<Profile>,
         currentProfile: Profile,
@@ -1033,6 +1237,125 @@ export class SearchService {
         return (value ?? '').trim().toLowerCase();
     }
 
+    private normalizeCommunicationStyle(value: string | null | undefined): string {
+        const normalized = this.normalizeValue(value);
+        switch (normalized) {
+            case 'chatty_cathy':
+            case 'storyteller':
+            case 'expressive':
+                return 'expressive';
+            case 'listener':
+            case 'deep_thinker':
+            case 'reserved':
+                return 'reserved';
+            case 'joker':
+            case 'sarcastic_wit':
+            case 'humorous':
+                return 'humorous';
+            case 'easygoing':
+            case 'gentle':
+                return 'gentle';
+            case 'straight_shooter':
+            case 'direct':
+                return 'direct';
+            default:
+                return normalized;
+        }
+    }
+
+    private hasActivePremiumEntitlement(
+        user:
+            | Pick<User, 'isPremium' | 'premiumStartDate' | 'premiumExpiryDate'>
+            | null
+            | undefined,
+    ): boolean {
+        if (!user || user.isPremium !== true) {
+            return false;
+        }
+
+        const now = Date.now();
+        const premiumStartDate = user.premiumStartDate
+            ? new Date(user.premiumStartDate).getTime()
+            : null;
+        const premiumExpiryDate = user.premiumExpiryDate
+            ? new Date(user.premiumExpiryDate).getTime()
+            : null;
+
+        if (premiumStartDate !== null && Number.isFinite(premiumStartDate) && premiumStartDate > now) {
+            return false;
+        }
+
+        if (premiumExpiryDate !== null && Number.isFinite(premiumExpiryDate) && premiumExpiryDate <= now) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private isViewerGalleryRestricted(currentProfile: Profile | null): boolean {
+        const viewer = currentProfile?.user as User | undefined;
+        const isVerified = viewer?.selfieVerified === true;
+        const isPremium = this.hasActivePremiumEntitlement(viewer);
+
+        // Policy: free + non-verified viewers can only access the main profile photo.
+        return !isVerified && !isPremium;
+    }
+
+    private applyViewerPhotoAccessPolicy(
+        photos: any[],
+        targetUserId: string,
+        restrictGallery: boolean,
+    ): any[] {
+        if (!Array.isArray(photos) || photos.length === 0) {
+            return [];
+        }
+
+        if (!restrictGallery) {
+            return photos.map((photo) => ({
+                ...photo,
+                isLocked: false,
+            }));
+        }
+
+        const mainPhoto = photos.find((photo) => photo?.isMain) ?? photos[0];
+        if (!mainPhoto) {
+            return [];
+        }
+
+        const lockedCount = Math.max(photos.length - 1, 0);
+        const unlockedMain = {
+            ...mainPhoto,
+            isLocked: false,
+        };
+
+        if (lockedCount === 0) {
+            return [unlockedMain];
+        }
+
+        const lockedPlaceholders = Array.from({ length: lockedCount }).map((_, index) => ({
+            id: `${targetUserId}-locked-${index + 1}`,
+            url: '',
+            originalUrl: '',
+            thumbnailUrl: '',
+            mediumUrl: '',
+            cardUrl: '',
+            profileUrl: '',
+            fullscreenUrl: '',
+            publicId: null,
+            isMain: false,
+            isSelfieVerification: false,
+            order: (mainPhoto?.order ?? 0) + index + 1,
+            moderationStatus: 'locked',
+            moderationNote: null,
+            createdAt: mainPhoto?.createdAt ?? null,
+            isLocked: true,
+            lockReason: 'Verify your profile or upgrade to Premium to unlock all photos',
+            unlockCta: 'Verify your profile or upgrade to Premium',
+        }));
+
+        return [unlockedMain, ...lockedPlaceholders];
+    }
+
     private async getCachedBlockedIds(userId: string): Promise<string[]> {
         const cacheKey = `blocked_ids:${userId}`;
         const cached = await this.redisService.getJson<string[]>(cacheKey);
@@ -1047,6 +1370,122 @@ export class SearchService {
         );
         await this.redisService.setJson(cacheKey, ids, 120);
         return ids;
+    }
+
+    private withPassportCountryOverride(
+        filters: SearchFiltersDto,
+        viewer: User | undefined,
+    ): SearchFiltersDto {
+        const passport = this.extractPassportLocation(viewer);
+        if (!passport || !passport.country) {
+            return filters;
+        }
+
+        return {
+            ...filters,
+            country: passport.country,
+            goGlobal: true,
+            maxDistance: undefined,
+        };
+    }
+
+    private resolveEffectiveProfileLocation(profile: Profile): Profile {
+        const passport = this.extractPassportLocation(profile.user as User | undefined);
+        if (!passport) {
+            return profile;
+        }
+
+        return {
+            ...profile,
+            city: passport.city ?? profile.city,
+            country: passport.country ?? profile.country,
+            latitude: Number.isFinite(passport.latitude) ? passport.latitude : profile.latitude,
+            longitude: Number.isFinite(passport.longitude) ? passport.longitude : profile.longitude,
+        } as Profile;
+    }
+
+    private extractPassportLocation(
+        user:
+            | Pick<User, 'isPassportActive' | 'passportLocation'>
+            | undefined
+            | null,
+    ): {
+        latitude?: number;
+        longitude?: number;
+        city?: string;
+        country?: string;
+    } | null {
+        if (!user || user.isPassportActive !== true || !user.passportLocation) {
+            return null;
+        }
+
+        const location = user.passportLocation;
+        if (typeof location !== 'object') {
+            return null;
+        }
+
+        const city = String(location.city ?? '').trim() || undefined;
+        const country = String(location.country ?? '').trim() || undefined;
+        const latitude = Number(location.latitude);
+        const longitude = Number(location.longitude);
+
+        return {
+            latitude: Number.isFinite(latitude) ? latitude : undefined,
+            longitude: Number.isFinite(longitude) ? longitude : undefined,
+            city,
+            country,
+        };
+    }
+
+    private shouldMaskGhostProfile(
+        user: Pick<User, 'id' | 'isGhostModeEnabled'> | undefined,
+        viewerId: string,
+    ): boolean {
+        if (!user) return false;
+        return user.isGhostModeEnabled === true && user.id !== viewerId;
+    }
+
+    private applyGhostPhotoMask(photos: any[], targetUserId: string): any[] {
+        if (!Array.isArray(photos) || photos.length === 0) {
+            return [
+                {
+                    id: `${targetUserId}-ghost-1`,
+                    url: '',
+                    originalUrl: '',
+                    thumbnailUrl: '',
+                    mediumUrl: '',
+                    cardUrl: '',
+                    profileUrl: '',
+                    fullscreenUrl: '',
+                    publicId: null,
+                    isMain: true,
+                    isSelfieVerification: false,
+                    order: 1,
+                    moderationStatus: 'ghost_masked',
+                    moderationNote: null,
+                    createdAt: null,
+                    isLocked: true,
+                    lockReason: 'This member is using Ghost Mode',
+                    unlockCta: 'Ghost mode keeps identity private until mutual trust is built',
+                },
+            ];
+        }
+
+        return photos.map((photo, index) => ({
+            ...photo,
+            id: photo.id ?? `${targetUserId}-ghost-${index + 1}`,
+            url: '',
+            originalUrl: '',
+            thumbnailUrl: '',
+            mediumUrl: '',
+            cardUrl: '',
+            profileUrl: '',
+            fullscreenUrl: '',
+            publicId: null,
+            isLocked: true,
+            lockReason: 'This member is using Ghost Mode',
+            unlockCta: 'Ghost mode keeps identity private until mutual trust is built',
+        }));
     }
 
     private calculateAge(dateOfBirth: Date): number {
