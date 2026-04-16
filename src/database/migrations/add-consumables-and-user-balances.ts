@@ -103,6 +103,29 @@ export class AddConsumablesAndUserBalances1719200000000 implements MigrationInte
         if (!supportColMap.has('contactEmail')) {
             await queryRunner.query(`ALTER TABLE "support_tickets" ADD COLUMN "contactEmail" varchar NULL`);
         }
+
+        // ─── 5. Create faqs table ────────────────────────────────────
+        const hasFaqTable = await queryRunner.query(`
+            SELECT table_name FROM information_schema.tables
+            WHERE table_name = 'faqs'
+        `);
+
+        if (hasFaqTable.length === 0) {
+            await queryRunner.query(`
+                CREATE TABLE "faqs" (
+                    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                    "question" varchar NOT NULL,
+                    "answer" text NOT NULL,
+                    "category" varchar NOT NULL DEFAULT 'general',
+                    "locale" varchar NOT NULL DEFAULT 'en',
+                    "order" int NOT NULL DEFAULT 0,
+                    "isPublished" boolean NOT NULL DEFAULT true,
+                    "createdAt" timestamp NOT NULL DEFAULT now(),
+                    "updatedAt" timestamp NOT NULL DEFAULT now()
+                )
+            `);
+            await queryRunner.query(`CREATE INDEX "IDX_faqs_category_locale" ON "faqs" ("category", "locale")`);
+        }
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
@@ -120,5 +143,8 @@ export class AddConsumablesAndUserBalances1719200000000 implements MigrationInte
 
         // Revert consumable_products
         await queryRunner.query(`DROP TABLE IF EXISTS "consumable_products"`);
+
+        // Revert faqs
+        await queryRunner.query(`DROP TABLE IF EXISTS "faqs"`);
     }
 }

@@ -102,6 +102,67 @@ export class StripeService {
         };
     }
 
+    /** Create a Stripe Checkout session using email (public, no JWT). */
+    async createPublicCheckoutSession(
+        email: string,
+        planCode: string,
+        successUrl?: string,
+        cancelUrl?: string,
+    ): Promise<{ checkoutUrl: string; sessionId: string }> {
+        if (!this.stripe) {
+            throw new BadRequestException('Stripe is not configured on this server.');
+        }
+
+        const user = await this.userRepo.findOne({
+            where: { email: email.trim().toLowerCase() },
+            select: ['id', 'email'],
+        });
+        if (!user) {
+            throw new BadRequestException('No account found with this email. Please install the app and create an account first.');
+        }
+
+        const plan = await this.resolveStripePlan(planCode);
+
+        const finalSuccessUrl =
+            successUrl ||
+            this.configService.get<string>('STRIPE_SUCCESS_URL') ||
+            'https://methna.app/payment-success?session_id={CHECKOUT_SESSION_ID}';
+
+        const finalCancelUrl =
+            cancelUrl ||
+            this.configService.get<string>('STRIPE_CANCEL_URL') ||
+            'https://methna.app/payment-cancel';
+
+        const session = await this.stripe.checkout.sessions.create({
+            mode: 'subscription',
+            payment_method_types: ['card'],
+            line_items: [
+                {
+                    price: plan.stripePriceId!,
+                    quantity: 1,
+                },
+            ],
+            customer_email: user.email,
+            client_reference_id: user.id,
+            metadata: {
+                userId: user.id,
+                planId: plan.id,
+                planCode: plan.code,
+            },
+            success_url: finalSuccessUrl,
+            cancel_url: finalCancelUrl,
+        });
+
+        this.logger.log(
+            `[Stripe] Public checkout session created: session=${session.id} plan=${plan.code} email=${email}`,
+        );
+
+        return {
+            checkoutUrl: session.url!,
+            sessionId: session.id,
+        };
+    }
+
     /** Create a Stripe Checkout session for a consumable product (one-time payment). */
     async createConsumableCheckoutSession(
         userId: string,

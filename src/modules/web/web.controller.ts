@@ -88,13 +88,13 @@ export class WebController {
         return this.stripeService.checkUserEmail(email.trim().toLowerCase());
     }
 
-    // ─── Stripe Checkout Session ─────────────────────────────
+    // ─── Stripe Checkout Session (authenticated) ────────────
 
     @Post('payments/create-checkout-session')
     @ApiBearerAuth()
     @UseGuards(JwtAuthGuard)
     @HttpCode(200)
-    @ApiOperation({ summary: 'Create a Stripe checkout session (website only)' })
+    @ApiOperation({ summary: 'Create a Stripe checkout session (website, authenticated)' })
     @ApiBody({
         schema: {
             type: 'object',
@@ -112,6 +112,33 @@ export class WebController {
             `[Web] Stripe checkout requested: user=${userId} plan=${planCode}`,
         );
         return this.stripeService.createCheckoutSession(userId, planCode);
+    }
+
+    // ─── Stripe Checkout Session (public, email-based) ───────
+
+    @Post('payments/public-checkout')
+    @HttpCode(200)
+    @ApiOperation({ summary: 'Create a Stripe checkout session using email (no JWT required)' })
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                email: { type: 'string', format: 'email', description: 'User email (must exist in app)' },
+                planCode: { type: 'string', description: 'Plan code (e.g. premium, gold)' },
+                successUrl: { type: 'string', description: 'URL to redirect after success' },
+                cancelUrl: { type: 'string', description: 'URL to redirect after cancel' },
+            },
+            required: ['email', 'planCode'],
+        },
+    })
+    async publicCheckout(
+        @Body('email') email: string,
+        @Body('planCode') planCode: string,
+        @Body('successUrl') successUrl?: string,
+        @Body('cancelUrl') cancelUrl?: string,
+    ) {
+        this.logger.log(`[Web] Public checkout requested: email=${email} plan=${planCode}`);
+        return this.stripeService.createPublicCheckoutSession(email, planCode, successUrl, cancelUrl);
     }
 
     // ─── Subscription status (authenticated) ─────────────────
