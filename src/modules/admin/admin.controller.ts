@@ -24,6 +24,7 @@ import { ReportStatus } from '../../database/entities/report.entity';
 import { PhotoModerationStatus } from '../../database/entities/photo.entity';
 import { LikeType } from '../../database/entities/like.entity';
 import { TicketStatus, TicketPriority } from '../../database/entities/support-ticket.entity';
+import { SubscriptionStatus } from '../../database/entities/subscription.entity';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import {
     IsEnum,
@@ -329,6 +330,48 @@ class AdminTicketsQueryDto extends PaginationDto {
     @IsOptional()
     @IsString()
     assignedToId?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsDateString()
+    dateFrom?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsDateString()
+    dateTo?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    sortBy?: string;
+
+    @ApiPropertyOptional({ enum: SORT_ORDERS })
+    @IsOptional()
+    @IsIn(SORT_ORDERS)
+    sortOrder?: (typeof SORT_ORDERS)[number];
+}
+
+class AdminSubscriptionsQueryDto extends PaginationDto {
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    plan?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    userId?: string;
+
+    @ApiPropertyOptional({ enum: SubscriptionStatus })
+    @IsOptional()
+    @IsEnum(SubscriptionStatus)
+    status?: SubscriptionStatus;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    search?: string;
 
     @ApiPropertyOptional()
     @IsOptional()
@@ -964,11 +1007,17 @@ export class AdminController {
 
     @Get('subscriptions')
     @ApiOperation({ summary: 'List all subscriptions with plan breakdown' })
-    async getSubscriptions(
-        @Query() pagination: PaginationDto,
-        @Query('plan') plan?: string,
-    ) {
-        return this.adminService.getSubscriptions(pagination, plan);
+    async getSubscriptions(@Query() query: AdminSubscriptionsQueryDto) {
+        return this.adminService.getSubscriptions(query, {
+            plan: query.plan,
+            userId: query.userId,
+            status: query.status,
+            search: query.search,
+            dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
+            dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
+            sortBy: query.sortBy,
+            sortOrder: query.sortOrder,
+        });
     }
 
     // â”€â”€â”€ ANALYTICS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

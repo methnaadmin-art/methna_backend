@@ -1,4 +1,5 @@
 import {
+    BadRequestException,
     Controller,
     Get,
     Post,
@@ -131,7 +132,7 @@ export class MobileController {
     })
     async verifyPurchase(@Request() req, @Body() dto: VerifyPurchaseDto) {
         this.logger.log(
-            `[Mobile] Google Play verify: user=${req.user.id} productId=${dto.productId}`,
+            `[PAYMENT] Mobile verify called user=${req.user.id} productId=${dto.productId}`,
         );
         return this.googlePlayBillingService.verifyAndActivatePurchase(req.user.id, dto);
     }
@@ -156,7 +157,7 @@ export class MobileController {
     })
     async restorePurchase(@Request() req, @Body() dto: RestorePurchaseDto) {
         this.logger.log(
-            `[Mobile] Google Play restore: user=${req.user.id} productId=${dto.productId}`,
+            `[PAYMENT] Mobile restore called user=${req.user.id} productId=${dto.productId}`,
         );
         return this.googlePlayBillingService.restorePurchase(req.user.id, dto);
     }
@@ -216,13 +217,15 @@ export class MobileController {
     ) {
         const userId = req.user.id;
         this.logger.log(
-            `[Mobile] Google Play consumable verify: user=${userId} productId=${dto.productId}`,
+            `[PAYMENT] Mobile consumable verify called user=${userId} productId=${dto.productId}`,
         );
 
         // Resolve consumable product by Google Play product ID
         const product = await this.consumableService.findByGoogleProductId(dto.productId);
         if (!product) {
-            throw new Error(`No active consumable product mapped to Google Play ID '${dto.productId}'`);
+            throw new BadRequestException(
+                `No active consumable product mapped to Google Play ID '${dto.productId}'`,
+            );
         }
 
         // Use the existing Google Play verification infrastructure

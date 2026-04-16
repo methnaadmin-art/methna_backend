@@ -45,8 +45,8 @@ export class GooglePlayBillingController {
         },
     })
     async verifyPurchase(@Request() req, @Body() dto: VerifyPurchaseDto) {
-        this.logger.warn(
-            `Google Play verify endpoint called by user ${req.user.id}: productId=${dto.productId}`,
+        this.logger.log(
+            `[PAYMENT] Verify endpoint called user=${req.user.id} productId=${dto.productId}`,
         );
         return this.googlePlayBillingService.verifyAndActivatePurchase(req.user.id, dto);
     }
@@ -67,8 +67,8 @@ export class GooglePlayBillingController {
         },
     })
     async restorePurchase(@Request() req, @Body() dto: RestorePurchaseDto) {
-        this.logger.warn(
-            `Google Play restore endpoint called by user ${req.user.id}: productId=${dto.productId}`,
+        this.logger.log(
+            `[PAYMENT] Restore endpoint called user=${req.user.id} productId=${dto.productId}`,
         );
         return this.googlePlayBillingService.restorePurchase(req.user.id, dto);
     }

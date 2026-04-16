@@ -88,6 +88,12 @@ export class GooglePlayBillingService {
             throw new BadRequestException('Google Play verification is only valid for Android platform.');
         }
 
+        this.logger.log(
+            `[PAYMENT] Token received user=${userId} provider=${provider} productId=${productId} purchaseToken=${this.maskToken(
+                purchaseToken,
+            )} restored=${!!dto.restored}`,
+        );
+
         const plan = await this.resolveGooglePlayPlan(productId, dto.basePlanId);
         await this.ensureUserExists(userId);
 
@@ -104,6 +110,9 @@ export class GooglePlayBillingService {
 
             if (existingSubscription && this.isSubscriptionStillActive(existingSubscription)) {
                 await this.subscriptionsService.syncUserPremiumState(userId);
+                this.logger.log(
+                    `[PAYMENT] Purchase already verified user=${userId} productId=${productId} subscriptionId=${existingSubscription.id}`,
+                );
                 return {
                     status: 'already_verified',
                     provider: 'google_play',
@@ -116,9 +125,20 @@ export class GooglePlayBillingService {
 
         const verification = await this.verifyWithGooglePlay(productId, purchaseToken);
         if (!verification.verified) {
+            this.logger.warn(
+                `[PAYMENT] Verification failed user=${userId} productId=${productId} purchaseToken=${this.maskToken(
+                    purchaseToken,
+                )}`,
+            );
             await this.recordFailedPurchase(userId, plan, dto, verification.raw);
-            throw new BadRequestException('Google Play purchase verification failed. Purchase is invalid or expired.');
+            throw this.buildInvalidVerificationException();
         }
+
+        this.logger.log(
+            `[PAYMENT] Verification success user=${userId} productId=${productId} orderId=${verification.orderId || 'n/a'} expiry=${
+                verification.expiryDate?.toISOString() || 'n/a'
+            }`,
+        );
 
         const transactionDate = this.resolveTransactionDate(dto.transactionDate);
         const expiryDate = verification.expiryDate || this.defaultExpiryFromPlan(plan, transactionDate);
@@ -217,6 +237,12 @@ export class GooglePlayBillingService {
 
         await this.subscriptionsService.syncUserPremiumState(userId);
 
+        this.logger.log(
+            `[PAYMENT] Premium activated user=${userId} productId=${productId} subscriptionId=${subscription.id} until=${
+                subscription.endDate?.toISOString() || 'n/a'
+            }`,
+        );
+
         return {
             status: 'verified',
             provider: 'google_play',
@@ -228,7 +254,13 @@ export class GooglePlayBillingService {
     }
 
     async restorePurchase(userId: string, dto: RestorePurchaseDto) {
-        return this.verifyAndActivatePurchase(userId, {
+        this.logger.log(
+            `[PAYMENT] Restore flow started user=${userId} productId=${dto.productId} purchaseToken=${this.maskToken(
+                dto.purchaseToken,
+            )}`,
+        );
+
+        const result = await this.verifyAndActivatePurchase(userId, {
             platform: 'android',
             provider: 'google_play',
             productId: dto.productId,
@@ -236,6 +268,12 @@ export class GooglePlayBillingService {
             purchaseToken: dto.purchaseToken,
             restored: true,
         });
+
+        this.logger.log(
+            `[PAYMENT] Restore flow completed user=${userId} productId=${dto.productId} status=${result.status}`,
+        );
+
+        return result;
     }
 
     /**
@@ -255,6 +293,12 @@ export class GooglePlayBillingService {
             throw new BadRequestException('productId and purchaseToken are required');
         }
 
+        this.logger.log(
+            `[PAYMENT] Consumable token received user=${userId} productId=${productId} purchaseToken=${this.maskToken(
+                purchaseToken,
+            )}`,
+        );
+
         await this.ensureUserExists(userId);
 
         // Check for duplicate purchase token (idempotency)
@@ -270,9 +314,18 @@ export class GooglePlayBillingService {
         // Verify with Google Play using products.get (consumable, not subscription)
         const verification = await this.verifyConsumableWithGooglePlay(productId, purchaseToken);
         if (!verification.verified) {
+            this.logger.warn(
+                `[PAYMENT] Consumable verification failed user=${userId} productId=${productId} purchaseToken=${this.maskToken(
+                    purchaseToken,
+                )}`,
+            );
             await this.recordFailedPurchase(userId, null, dto, verification.raw);
-            throw new BadRequestException('Google Play consumable purchase verification failed. Purchase is invalid or expired.');
+            throw this.buildInvalidVerificationException();
         }
+
+        this.logger.log(
+            `[PAYMENT] Consumable verification success user=${userId} productId=${productId} orderId=${verification.orderId || 'n/a'}`,
+        );
 
         const transactionDate = this.resolveTransactionDate(dto.transactionDate);
 
@@ -353,8 +406,7 @@ export class GooglePlayBillingService {
 
     private async verifyWithGooglePlay(productId: string, purchaseToken: string): Promise<GooglePlayVerificationSnapshot> {
         if (!this.androidPublisher) {
-            const allowUnverified = this.configService.get<string>('GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS') === 'true';
-            if (!allowUnverified) {
+            if (!this.isVerificationBypassEnabled()) {
                 throw new BadRequestException('Google Play developer API credentials are missing on backend.');
             }
 
@@ -374,6 +426,11 @@ export class GooglePlayBillingService {
         }
 
         const packageName = this.resolvePackageName();
+        this.logger.log(
+            `[PAYMENT] Calling Google API subscription verify package=${packageName} productId=${productId} purchaseToken=${this.maskToken(
+                purchaseToken,
+            )}`,
+        );
 
         try {
             const response = await this.androidPublisher.purchases.subscriptions.get({
@@ -393,6 +450,12 @@ export class GooglePlayBillingService {
             const purchased = !Number.isFinite(paymentState) || paymentState === 1 || paymentState === 2;
             const notCancelledBeforePurchase = !Number.isFinite(purchaseState) || purchaseState === 0;
             const notExpired = !expiryDate || expiryDate.getTime() > Date.now();
+
+            this.logger.log(
+                `[PAYMENT] Google API response received productId=${productId} paymentState=${paymentState} purchaseState=${purchaseState} orderId=${
+                    typeof payload.orderId === 'string' ? payload.orderId : 'n/a'
+                } expiresAt=${expiryDate?.toISOString() || 'n/a'}`,
+            );
 
             return {
                 verified: purchased && notCancelledBeforePurchase && notExpired,
@@ -433,8 +496,7 @@ export class GooglePlayBillingService {
      */
     private async verifyConsumableWithGooglePlay(productId: string, purchaseToken: string): Promise<GooglePlayVerificationSnapshot> {
         if (!this.androidPublisher) {
-            const allowUnverified = this.configService.get<string>('GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS') === 'true';
-            if (!allowUnverified) {
+            if (!this.isVerificationBypassEnabled()) {
                 throw new BadRequestException('Google Play developer API credentials are missing on backend.');
             }
 
@@ -455,6 +517,11 @@ export class GooglePlayBillingService {
         }
 
         const packageName = this.resolvePackageName();
+        this.logger.log(
+            `[PAYMENT] Calling Google API consumable verify package=${packageName} productId=${productId} purchaseToken=${this.maskToken(
+                purchaseToken,
+            )}`,
+        );
 
         try {
             // Use products.get for consumable purchases (not subscriptions.get)
@@ -472,6 +539,12 @@ export class GooglePlayBillingService {
             // consumptionState: 0 = not consumed yet, 1 = already consumed
             const isPurchased = !Number.isFinite(purchaseState) || purchaseState === 0;
             const isNotAlreadyConsumed = !Number.isFinite(consumptionState) || consumptionState === 0;
+
+            this.logger.log(
+                `[PAYMENT] Google API consumable response productId=${productId} purchaseState=${purchaseState} consumptionState=${consumptionState} orderId=${
+                    typeof payload.orderId === 'string' ? payload.orderId : 'n/a'
+                }`,
+            );
 
             return {
                 verified: isPurchased && isNotAlreadyConsumed,
@@ -669,8 +742,15 @@ export class GooglePlayBillingService {
         const privateKey = this.configService.get<string>('GOOGLE_PLAY_PRIVATE_KEY');
 
         if (!clientEmail || !privateKey) {
+            const message =
+                'GOOGLE_PLAY_CLIENT_EMAIL or GOOGLE_PLAY_PRIVATE_KEY not set. Server-side verification disabled unless GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS=true.';
+
+            if (this.isProductionEnvironment()) {
+                throw new Error(`FATAL: ${message}`);
+            }
+
             this.logger.warn(
-                'GOOGLE_PLAY_CLIENT_EMAIL or GOOGLE_PLAY_PRIVATE_KEY not set. Server-side verification disabled unless GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS=true.',
+                message,
             );
             return;
         }
@@ -689,7 +769,64 @@ export class GooglePlayBillingService {
 
             this.logger.log('Google Play Developer API client initialized.');
         } catch (error) {
+            if (this.isProductionEnvironment()) {
+                throw error;
+            }
             this.logger.error(`Failed to initialize Google Play client: ${(error as Error).message}`);
         }
+    }
+
+    private isVerificationBypassEnabled(): boolean {
+        const allowUnverifiedFromConfig = this.configService.get<boolean>('googlePlay.allowUnverifiedTokens');
+        const allowUnverifiedFromEnv =
+            this.configService.get<string>('GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS') === 'true';
+        const allowUnverified =
+            typeof allowUnverifiedFromConfig === 'boolean'
+                ? allowUnverifiedFromConfig
+                : allowUnverifiedFromEnv;
+        if (!allowUnverified) {
+            return false;
+        }
+
+        if (this.isProductionEnvironment()) {
+            this.logger.error(
+                '[GooglePlay] GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS=true is not allowed in production.',
+            );
+            return false;
+        }
+
+        return true;
+    }
+
+    private isProductionEnvironment(): boolean {
+        const normalized = (
+            this.configService.get<string>('NODE_ENV') ||
+            this.configService.get<string>('nodeEnv') ||
+            ''
+        )
+            .trim()
+            .toLowerCase();
+        return normalized === 'production' || normalized === 'prod';
+    }
+
+    private buildInvalidVerificationException(): BadRequestException {
+        return new BadRequestException({
+            status: 'verification_failed',
+            error: 'Invalid or unverified purchase',
+            message: 'Invalid or unverified purchase',
+        });
+    }
+
+    private maskToken(token: string): string {
+        const normalized = token.trim();
+        if (!normalized) {
+            return 'n/a';
+        }
+
+        if (normalized.length <= 12) {
+            return normalized;
+        }
+
+        return `${normalized.slice(0, 8)}...${normalized.slice(-4)}`;
     }
 }

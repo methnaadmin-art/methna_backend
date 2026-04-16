@@ -83,6 +83,17 @@ interface AdminTicketsFilters {
     sortOrder?: SortOrder;
 }
 
+interface AdminSubscriptionsFilters {
+    plan?: string;
+    userId?: string;
+    status?: SubscriptionStatus;
+    search?: string;
+    dateFrom?: Date;
+    dateTo?: Date;
+    sortBy?: string;
+    sortOrder?: SortOrder;
+}
+
 @Injectable()
 export class AdminService implements OnModuleInit {
     private readonly logger = new Logger(AdminService.name);
@@ -117,6 +128,16 @@ export class AdminService implements OnModuleInit {
         repliedAt: 'ticket.repliedAt',
         status: 'ticket.status',
         priority: 'ticket.priority',
+    };
+
+    private static readonly SUBSCRIPTION_SORT_COLUMNS: Record<string, string> = {
+        createdAt: 'subscription.createdAt',
+        updatedAt: 'subscription.updatedAt',
+        startDate: 'subscription.startDate',
+        endDate: 'subscription.endDate',
+        status: 'subscription.status',
+        plan: 'planEntity.code',
+        email: 'user.email',
     };
 
     private static readonly ADMIN_USER_SELECT = {
@@ -1267,18 +1288,66 @@ export class AdminService implements OnModuleInit {
 
     // â”€â”€â”€ SUBSCRIPTIONS OVERVIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    async getSubscriptions(pagination: PaginationDto, plan?: string) {
+    async getSubscriptions(
+        pagination: PaginationDto,
+        filters: AdminSubscriptionsFilters = {},
+    ) {
         const qb = this.subscriptionRepository
             .createQueryBuilder('subscription')
             .leftJoinAndSelect('subscription.user', 'user')
             .leftJoinAndSelect('subscription.planEntity', 'planEntity')
-            .orderBy('subscription.createdAt', 'DESC')
             .skip(pagination.skip)
             .take(pagination.limit);
 
-        if (plan) {
-            qb.andWhere('(planEntity.code = :plan OR subscription.plan = :plan)', { plan });
+        if (filters.plan) {
+            qb.andWhere('(planEntity.code = :plan OR subscription.plan = :plan)', { plan: filters.plan });
         }
+
+        if (filters.userId) {
+            qb.andWhere('subscription.userId = :userId', { userId: filters.userId });
+        }
+
+        if (filters.status) {
+            qb.andWhere('subscription.status = :status', { status: filters.status });
+        }
+
+        const normalizedSearch = filters.search?.trim();
+        if (normalizedSearch) {
+            const likeSearch = `%${normalizedSearch}%`;
+            qb.andWhere(
+                new Brackets((searchQb) => {
+                    searchQb
+                        .where('subscription.id::text = :exactSearch', { exactSearch: normalizedSearch })
+                        .orWhere('subscription.userId::text = :exactSearch', { exactSearch: normalizedSearch })
+                        .orWhere('subscription.plan ILIKE :likeSearch', { likeSearch })
+                        .orWhere('planEntity.code ILIKE :likeSearch', { likeSearch })
+                        .orWhere('planEntity.name ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user.email ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user.username ILIKE :likeSearch', { likeSearch })
+                        .orWhere("CONCAT(user.firstName, ' ', user.lastName) ILIKE :likeSearch", {
+                            likeSearch,
+                        });
+                }),
+            );
+        }
+
+        if (filters.dateFrom) {
+            qb.andWhere('subscription.createdAt >= :dateFrom', { dateFrom: filters.dateFrom });
+        }
+        if (filters.dateTo) {
+            qb.andWhere('subscription.createdAt <= :dateTo', {
+                dateTo: this.endOfDay(filters.dateTo),
+            });
+        }
+
+        const sortColumn = this.resolveSortColumn(
+            filters.sortBy,
+            AdminService.SUBSCRIPTION_SORT_COLUMNS,
+            'subscription.createdAt',
+        );
+        const sortOrder = this.resolveSortOrder(filters.sortOrder);
+
+        qb.orderBy(sortColumn, sortOrder);
 
         const [subscriptions, total] = await qb.getManyAndCount();
         const countRows = await this.subscriptionRepository

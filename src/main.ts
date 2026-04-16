@@ -9,6 +9,84 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import dataSource from './database/data-source';
 
+function isProductionEnv(rawEnv: string): boolean {
+    const normalized = rawEnv.trim().toLowerCase();
+    return normalized === 'production' || normalized === 'prod';
+}
+
+function getConfigString(configService: ConfigService, ...keys: string[]): string {
+    for (const key of keys) {
+        const value = configService.get<string>(key);
+        if (typeof value === 'string' && value.trim().length > 0) {
+            return value.trim();
+        }
+    }
+    return '';
+}
+
+function validateProductionRuntimeConfig(configService: ConfigService, logger: Logger): void {
+    const nodeEnv =
+        getConfigString(configService, 'NODE_ENV') ||
+        (process.env.NODE_ENV || 'development').trim();
+    const isProduction = isProductionEnv(nodeEnv);
+
+    const allowUnverifiedFromConfig = configService.get<boolean>('googlePlay.allowUnverifiedTokens');
+    const allowUnverifiedFromEnv =
+        getConfigString(configService, 'GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS').toLowerCase() === 'true';
+    const allowUnverifiedTokens =
+        typeof allowUnverifiedFromConfig === 'boolean'
+            ? allowUnverifiedFromConfig
+            : allowUnverifiedFromEnv;
+
+    const googlePlayClientEmail = getConfigString(
+        configService,
+        'googlePlay.clientEmail',
+        'GOOGLE_PLAY_CLIENT_EMAIL',
+    );
+    const googlePlayPrivateKey = getConfigString(
+        configService,
+        'googlePlay.privateKey',
+        'GOOGLE_PLAY_PRIVATE_KEY',
+    );
+    const googlePlayPackageName = getConfigString(
+        configService,
+        'googlePlay.packageName',
+        'GOOGLE_PLAY_PACKAGE_NAME',
+    );
+
+    if (isProduction) {
+        if (allowUnverifiedTokens) {
+            throw new Error(
+                'FATAL: GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS must be false in production runtime.',
+            );
+        }
+
+        if (!googlePlayClientEmail || !googlePlayPrivateKey || !googlePlayPackageName) {
+            throw new Error(
+                'FATAL: Missing Google Play runtime config. Required: GOOGLE_PLAY_CLIENT_EMAIL, GOOGLE_PLAY_PRIVATE_KEY, GOOGLE_PLAY_PACKAGE_NAME.',
+            );
+        }
+
+        if (!googlePlayClientEmail.endsWith('.gserviceaccount.com')) {
+            throw new Error('FATAL: GOOGLE_PLAY_CLIENT_EMAIL is not a valid service account email.');
+        }
+
+        if (!googlePlayPrivateKey.includes('BEGIN PRIVATE KEY')) {
+            throw new Error('FATAL: GOOGLE_PLAY_PRIVATE_KEY must be a valid PEM private key.');
+        }
+    }
+
+    if (!isProduction && allowUnverifiedTokens) {
+        logger.warn(
+            '[CONFIG] Google Play unverified-token bypass is enabled (non-production only).',
+        );
+    }
+
+    logger.log(
+        `[CONFIG] Google Play runtime validation passed (env=${nodeEnv}, strictVerification=${!allowUnverifiedTokens}).`,
+    );
+}
+
 async function bootstrap() {
     const logger = new Logger('Bootstrap');
     const app = await NestFactory.create(AppModule, {
@@ -20,6 +98,8 @@ async function bootstrap() {
     const configService = app.get(ConfigService);
     const port = configService.get<number>('PORT', 3000);
     const apiPrefix = configService.get<string>('API_PREFIX', 'api/v1');
+
+    validateProductionRuntimeConfig(configService, logger);
 
     // Security
     app.use(helmet());

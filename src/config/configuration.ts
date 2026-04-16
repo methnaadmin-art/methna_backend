@@ -7,6 +7,42 @@ export default () => {
         throw new Error('FATAL: JWT_REFRESH_SECRET environment variable must be set to a strong, unique value.');
     }
 
+    const nodeEnv = (process.env.NODE_ENV || 'development').trim().toLowerCase();
+    const isProduction = nodeEnv === 'production' || nodeEnv === 'prod';
+
+    // Safe default is false when env var is absent.
+    const googlePlayAllowUnverifiedTokens =
+        process.env.GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS === 'true';
+    const googlePlayClientEmail = (process.env.GOOGLE_PLAY_CLIENT_EMAIL || '').trim();
+    const googlePlayPrivateKey = (process.env.GOOGLE_PLAY_PRIVATE_KEY || '').trim();
+    const googlePlayPackageName = (process.env.GOOGLE_PLAY_PACKAGE_NAME || '').trim();
+
+    if (isProduction && googlePlayAllowUnverifiedTokens) {
+        throw new Error(
+            'FATAL: GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS must be false in production.',
+        );
+    }
+
+    if (isProduction) {
+        if (!googlePlayClientEmail || !googlePlayPrivateKey || !googlePlayPackageName) {
+            throw new Error(
+                'FATAL: GOOGLE_PLAY_CLIENT_EMAIL, GOOGLE_PLAY_PRIVATE_KEY, and GOOGLE_PLAY_PACKAGE_NAME are required in production.',
+            );
+        }
+
+        if (!googlePlayClientEmail.endsWith('.gserviceaccount.com')) {
+            throw new Error(
+                'FATAL: GOOGLE_PLAY_CLIENT_EMAIL must be a valid Google service account email.',
+            );
+        }
+
+        if (!googlePlayPrivateKey.includes('BEGIN PRIVATE KEY')) {
+            throw new Error(
+                'FATAL: GOOGLE_PLAY_PRIVATE_KEY is not in valid PEM private key format.',
+            );
+        }
+    }
+
     return {
         port: parseInt(process.env.PORT || '3000', 10),
         apiPrefix: process.env.API_PREFIX || 'api/v1',
@@ -75,6 +111,7 @@ export default () => {
             clientEmail: process.env.GOOGLE_PLAY_CLIENT_EMAIL || '',
             privateKey: (process.env.GOOGLE_PLAY_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
             packageName: process.env.GOOGLE_PLAY_PACKAGE_NAME || '',
+            allowUnverifiedTokens: googlePlayAllowUnverifiedTokens,
             licensingPublicKey: process.env.GOOGLE_PLAY_LICENSING_PUBLIC_KEY || '',
             subscriptionManagementUrl:
                 process.env.GOOGLE_PLAY_SUBSCRIPTION_MANAGEMENT_URL ||
