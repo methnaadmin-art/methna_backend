@@ -258,6 +258,12 @@ export class ConsumableService {
     /** Consume from consumable balance. Returns remaining balance after consumption. */
     async consumeBalance(userId: string, type: 'likes' | 'compliments' | 'boosts', quantity: number = 1): Promise<{ success: boolean; remaining: number }> {
         const balanceField = type === 'likes' ? 'likesBalance' : type === 'compliments' ? 'complimentsBalance' : 'boostsBalance';
+        const cacheKey = `balances:${userId}`;
+        const cachedBalances = await this.redisService.getJson<UserBalances>(cacheKey).catch(() => null);
+        const cachedCurrentBalance = cachedBalances?.[type];
+        if (typeof cachedCurrentBalance === 'number' && cachedCurrentBalance < quantity) {
+            return { success: false, remaining: cachedCurrentBalance };
+        }
 
         const user = await this.userRepo.findOne({
             where: { id: userId },
@@ -267,18 +273,22 @@ export class ConsumableService {
 
         const currentBalance = user[balanceField];
         if (currentBalance < quantity) {
+            await this.redisService.setJson(cacheKey, this.extractBalances(user), 300);
             return { success: false, remaining: currentBalance };
         }
 
         await this.userRepo.decrement({ id: userId, [balanceField]: MoreThan(quantity - 1) }, balanceField, quantity);
 
-        // Invalidate cache
-        await this.redisService.del(`balances:${userId}`);
-
         const updated = await this.userRepo.findOne({
             where: { id: userId },
-            select: ['id', balanceField as any],
+            select: ['id', 'likesBalance', 'complimentsBalance', 'boostsBalance'],
         });
+
+        if (updated) {
+            await this.redisService.setJson(cacheKey, this.extractBalances(updated), 300);
+        } else {
+            await this.redisService.del(cacheKey);
+        }
 
         this.logger.log(`Consumed ${quantity} ${type} from user ${userId} (was ${currentBalance}, now ${updated?.[balanceField] ?? 0})`);
         return { success: true, remaining: updated?.[balanceField] ?? 0 };

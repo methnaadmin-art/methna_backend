@@ -109,6 +109,24 @@ export class ModerationGuard implements CanActivate {
         isUserVisible: boolean;
         expiresAt: string | null;
     }> {
+        const cacheKey = `user_status:${userId}`;
+        const cachedModeration = await this.redisService
+            .getJson<{
+                status: UserStatus;
+                statusReason: string | null;
+                moderationReasonCode: string | null;
+                moderationReasonText: string | null;
+                actionRequired: string | null;
+                supportMessage: string | null;
+                isUserVisible: boolean;
+                expiresAt: string | null;
+            }>(cacheKey)
+            .catch(() => null);
+
+        if (cachedModeration?.status) {
+            return cachedModeration;
+        }
+
         const user = await this.userRepository.findOne({
             where: { id: userId },
             select: [
@@ -130,7 +148,8 @@ export class ModerationGuard implements CanActivate {
                 expiresAt: null,
             };
         }
-        return {
+
+        const moderation = {
             status: user.status,
             statusReason: user.statusReason,
             moderationReasonCode: user.moderationReasonCode,
@@ -140,6 +159,9 @@ export class ModerationGuard implements CanActivate {
             isUserVisible: user.isUserVisible,
             expiresAt: user.moderationExpiresAt?.toISOString() || null,
         };
+
+        await this.redisService.setJson(cacheKey, moderation, 60).catch(() => undefined);
+        return moderation;
     }
 
     private isBlocked(status: UserStatus, level: ModerationLevel): boolean {

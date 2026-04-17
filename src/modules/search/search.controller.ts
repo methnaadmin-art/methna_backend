@@ -24,10 +24,7 @@ export class SearchController {
         @Query() filters: SearchFiltersDto,
     ) {
         try {
-            this.logger.log(`[Search] userId=${userId}, filters=${JSON.stringify(filters)}`);
-            const result = await this.searchService.search(userId, filters);
-            this.logger.log(`[Search] returned ${result?.users?.length ?? 0} users for userId=${userId}`);
-            return result;
+            return await this.searchService.search(userId, filters);
         } catch (error) {
             this.logger.error(`[Search] FAILED for userId=${userId}: ${error.message}`, error.stack);
             // Re-throw HttpExceptions as-is (e.g., validation errors)

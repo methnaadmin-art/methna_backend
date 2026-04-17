@@ -5,7 +5,6 @@ import {
     Post,
     Body,
     UseGuards,
-    Request,
     HttpCode,
     Logger,
 } from '@nestjs/common';
@@ -130,11 +129,14 @@ export class MobileController {
             required: ['productId', 'purchaseToken'],
         },
     })
-    async verifyPurchase(@Request() req, @Body() dto: VerifyPurchaseDto) {
+    async verifyPurchase(
+        @CurrentUser('sub') userId: string,
+        @Body() dto: VerifyPurchaseDto,
+    ) {
         this.logger.log(
-            `[PAYMENT] Mobile verify called user=${req.user.id} productId=${dto.productId}`,
+            `[PAYMENT] Mobile verify called user=${userId} productId=${dto.productId}`,
         );
-        return this.googlePlayBillingService.verifyAndActivatePurchase(req.user.id, dto);
+        return this.googlePlayBillingService.verifyAndActivatePurchase(userId, dto);
     }
 
     // ─── Google Play Billing: Restore ────────────────────────
@@ -155,11 +157,14 @@ export class MobileController {
             required: ['purchaseToken', 'productId'],
         },
     })
-    async restorePurchase(@Request() req, @Body() dto: RestorePurchaseDto) {
+    async restorePurchase(
+        @CurrentUser('sub') userId: string,
+        @Body() dto: RestorePurchaseDto,
+    ) {
         this.logger.log(
-            `[PAYMENT] Mobile restore called user=${req.user.id} productId=${dto.productId}`,
+            `[PAYMENT] Mobile restore called user=${userId} productId=${dto.productId}`,
         );
-        return this.googlePlayBillingService.restorePurchase(req.user.id, dto);
+        return this.googlePlayBillingService.restorePurchase(userId, dto);
     }
 
     // ─── Consumable Products (public, no auth) ────────────────
@@ -212,10 +217,9 @@ export class MobileController {
         },
     })
     async verifyConsumablePurchase(
-        @Request() req,
+        @CurrentUser('sub') userId: string,
         @Body() dto: { productId: string; purchaseToken: string; orderId?: string; transactionDate?: string },
     ) {
-        const userId = req.user.id;
         this.logger.log(
             `[PAYMENT] Mobile consumable verify called user=${userId} productId=${dto.productId}`,
         );

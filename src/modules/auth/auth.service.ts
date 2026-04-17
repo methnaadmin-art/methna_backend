@@ -489,6 +489,10 @@ export class AuthService {
             this.throwAuthStatusException(user, 'Please verify your email first', HttpStatus.UNAUTHORIZED);
         }
 
+        if (user.status === UserStatus.DEACTIVATED) {
+            await this.reactivateUserOnLogin(user);
+        }
+
         const blockedLoginMessage = this.getBlockedLoginMessage(user.status);
         if (blockedLoginMessage) {
             this.throwAuthStatusException(user, blockedLoginMessage, HttpStatus.FORBIDDEN);
@@ -588,6 +592,10 @@ export class AuthService {
                 });
                 user.status = UserStatus.ACTIVE;
                 user.emailVerified = true;
+            }
+
+            if (user.status === UserStatus.DEACTIVATED) {
+                await this.reactivateUserOnLogin(user);
             }
 
             const blockedLoginMessage = this.getBlockedLoginMessage(user.status);
@@ -1153,6 +1161,29 @@ export class AuthService {
             ...sanitized
         } = user;
         return sanitized;
+    }
+
+    private async reactivateUserOnLogin(
+        user: Pick<User, 'id' | 'status'>,
+    ): Promise<void> {
+        if (user.status !== UserStatus.DEACTIVATED) {
+            return;
+        }
+
+        await this.userRepository.update(user.id, {
+            status: UserStatus.ACTIVE,
+            statusReason: 'Account reactivated after login',
+            supportMessage: null,
+            moderationReasonCode: null,
+            moderationReasonText: null,
+            actionRequired: null,
+            isUserVisible: true,
+            moderationExpiresAt: null,
+            internalAdminNote: null,
+            updatedByAdminId: null,
+        });
+
+        user.status = UserStatus.ACTIVE;
     }
 
     private getBlockedLoginMessage(status: UserStatus): string | null {

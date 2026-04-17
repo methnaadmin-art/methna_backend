@@ -21,6 +21,7 @@
     "migration:run": "npm run typeorm -- migration:run -d src/database/data-source.ts",
     "seed:admin": "ts-node -r tsconfig-paths/register src/database/seed-admin.ts",
     "seed:content": "ts-node -r tsconfig-paths/register src/database/seed-content.ts",
+    "seed:consumables": "ts-node -r tsconfig-paths/register scripts/seed-consumables-catalog.ts",
     "db:sync": "ts-node -r dotenv/config scripts/sync-database.ts",
     "db:fix": "ts-node -r dotenv/config scripts/fix-missing-tables.ts"
   },

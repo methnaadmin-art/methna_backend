@@ -46,6 +46,21 @@ function sanitizeDatabaseUrl(url?: string) {
 
                 const isProduction = process.env.NODE_ENV === 'production';
                 const isNeon = databaseUrl?.includes('neon.tech') ?? false;
+                const queryLoggingFromConfig = String(
+                    configService.get<string>('database.queryLogging') ?? '',
+                )
+                    .trim()
+                    .toLowerCase();
+                const queryLoggingFromEnv = String(process.env.DB_QUERY_LOGGING ?? '')
+                    .trim()
+                    .toLowerCase();
+                const enableQueryLogging =
+                    queryLoggingFromConfig === 'true' || queryLoggingFromEnv === 'true';
+                const logging = isProduction
+                    ? ['error']
+                    : enableQueryLogging
+                        ? ['error', 'warn', 'query']
+                        : ['error', 'warn'];
 
                 return {
                     type: 'postgres',
@@ -53,7 +68,7 @@ function sanitizeDatabaseUrl(url?: string) {
                     ssl: { rejectUnauthorized: false },
                     autoLoadEntities: true,
                     synchronize: !isProduction,
-                    logging: !isProduction ? ['error', 'warn', 'query'] : ['error'],
+                    logging,
                     entities: [__dirname + '/entities/**/*.entity{.ts,.js}'],
                     retryAttempts: 5,
                     retryDelay: 3000,

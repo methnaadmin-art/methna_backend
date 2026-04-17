@@ -54,30 +54,26 @@ export class SwipesService {
             throw new BadRequestException('Cannot swipe on yourself');
         }
 
-        // Shadow-suspended users: silently drop positive interactions.
-        // They see the swipe succeed, but no like/match is actually created.
-        const user = await this.userRepository.findOne({ where: { id: userId }, select: ['id', 'status'] });
-        if (user?.status === UserStatus.SHADOW_SUSPENDED && action !== SwipeAction.PASS) {
-            // Pretend the swipe succeeded — return a fake success response
-            this.logger.debug(`Shadow-suspended user ${userId} swipe silently dropped`);
-            return { success: true, isMatch: false, action, targetUserId };
-        }
-
-        // Banned/closed/deactivated users cannot interact at all
-        const blockedStatuses = [UserStatus.BANNED, UserStatus.CLOSED, UserStatus.DEACTIVATED];
-        if (blockedStatuses.includes(user?.status as UserStatus)) {
-            throw new ForbiddenException('Your account is not active. You cannot perform this action.');
-        }
-
-        // Cannot swipe on a banned/closed/deactivated target user
-        const targetUser = await this.userRepository.findOne({ where: { id: targetUserId }, select: ['id', 'status'] });
-        if (targetUser && blockedStatuses.includes(targetUser.status as UserStatus)) {
-            throw new BadRequestException('This user is no longer available.');
-        }
-
         // Validate compliment action has a message
         if (action === SwipeAction.COMPLIMENT && !complimentMessage) {
             throw new BadRequestException('Compliment action requires a message');
+        }
+
+        const isPositive = action !== SwipeAction.PASS;
+        if (!isPositive) {
+            const passResponse = await this.recordPassSwipe(userId, targetUserId);
+            return passResponse;
+        }
+
+        const blockedStatuses = [UserStatus.BANNED, UserStatus.CLOSED, UserStatus.DEACTIVATED];
+        const [targetUser, profileReadiness] = await Promise.all([
+            this.userRepository.findOne({ where: { id: targetUserId }, select: ['id', 'status'] }),
+            this.getProfileSwipeReadiness(userId),
+        ]);
+
+        // Cannot swipe on a banned/closed/deactivated target user
+        if (targetUser && blockedStatuses.includes(targetUser.status as UserStatus)) {
+            throw new BadRequestException('This user is no longer available.');
         }
 
         // Check if blocked
@@ -99,16 +95,13 @@ export class SwipesService {
             [SwipeAction.PASS]: LikeType.PASS,
         };
 
-        const isPositive = action !== SwipeAction.PASS;
+        this.assertProfileReadyForPositiveSwipe(profileReadiness);
 
-        if (isPositive) {
-            await this.assertProfileReadyForPositiveSwipe(userId);
-        }
-
-        // Check duplicate swipe. Allow a one-way upgrade from PASS -> LIKE/SUPER_LIKE/COMPLIMENT.
         const existingSwipe = await this.likeRepository.findOne({
             where: { likerId: userId, likedId: targetUserId },
         });
+
+        // Check duplicate swipe. Allow a one-way upgrade from PASS -> LIKE/SUPER_LIKE/COMPLIMENT.
         if (existingSwipe) {
             const canUpgradePassToPositive = existingSwipe.isLike === false && isPositive;
             if (!canUpgradePassToPositive) {
@@ -136,7 +129,7 @@ export class SwipesService {
                 action === SwipeAction.COMPLIMENT ? (complimentMessage ?? '') : '';
 
             await this.likeRepository.save(existingSwipe);
-            await this.invalidateDiscoveryCaches(userId);
+            this.scheduleDiscoveryCacheInvalidation(userId);
 
             this.sendLikeNotification(targetUserId, userId, action, complimentMessage).catch(() => { });
 
@@ -146,7 +139,7 @@ export class SwipesService {
 
             if (mutualLike) {
                 const match = await this.createMatch(userId, targetUserId);
-                await this.invalidateDiscoveryCaches(targetUserId, userId);
+                this.scheduleDiscoveryCacheInvalidation(targetUserId, userId);
                 this.logger.log(`Match created between ${userId} and ${targetUserId} (upgraded pass)`);
                 return { liked: true, matched: true, matchId: match.id, action, upgradedFromPass: true };
             }
@@ -170,7 +163,7 @@ export class SwipesService {
             complimentMessage: action === SwipeAction.COMPLIMENT ? complimentMessage : undefined,
         });
         await this.likeRepository.save(like);
-        await this.invalidateDiscoveryCaches(userId);
+        this.scheduleDiscoveryCacheInvalidation(userId);
 
         // Notify target user for like actions
         if (
@@ -189,7 +182,7 @@ export class SwipesService {
 
             if (mutualLike) {
                 const match = await this.createMatch(userId, targetUserId);
-                await this.invalidateDiscoveryCaches(targetUserId, userId);
+                this.scheduleDiscoveryCacheInvalidation(targetUserId, userId);
                 this.logger.log(`Match created between ${userId} and ${targetUserId}`);
                 return { liked: true, matched: true, matchId: match.id, action };
             }
@@ -381,7 +374,12 @@ export class SwipesService {
 
         // Remove the swipe
         await this.likeRepository.remove(lastSwipe);
-        await this.invalidateDiscoveryCaches(userId, lastSwipe.likedId);
+        if (lastSwipe.type === LikeType.PASS) {
+            void this.redisService
+                .del(this.buildPassSeenCacheKey(userId, lastSwipe.likedId))
+                .catch(() => undefined);
+        }
+        this.scheduleDiscoveryCacheInvalidation(userId, lastSwipe.likedId);
 
         this.logger.log(`User ${userId} rewound swipe on ${lastSwipe.likedId}`);
 
@@ -553,7 +551,7 @@ export class SwipesService {
 
         if (shouldNotify) {
             const matchEventKey = `match:${match.id}`;
-            await Promise.all([
+            void Promise.all([
                 this.notificationsService.createNotification(user1Id, {
                     type: 'match',
                     userId: user2Id,
@@ -580,7 +578,11 @@ export class SwipesService {
                         eventKey: matchEventKey,
                     },
                 }),
-            ]);
+            ]).catch((error) => {
+                this.logger.warn(
+                    `Failed to send match notifications for match=${match.id}: ${error?.message ?? error}`,
+                );
+            });
         }
 
         return match;
@@ -640,6 +642,105 @@ export class SwipesService {
         }
     }
 
+    private async recordPassSwipe(userId: string, targetUserId: string): Promise<Record<string, unknown>> {
+        const passSeenCacheKey = this.buildPassSeenCacheKey(userId, targetUserId);
+        const knownPass = await this.redisService.get(passSeenCacheKey).catch(() => null);
+
+        if (!knownPass) {
+            void this.redisService.set(passSeenCacheKey, '1', 24 * 60 * 60).catch(() => undefined);
+
+            void this.likeRepository
+                .insert({
+                    likerId: userId,
+                    likedId: targetUserId,
+                    type: LikeType.PASS,
+                    isLike: false,
+                    complimentMessage: '',
+                })
+                .catch((error) => {
+                    if (this.isUniqueConstraintViolation(error)) {
+                        return;
+                    }
+
+                    void this.redisService.del(passSeenCacheKey).catch(() => undefined);
+                    this.logger.warn(
+                        `Failed to persist pass swipe ${userId}->${targetUserId}: ${
+                            (error as any)?.message ?? error
+                        }`,
+                    );
+                });
+
+            return { liked: false, matched: false, action: SwipeAction.PASS };
+        }
+
+        try {
+            await this.likeRepository.insert({
+                likerId: userId,
+                likedId: targetUserId,
+                type: LikeType.PASS,
+                isLike: false,
+                complimentMessage: '',
+            });
+
+            await this.redisService.set(passSeenCacheKey, '1', 24 * 60 * 60).catch(() => undefined);
+
+            return { liked: false, matched: false, action: SwipeAction.PASS };
+        } catch (error) {
+            if (!this.isUniqueConstraintViolation(error)) {
+                throw error;
+            }
+
+            const existingSwipe = await this.likeRepository.findOne({
+                where: { likerId: userId, likedId: targetUserId },
+            });
+
+            if (!existingSwipe) {
+                await this.redisService.del(passSeenCacheKey).catch(() => undefined);
+                return { liked: false, matched: false, action: SwipeAction.PASS };
+            }
+
+            if (!existingSwipe.isLike) {
+                // Refresh pass recency so rewind always targets the last pass gesture.
+                await this.likeRepository.delete({ id: existingSwipe.id });
+
+                await this.likeRepository.insert({
+                    likerId: userId,
+                    likedId: targetUserId,
+                    type: LikeType.PASS,
+                    isLike: false,
+                    complimentMessage: '',
+                });
+
+                await this.redisService.set(passSeenCacheKey, '1', 24 * 60 * 60).catch(() => undefined);
+
+                return {
+                    liked: false,
+                    matched: false,
+                    action: SwipeAction.PASS,
+                    refreshedPass: true,
+                };
+            }
+
+            void this.redisService.del(passSeenCacheKey).catch(() => undefined);
+            const existingActiveMatch = await this.findActiveMatch(userId, targetUserId);
+            return {
+                liked: existingSwipe.isLike,
+                matched: !!existingActiveMatch,
+                matchId: existingActiveMatch?.id ?? null,
+                action: existingSwipe.type,
+                duplicate: true,
+            };
+        }
+    }
+
+    private scheduleDiscoveryCacheInvalidation(...userIds: string[]): void {
+        void this.invalidateDiscoveryCaches(...userIds).catch((error) => {
+            this.logger.warn(
+                `Failed to invalidate discovery cache: ${error?.message ?? error}`,
+            );
+        });
+    }
+
     private async invalidateDiscoveryCaches(...userIds: string[]): Promise<void> {
         const uniqueIds = [
             ...new Set(userIds.map((id) => id?.trim()).filter((id): id is string => !!id)),
@@ -649,6 +750,7 @@ export class SwipesService {
         await Promise.all(
             uniqueIds.flatMap((id) => [
                 this.redisService.del(`excludeIds:${id}`),
+                this.redisService.del(`interaction_exclusions:${id}`),
                 this.redisService.del(`discovery:${id}`),
                 this.redisService.del(`suggestions:${id}`),
                 this.redisService.del(`matches:${id}`),
@@ -658,8 +760,10 @@ export class SwipesService {
         );
     }
 
-    private async assertProfileReadyForPositiveSwipe(userId: string): Promise<void> {
-        const profile = await this.profileRepository.findOne({
+    private async getProfileSwipeReadiness(
+        userId: string,
+    ): Promise<Pick<Profile, 'userId' | 'isComplete' | 'profileCompletionPercentage'> | null> {
+        return this.profileRepository.findOne({
             where: { userId },
             select: {
                 userId: true,
@@ -667,7 +771,11 @@ export class SwipesService {
                 profileCompletionPercentage: true,
             },
         });
+    }
 
+    private assertProfileReadyForPositiveSwipe(
+        profile: Pick<Profile, 'userId' | 'isComplete' | 'profileCompletionPercentage'> | null,
+    ): void {
         if (profile?.isComplete) {
             return;
         }
@@ -714,6 +822,10 @@ export class SwipesService {
     private isUniqueConstraintViolation(error: unknown): boolean {
         const code = (error as any)?.code ?? (error as any)?.driverError?.code;
         return code === '23505';
+    }
+
+    private buildPassSeenCacheKey(userId: string, targetUserId: string): string {
+        return `swipe_pass_seen:${userId}:${targetUserId}`;
     }
     // Rematch / second chance (premium feature)
 

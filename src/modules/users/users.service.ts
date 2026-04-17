@@ -23,6 +23,15 @@ import { RematchRequest, RematchStatus } from '../../database/entities/rematch-r
 import { RedisService } from '../redis/redis.service';
 import { CloudinaryService } from '../photos/cloudinary.service';
 
+type AccountClosureAction = 'deactivate' | 'delete';
+
+type CloseAccountPayload = {
+    action?: AccountClosureAction;
+    reason?: string;
+    details?: string;
+    hardDelete?: boolean;
+};
+
 @Injectable()
 export class UsersService {
     constructor(
@@ -210,7 +219,8 @@ export class UsersService {
             if (updateData.status !== UserStatus.DEACTIVATED) {
                 throw new BadRequestException('Invalid status update');
             }
-            safeData.status = UserStatus.DEACTIVATED;
+            await this.closeAccount(userId, { action: 'deactivate' });
+            return this.findById(userId);
         }
 
         if (safeData.username !== undefined) {
@@ -239,14 +249,101 @@ export class UsersService {
         await this.userRepository.softDelete(userId);
     }
 
+    private buildUserInitiatedReason(baseReason: string, payload?: CloseAccountPayload): string {
+        const reason = payload?.reason?.trim();
+        const details = payload?.details?.trim();
+
+        if (!reason && !details) {
+            return baseReason;
+        }
+
+        const segments = [baseReason];
+        if (reason) {
+            segments.push(`Reason: ${reason}`);
+        }
+        if (details) {
+            segments.push(`Details: ${details}`);
+        }
+
+        return segments.join(' | ');
+    }
+
+    private async invalidateAccountCaches(affectedUserIds: Set<string>): Promise<void> {
+        await Promise.all(
+            [...affectedUserIds].flatMap((id) => [
+                this.redisService.del(`excludeIds:${id}`),
+                this.redisService.del(`discovery:${id}`),
+                this.redisService.del(`suggestions:${id}`),
+                this.redisService.del(`matches:${id}`),
+                this.redisService.del(`conversations:${id}`),
+                this.redisService.del(`premium:${id}`),
+                this.redisService.del(`user_status:${id}`),
+            ]),
+        );
+    }
+
     /**
      * User-initiated account closure.
-     * Sets status to CLOSED, then deactivates all presence:
-     * matches, conversations, likes, rematch requests, caches.
+     * `action=deactivate` keeps user data and hides account until next login.
+     * `action=delete` (default) performs full closure and presence teardown.
      */
-    async closeAccount(userId: string): Promise<{ status: string }> {
+    async closeAccount(userId: string, payload?: CloseAccountPayload): Promise<{ status: string }> {
         const user = await this.userRepository.findOne({ where: { id: userId } });
         if (!user) throw new NotFoundException('User not found');
+
+        const action: AccountClosureAction = payload?.action === 'deactivate' ? 'deactivate' : 'delete';
+
+        if (action === 'deactivate') {
+            if (user.status === UserStatus.DEACTIVATED) {
+                return { status: 'deactivated' };
+            }
+            if (user.status === UserStatus.CLOSED) {
+                throw new BadRequestException('Account is already closed');
+            }
+
+            await this.userRepository.update(userId, {
+                status: UserStatus.DEACTIVATED,
+                statusReason: this.buildUserInitiatedReason(
+                    'User temporarily deactivated account',
+                    payload,
+                ),
+                supportMessage: null,
+                moderationReasonCode: null,
+                moderationReasonText: null,
+                actionRequired: null,
+                internalAdminNote: null,
+                moderationExpiresAt: null,
+                isUserVisible: false,
+                updatedByAdminId: null,
+            });
+
+            const activeMatches = await this.matchRepository.find({
+                where: [
+                    { user1Id: userId, status: MatchStatus.ACTIVE },
+                    { user2Id: userId, status: MatchStatus.ACTIVE },
+                ],
+            });
+            const activeConversations = await this.conversationRepository.find({
+                where: [
+                    { user1Id: userId, isActive: true },
+                    { user2Id: userId, isActive: true },
+                ],
+            });
+
+            const affectedUserIds = new Set<string>([userId]);
+            for (const match of activeMatches) {
+                affectedUserIds.add(match.user1Id === userId ? match.user2Id : match.user1Id);
+            }
+            for (const conv of activeConversations) {
+                affectedUserIds.add(conv.user1Id === userId ? conv.user2Id : conv.user1Id);
+            }
+
+            await this.invalidateAccountCaches(affectedUserIds);
+            await this.redisService.invalidateAllUserSessions(userId);
+
+            return { status: 'deactivated' };
+        }
+
         if (user.status === UserStatus.CLOSED) {
             throw new BadRequestException('Account is already closed');
         }
@@ -254,7 +351,7 @@ export class UsersService {
         // 1. Set user status to CLOSED
         await this.userRepository.update(userId, {
             status: UserStatus.CLOSED,
-            statusReason: 'User initiated account closure',
+            statusReason: this.buildUserInitiatedReason('User initiated account closure', payload),
         });
 
         const lockReason = 'This user has closed their account.';
@@ -324,15 +421,7 @@ export class UsersService {
             affectedUserIds.add(conv.user1Id === userId ? conv.user2Id : conv.user1Id);
         }
 
-        await Promise.all([...affectedUserIds].flatMap(id => [
-            this.redisService.del(`excludeIds:${id}`),
-            this.redisService.del(`discovery:${id}`),
-            this.redisService.del(`suggestions:${id}`),
-            this.redisService.del(`matches:${id}`),
-            this.redisService.del(`conversations:${id}`),
-            this.redisService.del(`premium:${id}`),
-            this.redisService.del(`user_status:${id}`),
-        ]));
+        await this.invalidateAccountCaches(affectedUserIds);
 
         // 8. Invalidate all user sessions so they are logged out
         await this.redisService.invalidateAllUserSessions(userId);

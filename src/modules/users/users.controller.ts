@@ -46,8 +46,17 @@ export class UsersController {
     @Post('me/close')
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Close account — deactivates presence, locks chats, removes from all feeds' })
-    async closeAccount(@CurrentUser('sub') userId: string) {
-        return this.usersService.closeAccount(userId);
+    async closeAccount(
+        @CurrentUser('sub') userId: string,
+        @Body()
+        body?: {
+            action?: 'deactivate' | 'delete';
+            reason?: string;
+            details?: string;
+            hardDelete?: boolean;
+        },
+    ) {
+        return this.usersService.closeAccount(userId, body);
     }
 
     @Delete('me')

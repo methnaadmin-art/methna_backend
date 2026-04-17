@@ -9,6 +9,7 @@ export default () => {
 
     const nodeEnv = (process.env.NODE_ENV || 'development').trim().toLowerCase();
     const isProduction = nodeEnv === 'production' || nodeEnv === 'prod';
+    const defaultJwtExpiration = isProduction ? '15m' : '2h';
 
     // Safe default is false when env var is absent.
     const googlePlayAllowUnverifiedTokens =
@@ -49,7 +50,7 @@ export default () => {
 
         jwt: {
             secret: process.env.JWT_SECRET,
-            expiration: process.env.JWT_EXPIRATION || '15m',
+            expiration: process.env.JWT_EXPIRATION || defaultJwtExpiration,
             refreshSecret: process.env.JWT_REFRESH_SECRET,
             refreshExpiration: process.env.JWT_REFRESH_EXPIRATION || '7d',
         },

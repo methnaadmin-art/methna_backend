@@ -56,6 +56,8 @@ export class SupportController {
     }
 
     @Get('my-tickets')
+    @ApiBearerAuth()
+    @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Get my support tickets' })
     async getMyTickets(
         @CurrentUser('sub') userId: string,
@@ -65,6 +67,8 @@ export class SupportController {
     }
 
     @Get('my-tickets/:id')
+    @ApiBearerAuth()
+    @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Get a specific ticket' })
     async getTicket(
         @CurrentUser('sub') userId: string,
@@ -108,6 +112,8 @@ export class SupportController {
     // ─── Feedback endpoint ───────────────────────────────────
 
     @Post('feedback')
+    @ApiBearerAuth()
+    @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Submit feedback, bug report, or suggestion' })
     async submitFeedback(
         @CurrentUser('sub') userId: string,

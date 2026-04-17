@@ -25,6 +25,10 @@ export class LoggingInterceptor implements NestInterceptor {
         return next.handle().pipe(
             tap(() => {
                 const ms = Date.now() - now;
+                if (ms < SLOW_THRESHOLD_MS) {
+                    return;
+                }
+
                 const tag = ms >= CRITICAL_THRESHOLD_MS
                     ? '🔴 CRITICAL'
                     : ms >= SLOW_THRESHOLD_MS
@@ -33,10 +37,8 @@ export class LoggingInterceptor implements NestInterceptor {
                 const msg = `${tag} ${method} ${url} - ${ms}ms [user:${userId}]`;
                 if (ms >= CRITICAL_THRESHOLD_MS) {
                     this.logger.error(msg);
-                } else if (ms >= SLOW_THRESHOLD_MS) {
-                    this.logger.warn(msg);
                 } else {
-                    this.logger.log(msg);
+                    this.logger.warn(msg);
                 }
             }),
         );

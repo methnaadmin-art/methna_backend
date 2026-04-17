@@ -179,6 +179,16 @@ export class SearchFiltersDto {
     @IsString({ each: true })
     communicationStyles?: string[];
 
+    @ApiPropertyOptional({
+        type: [String],
+        description: 'Explicit user IDs to exclude from discovery results',
+    })
+    @IsOptional()
+    @Transform(toStringArray)
+    @IsArray()
+    @IsString({ each: true })
+    excludeIds?: string[];
+
     @ApiPropertyOptional({ description: 'Ignore location radius preference and search globally' })
     @IsOptional()
     @Type(() => Boolean)
@@ -254,6 +264,13 @@ export class SearchFiltersDto {
     @Min(1)
     page?: number = 1;
 
+    @ApiPropertyOptional({
+        description: 'Opaque discovery deck cursor returned by previous search response',
+    })
+    @IsOptional()
+    @IsString()
+    cursor?: string;
+
     @ApiPropertyOptional({ description: 'Sort priority: distance (nearest first), compatibility, activity, newest', enum: ['distance', 'compatibility', 'activity', 'newest'], default: 'distance' })
     @IsOptional()
     @IsString()
@@ -267,4 +284,12 @@ export class SearchFiltersDto {
     @Min(1)
     @Max(50)
     limit?: number = 20;
+
+    @ApiPropertyOptional({
+        description: 'Include deck pagination metadata (nextCursor/hasMore) in response',
+    })
+    @IsOptional()
+    @Type(() => Boolean)
+    @IsBoolean()
+    includeDeckMeta?: boolean;
 }
