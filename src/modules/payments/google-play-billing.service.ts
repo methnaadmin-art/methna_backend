@@ -430,23 +430,47 @@ export class GooglePlayBillingService {
     }
 
     private async resolveGooglePlayPlan(productId: string, basePlanId?: string): Promise<Plan> {
-        const plan = await this.planRepo.findOne({
+        const normalizedBasePlanId = String(basePlanId || '').trim();
+
+        if (normalizedBasePlanId) {
+            const plan = await this.planRepo.findOne({
+                where: {
+                    googleProductId: productId,
+                    googleBasePlanId: normalizedBasePlanId,
+                    isActive: true,
+                },
+            });
+
+            if (!plan) {
+                throw new BadRequestException(
+                    `No active plan mapped to googleProductId '${productId}' + googleBasePlanId '${normalizedBasePlanId}'`,
+                );
+            }
+
+            return plan;
+        }
+
+        const plans = await this.planRepo.find({
             where: {
                 googleProductId: productId,
                 isActive: true,
             },
+            order: {
+                createdAt: 'ASC',
+            },
         });
 
-        if (!plan) {
+        if (plans.length === 0) {
             throw new BadRequestException(`No active plan mapped to googleProductId '${productId}'`);
         }
 
-        const normalizedBasePlanId = String(basePlanId || '').trim();
-        if (normalizedBasePlanId && plan.googleBasePlanId && plan.googleBasePlanId !== normalizedBasePlanId) {
-            throw new BadRequestException('Provided basePlanId does not match configured backend plan mapping.');
+        if (plans.length > 1) {
+            throw new BadRequestException(
+                `Multiple plans are mapped to googleProductId '${productId}'. Provide basePlanId for deterministic mapping.`,
+            );
         }
 
-        return plan;
+        return plans[0];
     }
 
     private resolveTransactionDate(transactionDate?: string): Date {

@@ -87,6 +87,10 @@ export enum BillingCycle {
     ONE_TIME = 'one_time',
 }
 
+@Index('UQ_plans_googleProductId_googleBasePlanId', ['googleProductId', 'googleBasePlanId'], {
+    unique: true,
+    where: '"googleProductId" IS NOT NULL AND "googleBasePlanId" IS NOT NULL',
+})
 @Entity('plans')
 export class Plan {
     @PrimaryGeneratedColumn('uuid')

@@ -428,17 +428,21 @@ export class PlansService {
             throw new BadRequestException('googleProductId is required for paid plans');
         }
 
-        const productCollision = await this.planRepository.findOne({ where: { googleProductId } });
-        if (productCollision && productCollision.id !== currentPlanId) {
-            throw new BadRequestException(`googleProductId '${googleProductId}' is already mapped to another plan`);
+        const googleBasePlanId = this.normalizeNullableString(dto.googleBasePlanId) || currentPlan?.googleBasePlanId || null;
+        if (!googleBasePlanId) {
+            throw new BadRequestException('googleBasePlanId is required for paid plans');
         }
 
-        const googleBasePlanId = this.normalizeNullableString(dto.googleBasePlanId) || currentPlan?.googleBasePlanId || null;
-        if (googleBasePlanId) {
-            const basePlanCollision = await this.planRepository.findOne({ where: { googleBasePlanId } });
-            if (basePlanCollision && basePlanCollision.id !== currentPlanId) {
-                throw new BadRequestException(`googleBasePlanId '${googleBasePlanId}' is already mapped to another plan`);
-            }
+        const compositeCollision = await this.planRepository.findOne({
+            where: {
+                googleProductId,
+                googleBasePlanId,
+            },
+        });
+        if (compositeCollision && compositeCollision.id !== currentPlanId) {
+            throw new BadRequestException(
+                `googleProductId '${googleProductId}' + googleBasePlanId '${googleBasePlanId}' is already mapped to another plan`,
+            );
         }
 
         dto.googleProductId = googleProductId;
