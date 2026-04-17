@@ -22,9 +22,19 @@ export class CreateContentDto {
     @IsOptional()
     @IsString()
     locale?: string;
+
+    @ApiPropertyOptional({ default: true })
+    @IsOptional()
+    @IsBoolean()
+    isPublished?: boolean;
 }
 
 export class UpdateContentDto {
+    @ApiPropertyOptional({ enum: ContentType })
+    @IsOptional()
+    @IsEnum(ContentType)
+    type?: ContentType;
+
     @ApiPropertyOptional()
     @IsOptional()
     @IsString()
@@ -40,6 +50,11 @@ export class UpdateContentDto {
     @IsOptional()
     @IsBoolean()
     isPublished?: boolean;
+
+    @ApiPropertyOptional({ default: 'en' })
+    @IsOptional()
+    @IsString()
+    locale?: string;
 }
 
 // ─── FAQ DTOs ────────────────────────────────────────────
@@ -67,6 +82,11 @@ export class CreateFaqDto {
     @IsOptional()
     @IsNumber()
     order?: number;
+
+    @ApiPropertyOptional({ default: true })
+    @IsOptional()
+    @IsBoolean()
+    isPublished?: boolean;
 }
 
 export class UpdateFaqDto {
@@ -94,6 +114,11 @@ export class UpdateFaqDto {
     @IsOptional()
     @IsBoolean()
     isPublished?: boolean;
+
+    @ApiPropertyOptional({ default: 'en' })
+    @IsOptional()
+    @IsString()
+    locale?: string;
 }
 
 // ─── Job Vacancy DTOs ────────────────────────────────────
@@ -151,6 +176,11 @@ export class CreateJobDto {
     @IsOptional()
     @IsString()
     locale?: string;
+
+    @ApiPropertyOptional({ default: true })
+    @IsOptional()
+    @IsBoolean()
+    isActive?: boolean;
 }
 
 export class UpdateJobDto {
@@ -208,6 +238,11 @@ export class UpdateJobDto {
     @IsOptional()
     @IsBoolean()
     isActive?: boolean;
+
+    @ApiPropertyOptional({ default: 'en' })
+    @IsOptional()
+    @IsString()
+    locale?: string;
 }
 
 // ─── Partner DTOs ────────────────────────────────────────

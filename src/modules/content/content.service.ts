@@ -40,6 +40,7 @@ export class ContentService {
             title: dto.title,
             content: dto.content,
             locale: dto.locale || 'en',
+            isPublished: dto.isPublished ?? true,
         });
         return this.contentRepo.save(content);
     }
@@ -49,9 +50,11 @@ export class ContentService {
         if (!content) {
             throw new NotFoundException('Content not found');
         }
+        if (dto.type !== undefined) content.type = dto.type;
         if (dto.title !== undefined) content.title = dto.title;
         if (dto.content !== undefined) content.content = dto.content;
         if (dto.isPublished !== undefined) content.isPublished = dto.isPublished;
+        if (dto.locale !== undefined) content.locale = dto.locale;
         return this.contentRepo.save(content);
     }
 

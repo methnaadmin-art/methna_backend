@@ -48,6 +48,10 @@ export class PlansService {
             order: { sortOrder: 'ASC', price: 'ASC' },
         });
 
+        for (const plan of plans) {
+            this.syncEntitlementsToLegacy(plan);
+        }
+
         await this.redisService.setJson(cacheKey, plans, 300); // 5 min cache
         return plans;
     }

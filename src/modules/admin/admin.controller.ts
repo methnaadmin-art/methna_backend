@@ -39,6 +39,11 @@ import {
     Max,
     IsDateString,
     IsObject,
+    IsArray,
+    ArrayMinSize,
+    ArrayMaxSize,
+    ArrayUnique,
+    IsUUID,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -145,6 +150,16 @@ class SetUserPremiumDto {
     @ApiProperty()
     @IsDateString()
     expiryDate: string;
+}
+
+class BulkDeleteUsersDto {
+    @ApiProperty({ type: [String] })
+    @IsArray()
+    @ArrayMinSize(1)
+    @ArrayMaxSize(100)
+    @ArrayUnique()
+    @IsUUID('4', { each: true })
+    userIds: string[];
 }
 
 class VerificationModerationDto {
@@ -718,6 +733,29 @@ export class AdminController {
             targetUserId: userId,
         }).catch(() => {});
         await this.adminService.deleteUserAccount(userId);
+    }
+
+    @Roles(UserRole.ADMIN)
+    @Post('users/bulk-delete')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Permanently delete selected users from the database' })
+    async bulkDeleteUsers(
+        @CurrentUser('sub') adminId: string,
+        @Body() dto: BulkDeleteUsersDto,
+    ) {
+        const result = await this.adminService.permanentlyDeleteUsers(dto.userIds, {
+            actingAdminId: adminId,
+        });
+
+        this.redisService.appendAuditLog({
+            type: 'admin',
+            adminId,
+            action: 'bulk_delete_users',
+            targetUserId: dto.userIds.join(','),
+            details: `requested=${dto.userIds.length}; deleted=${result.deletedCount}`,
+        }).catch(() => {});
+
+        return result;
     }
 
     @Roles(UserRole.ADMIN)

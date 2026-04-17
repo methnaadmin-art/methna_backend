@@ -1,7 +1,7 @@
 ﻿import { Injectable, NotFoundException, BadRequestException, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConflictException } from '@nestjs/common';
-import { Repository, ILike, Not, IsNull, Brackets } from 'typeorm';
+import { Repository, ILike, Not, IsNull, Brackets, In } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import {
     User,
@@ -372,9 +372,12 @@ export class AdminService implements OnModuleInit {
         }
 
         if (filters.verificationState && filters.verificationState !== 'all') {
-            const selfieStatusExpr = `COALESCE(user.verification->'selfie'->>'status', CASE WHEN user."selfieUrl" IS NOT NULL AND user."selfieVerified" = true THEN :approvedStatus WHEN user."selfieUrl" IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
-            const identityStatusExpr = `COALESCE(user.verification->'identity'->>'status', CASE WHEN user."documentUrl" IS NOT NULL AND user."documentVerified" = true THEN :approvedStatus WHEN user."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN user."documentUrl" IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
-            const maritalStatusExpr = `COALESCE(user.verification->'marital_status'->>'status', :notSubmittedStatus)`;
+            const selfieUrlExpr = `NULLIF(COALESCE(user.verification->'selfie'->>'url', user."selfieUrl"), '')`;
+            const identityUrlExpr = `NULLIF(COALESCE(user.verification->'identity'->>'url', user."documentUrl"), '')`;
+            const maritalUrlExpr = `NULLIF(user.verification->'marital_status'->>'url', '')`;
+            const selfieStatusExpr = `COALESCE(user.verification->'selfie'->>'status', CASE WHEN ${selfieUrlExpr} IS NOT NULL AND user."selfieVerified" = true THEN :approvedStatus WHEN ${selfieUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
+            const identityStatusExpr = `COALESCE(user.verification->'identity'->>'status', CASE WHEN ${identityUrlExpr} IS NOT NULL AND user."documentVerified" = true THEN :approvedStatus WHEN user."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN ${identityUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
+            const maritalStatusExpr = `COALESCE(user.verification->'marital_status'->>'status', CASE WHEN ${maritalUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
             qb.setParameters({
                 approvedStatus: VerificationStatus.APPROVED,
                 pendingStatus: VerificationStatus.PENDING,
@@ -1620,9 +1623,12 @@ export class AdminService implements OnModuleInit {
             .select([...AdminService.ADMIN_USER_QUERY_SELECT_COLUMNS])
             .distinct(true);
 
-        const selfieStatusExpr = `COALESCE(user.verification->'selfie'->>'status', CASE WHEN user."selfieUrl" IS NOT NULL AND user."selfieVerified" = true THEN :approvedStatus WHEN user."selfieUrl" IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END)`;
-        const identityStatusExpr = `COALESCE(user.verification->'identity'->>'status', CASE WHEN user."documentUrl" IS NOT NULL AND user."documentVerified" = true THEN :approvedStatus WHEN user."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN user."documentUrl" IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END)`;
-        const maritalStatusExpr = `COALESCE(user.verification->'marital_status'->>'status', :fallbackStatus)`;
+        const selfieUrlExpr = `NULLIF(COALESCE(user.verification->'selfie'->>'url', user."selfieUrl"), '')`;
+        const identityUrlExpr = `NULLIF(COALESCE(user.verification->'identity'->>'url', user."documentUrl"), '')`;
+        const maritalUrlExpr = `NULLIF(user.verification->'marital_status'->>'url', '')`;
+        const selfieStatusExpr = `COALESCE(user.verification->'selfie'->>'status', CASE WHEN ${selfieUrlExpr} IS NOT NULL AND user."selfieVerified" = true THEN :approvedStatus WHEN ${selfieUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END)`;
+        const identityStatusExpr = `COALESCE(user.verification->'identity'->>'status', CASE WHEN ${identityUrlExpr} IS NOT NULL AND user."documentVerified" = true THEN :approvedStatus WHEN user."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN ${identityUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END)`;
+        const maritalStatusExpr = `COALESCE(user.verification->'marital_status'->>'status', CASE WHEN ${maritalUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END)`;
 
         qb.setParameters({
             pendingStatus: VerificationStatus.PENDING,
@@ -1974,6 +1980,75 @@ export class AdminService implements OnModuleInit {
         this.logger.warn(`Admin deleted user account: ${userId}`);
     }
 
+    async permanentlyDeleteUsers(
+        userIds: string[],
+        options: { actingAdminId?: string } = {},
+    ): Promise<{
+        requestedCount: number;
+        deletedCount: number;
+        deletedUserIds: string[];
+        skippedUserIds: string[];
+        protectedUserIds: string[];
+    }> {
+        const requestedUserIds = [...new Set(userIds.map((id) => id.trim()).filter(Boolean))];
+
+        if (!requestedUserIds.length) {
+            throw new BadRequestException('At least one user id is required');
+        }
+
+        const protectedUserIds =
+            options.actingAdminId && requestedUserIds.includes(options.actingAdminId)
+                ? [options.actingAdminId]
+                : [];
+
+        const deleteCandidateIds = requestedUserIds.filter(
+            (id) => !protectedUserIds.includes(id),
+        );
+
+        if (!deleteCandidateIds.length) {
+            throw new BadRequestException('Cannot permanently delete the active admin account');
+        }
+
+        const existingUsers = await this.userRepository.find({
+            where: { id: In(deleteCandidateIds) },
+            select: { id: true },
+        });
+
+        const deletedUserIds = existingUsers.map((user) => user.id);
+
+        if (deletedUserIds.length) {
+            await this.userRepository.delete(deletedUserIds);
+
+            await Promise.all(
+                deletedUserIds.flatMap((id) => [
+                    this.redisService.invalidateAllUserSessions(id),
+                    this.redisService.del(`user_status:${id}`),
+                    this.redisService.del(`excludeIds:${id}`),
+                    this.redisService.del(`likes_sent_today:${id}`),
+                    this.redisService.del(`super_likes_sent_today:${id}`),
+                    this.redisService.del(`compliments_sent_today:${id}`),
+                    this.redisService.del(`compliments_received_today:${id}`),
+                    this.redisService.del(`passport_uses_today:${id}`),
+                    this.redisService.del(`rewinds_remaining:${id}`),
+                    this.redisService.del(`boosts_remaining:${id}`),
+                    this.redisService.del(`plan:${id}`),
+                    this.redisService.del(`features:${id}`),
+                    this.redisService.del(`entitlements:${id}`),
+                ]),
+            );
+        }
+
+        return {
+            requestedCount: requestedUserIds.length,
+            deletedCount: deletedUserIds.length,
+            deletedUserIds,
+            skippedUserIds: requestedUserIds.filter(
+                (id) => !deletedUserIds.includes(id) && !protectedUserIds.includes(id),
+            ),
+            protectedUserIds,
+        };
+    }
+
     // â”€â”€â”€ REPORTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     async getReports(pagination: PaginationDto, status?: ReportStatus) {
@@ -2231,6 +2306,10 @@ export class AdminService implements OnModuleInit {
                 verification: true,
                 selfieUrl: true,
                 selfieVerified: true,
+                documentUrl: true,
+                documentVerified: true,
+                documentVerifiedAt: true,
+                documentRejectionReason: true,
             },
         });
         if (!user) throw new NotFoundException('User not found');
@@ -2238,7 +2317,18 @@ export class AdminService implements OnModuleInit {
         const verification = normalizeVerificationState(user.verification);
         const existing = verification[field];
         const now = new Date().toISOString();
-        const url = existing.url || (field === 'selfie' ? user.selfieUrl : null);
+        let url = existing.url || null;
+
+        if (!url && field === 'selfie') {
+            url = user.selfieUrl || null;
+        }
+
+        if (!url && field === 'marital_status') {
+            url =
+                user.documentUrl ||
+                (await this.redisService.get(`marriage_cert:${userId}`)) ||
+                null;
+        }
 
         if (status !== VerificationStatus.NOT_SUBMITTED && !url) {
             throw new BadRequestException(
@@ -2273,6 +2363,16 @@ export class AdminService implements OnModuleInit {
         if (field === 'selfie') {
             (user as any).selfieUrl = verification.selfie.url;
             user.selfieVerified = status === VerificationStatus.APPROVED;
+        }
+
+        if (field === 'marital_status') {
+            (user as any).documentUrl = verification.marital_status.url;
+            user.documentVerified = status === VerificationStatus.APPROVED;
+            user.documentVerifiedAt = status === VerificationStatus.APPROVED ? new Date(now) : null;
+            (user as any).documentRejectionReason =
+                status === VerificationStatus.REJECTED
+                    ? rejectionReason || 'Verification rejected'
+                    : null;
         }
 
         user.verification = verification;
