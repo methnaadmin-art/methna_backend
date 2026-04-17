@@ -22,8 +22,10 @@ import { ConsumableService } from '../consumables/consumable.service';
  * This controller exposes:
  *   GET  /web/plans                             — active plans with Stripe fields only
  *   GET  /web/subscription/status               — current user subscription status
+ *   GET  /web/subscription/status-by-email      — subscription status by email (public)
  *   POST /web/payments/create-checkout-session   — create a Stripe checkout session
  *   POST /web/subscriptions/check-email          — check if email exists before checkout
+ *   POST /web/subscription/manage                — get Stripe manage URL by email (public)
  *   GET  /web/payments/manage-url                — get Stripe subscription management URL
  *
  * No Google Play fields, no Google billing logic.
@@ -86,6 +88,23 @@ export class WebController {
             return { exists: false };
         }
         return this.stripeService.checkUserEmail(email.trim().toLowerCase());
+    }
+
+    // ─── Subscription status by email (public) ─────────────
+
+    @Get('subscription/status-by-email')
+    @HttpCode(200)
+    @ApiOperation({ summary: 'Get subscription status by account email (public)' })
+    @ApiQuery({ name: 'email', required: true, type: String })
+    async getSubscriptionStatusByEmail(@Query('email') email: string) {
+        if (!email || typeof email !== 'string') {
+            return {
+                exists: false,
+                message: 'Valid account email is required.',
+            };
+        }
+
+        return this.stripeService.getSubscriptionStatusByEmail(email.trim().toLowerCase());
     }
 
     // ─── Stripe Checkout Session (authenticated) ────────────
@@ -174,6 +193,31 @@ export class WebController {
                   }
                 : null,
         };
+    }
+
+    // ─── Subscription management URL by email (public) ─────
+
+    @Post('subscription/manage')
+    @HttpCode(200)
+    @ApiOperation({ summary: 'Get Stripe subscription management URL using account email (public)' })
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                email: { type: 'string', format: 'email' },
+            },
+            required: ['email'],
+        },
+    })
+    async getManageUrlByEmail(@Body('email') email: string) {
+        if (!email || typeof email !== 'string') {
+            return {
+                message: 'Valid account email is required.',
+            };
+        }
+
+        const url = await this.stripeService.getManagementUrlByEmail(email.trim().toLowerCase());
+        return { url, provider: 'stripe' };
     }
 
     // ─── Subscription management URL ─────────────────────────

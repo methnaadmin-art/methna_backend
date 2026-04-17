@@ -121,6 +121,14 @@ export class StripeService {
             throw new BadRequestException('No account found with this email. Please install the app and create an account first.');
         }
 
+        const eligibility = await this.checkUserEmail(user.email);
+        if (eligibility.isPremium) {
+            const activePlan = eligibility.planCode ? ` (${eligibility.planCode})` : '';
+            throw new BadRequestException(
+                `This account already has an active premium subscription${activePlan}. Manage your billing instead of creating a new checkout.`,
+            );
+        }
+
         const plan = await this.resolveStripePlan(planCode);
 
         const finalSuccessUrl =
@@ -301,15 +309,113 @@ export class StripeService {
     }
 
     /** Check if a user email exists (for website pre-checkout validation). */
-    async checkUserEmail(email: string): Promise<{ exists: boolean; userId?: string }> {
+    async checkUserEmail(email: string): Promise<{
+        exists: boolean;
+        userId?: string;
+        isPremium?: boolean;
+        planCode?: string;
+        status?: string;
+        message?: string;
+    }> {
+        const normalizedEmail = email.trim().toLowerCase();
+
         const user = await this.userRepo.findOne({
-            where: { email },
+            where: { email: normalizedEmail },
             select: ['id', 'email'],
         });
+
+        if (!user) {
+            return {
+                exists: false,
+                message: 'No account found with this email. Please install the app and create an account first.',
+            };
+        }
+
+        const premiumState = await this.subscriptionsService.syncUserPremiumState(user.id);
+        const activeSubscription = await this.subscriptionRepo.findOne({
+            where: [
+                { userId: user.id, status: SubscriptionStatus.ACTIVE },
+                { userId: user.id, status: SubscriptionStatus.PAST_DUE },
+                { userId: user.id, status: SubscriptionStatus.TRIAL },
+            ],
+            order: { endDate: 'DESC', createdAt: 'DESC' },
+            relations: ['planEntity'],
+        });
+
+        const planCode = activeSubscription?.planEntity?.code ?? activeSubscription?.plan ?? 'free';
+
         return {
-            exists: !!user,
-            userId: user?.id,
+            exists: true,
+            userId: user.id,
+            isPremium: premiumState.isPremium,
+            planCode,
+            status: activeSubscription?.status,
+            message: premiumState.isPremium
+                ? 'This account already has an active premium subscription. Open manage billing instead.'
+                : 'Account found. You can continue to checkout.',
         };
+    }
+
+    async getSubscriptionStatusByEmail(email: string): Promise<{
+        exists: boolean;
+        planName?: string;
+        planCode?: string;
+        status?: string;
+        renewalDate?: Date | null;
+        features?: string[];
+        isPremium?: boolean;
+        message?: string;
+    }> {
+        const normalizedEmail = email.trim().toLowerCase();
+        const user = await this.userRepo.findOne({
+            where: { email: normalizedEmail },
+            select: ['id', 'email'],
+        });
+
+        if (!user) {
+            return {
+                exists: false,
+                message: 'No account found with this email.',
+            };
+        }
+
+        const premiumState = await this.subscriptionsService.syncUserPremiumState(user.id);
+        const subscription = await this.subscriptionsService.getMySubscription(user.id);
+
+        const planCode = subscription.planEntity?.code ?? subscription.plan ?? 'free';
+        const planName = subscription.planEntity?.name ?? planCode;
+        const featureFlags = subscription.planEntity?.featureFlags || {};
+
+        const features = Object.entries(featureFlags)
+            .filter(([, enabled]) => enabled === true)
+            .map(([feature]) => feature);
+
+        return {
+            exists: true,
+            planName,
+            planCode,
+            status: subscription.status,
+            renewalDate: subscription.endDate ?? null,
+            features,
+            isPremium: premiumState.isPremium,
+            message: premiumState.isPremium
+                ? 'Premium subscription is active.'
+                : 'No active premium subscription found for this account.',
+        };
+    }
+
+    async getManagementUrlByEmail(email: string): Promise<string> {
+        const normalizedEmail = email.trim().toLowerCase();
+        const user = await this.userRepo.findOne({
+            where: { email: normalizedEmail },
+            select: ['id', 'email'],
+        });
+
+        if (!user) {
+            throw new BadRequestException('No account found with this email.');
+        }
+
+        return this.getManagementUrl(user.id);
     }
 
     // ─── Webhook handlers ────────────────────────────────────
