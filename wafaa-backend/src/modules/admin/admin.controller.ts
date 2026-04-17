@@ -1,23 +1,32 @@
 import {
+    Body,
     Controller,
     Get,
-    Patch,
     Param,
+    Patch,
     Query,
-    Body,
     UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { AdminService } from './admin.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { Roles } from '../../common/decorators/roles.decorator';
+import {
+    ApiBearerAuth,
+    ApiOperation,
+    ApiProperty,
+    ApiPropertyOptional,
+    ApiTags,
+} from '@nestjs/swagger';
+import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserRole, UserStatus } from '../../database/entities/user.entity';
-import { ReportStatus } from '../../database/entities/report.entity';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import {
+    UserRole,
+    UserStatus,
+    VerificationStatus,
+} from '../../database/entities/user.entity';
+import { ReportStatus } from '../../database/entities/report.entity';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminService } from './admin.service';
 
 class UpdateUserStatusDto {
     @ApiProperty({ enum: UserStatus })
@@ -36,13 +45,35 @@ class ResolveReportDto {
     moderatorNote?: string;
 }
 
+class VerificationModerationDto {
+    @ApiProperty({ enum: VerificationStatus })
+    @IsEnum(VerificationStatus)
+    status: VerificationStatus;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    rejectionReason?: string;
+}
+
+class VerifyDocumentDto {
+    @ApiProperty()
+    @IsBoolean()
+    approved: boolean;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    rejectionReason?: string;
+}
+
 @ApiTags('admin')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
 @Controller('admin')
 export class AdminController {
-    constructor(private readonly adminService: AdminService) { }
+    constructor(private readonly adminService: AdminService) {}
 
     @Get('users')
     @ApiOperation({ summary: 'List all users (admin only)' })
@@ -60,6 +91,78 @@ export class AdminController {
         @Body() dto: UpdateUserStatusDto,
     ) {
         return this.adminService.updateUserStatus(userId, dto.status);
+    }
+
+    @Get('verifications')
+    @ApiOperation({ summary: 'List selfie and document verification queues' })
+    async getVerifications(
+        @Query() pagination: PaginationDto,
+        @Query('status') status?: string,
+        @Query('type') type?: string,
+        @Query('search') search?: string,
+    ) {
+        return this.adminService.getVerifications(pagination, {
+            status,
+            type,
+            search,
+        });
+    }
+
+    @Get('verifications/pending')
+    @ApiOperation({ summary: 'Get pending selfie and document verification items' })
+    async getPendingVerifications() {
+        return this.adminService.getPendingVerifications();
+    }
+
+    @Get('documents/pending')
+    @ApiOperation({ summary: 'Get pending document verification items' })
+    async getPendingDocuments() {
+        return this.adminService.getPendingDocuments();
+    }
+
+    @Patch('users/:id/verification/selfie')
+    @ApiOperation({ summary: 'Approve or reject a selfie verification' })
+    async verifySelfie(
+        @CurrentUser('sub') adminId: string,
+        @Param('id') userId: string,
+        @Body() dto: VerificationModerationDto,
+    ) {
+        return this.adminService.verifySelfie(
+            userId,
+            dto.status,
+            adminId,
+            dto.rejectionReason,
+        );
+    }
+
+    @Patch('users/:id/verification/marital-status')
+    @ApiOperation({ summary: 'Approve or reject a marital document verification' })
+    async verifyMaritalStatus(
+        @CurrentUser('sub') adminId: string,
+        @Param('id') userId: string,
+        @Body() dto: VerificationModerationDto,
+    ) {
+        return this.adminService.verifyMaritalStatus(
+            userId,
+            dto.status,
+            adminId,
+            dto.rejectionReason,
+        );
+    }
+
+    @Patch('documents/:userId/verify')
+    @ApiOperation({ summary: 'Approve or reject a document verification' })
+    async verifyDocument(
+        @CurrentUser('sub') adminId: string,
+        @Param('userId') userId: string,
+        @Body() dto: VerifyDocumentDto,
+    ) {
+        return this.adminService.verifyDocument(
+            userId,
+            dto.approved,
+            adminId,
+            dto.rejectionReason,
+        );
     }
 
     @Get('reports')

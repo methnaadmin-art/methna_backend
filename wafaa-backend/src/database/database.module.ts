@@ -31,6 +31,8 @@ const logger = new Logger('DatabaseModule');
                     // Disable query logging to avoid console flooding
                     logging: false,
                     entities: [__dirname + '/entities/**/*.entity{.ts,.js}'],
+                    migrations: [__dirname + '/migrations/*{.ts,.js}'],
+                    migrationsRun: true,
                     // Connection timeout: fail fast if DB unreachable
                     connectTimeoutMS: 10000,
                     extra: {
