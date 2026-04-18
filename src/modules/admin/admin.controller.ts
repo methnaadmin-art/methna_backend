@@ -1,4 +1,5 @@
 ﻿import {
+    BadRequestException,
     Controller,
     Get,
     Post,
@@ -11,7 +12,6 @@
     UseGuards,
     HttpCode,
     HttpStatus,
-    BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
@@ -55,7 +55,7 @@ import { VerificationStatus } from '../../database/entities/user.entity';
 class UpdateUserStatusDto {
     @ApiProperty({ enum: UserStatus })
     @IsEnum(UserStatus)
-    status: UserStatus;
+    status!: UserStatus;
 
     @ApiPropertyOptional()
     @IsOptional()
@@ -102,7 +102,7 @@ class UpdateUserStatusDto {
 class ResolveReportDto {
     @ApiProperty({ enum: ReportStatus })
     @IsEnum(ReportStatus)
-    status: ReportStatus;
+    status!: ReportStatus;
 
     @ApiPropertyOptional()
     @IsOptional()
@@ -113,7 +113,7 @@ class ResolveReportDto {
 class ModeratePhotoDto {
     @ApiProperty({ enum: PhotoModerationStatus })
     @IsEnum(PhotoModerationStatus)
-    status: PhotoModerationStatus;
+    status!: PhotoModerationStatus;
 
     @ApiPropertyOptional()
     @IsOptional()
@@ -122,10 +122,10 @@ class ModeratePhotoDto {
 }
 
 class CreateUserDto {
-    @ApiProperty() @IsEmail() email: string;
-    @ApiProperty() @IsString() @MinLength(6) password: string;
-    @ApiProperty() @IsString() firstName: string;
-    @ApiProperty() @IsString() lastName: string;
+    @ApiProperty() @IsEmail() email!: string;
+    @ApiProperty() @IsString() @MinLength(6) password!: string;
+    @ApiProperty() @IsString() firstName!: string;
+    @ApiProperty() @IsString() lastName!: string;
     @ApiPropertyOptional() @IsOptional() @IsString() username?: string;
     @ApiPropertyOptional({ enum: UserRole }) @IsOptional() @IsEnum(UserRole) role?: UserRole;
     @ApiPropertyOptional({ enum: UserStatus }) @IsOptional() @IsEnum(UserStatus) status?: UserStatus;
@@ -133,8 +133,8 @@ class CreateUserDto {
 
 class SendNotificationDto {
     @ApiPropertyOptional() @IsOptional() @IsString() userId?: string;
-    @ApiProperty() @IsString() title: string;
-    @ApiProperty() @IsString() body: string;
+    @ApiProperty() @IsString() title!: string;
+    @ApiProperty() @IsString() body!: string;
     @ApiPropertyOptional() @IsOptional() @IsString() type?: string;
     @ApiPropertyOptional() @IsOptional() @IsString() conversationId?: string;
     @ApiPropertyOptional({ type: Object }) @IsOptional() @IsObject() extraData?: Record<string, any>;
@@ -143,18 +143,18 @@ class SendNotificationDto {
 }
 
 class ReplyTicketDto {
-    @ApiProperty() @IsString() reply: string;
+    @ApiProperty() @IsString() reply!: string;
     @ApiPropertyOptional({ enum: TicketStatus }) @IsOptional() @IsEnum(TicketStatus) status?: TicketStatus;
 }
 
 class SetUserPremiumDto {
     @ApiProperty()
     @IsDateString()
-    startDate: string;
+    startDate!: string;
 
     @ApiProperty()
     @IsDateString()
-    expiryDate: string;
+    expiryDate!: string;
 }
 
 class BulkDeleteUsersDto {
@@ -164,7 +164,7 @@ class BulkDeleteUsersDto {
     @ArrayMaxSize(100)
     @ArrayUnique()
     @IsUUID('4', { each: true })
-    userIds: string[];
+    userIds!: string[];
 }
 
 class VerificationModerationDto {
