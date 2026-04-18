@@ -75,10 +75,13 @@ export class MobileController {
     @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Get current user subscription and entitlements (mobile)' })
     async getMySubscription(@CurrentUser('sub') userId: string) {
+        const premiumState = await this.subscriptionsService.syncUserPremiumState(userId);
         const [subscription, entitlementData] = await Promise.all([
             this.subscriptionsService.getMySubscription(userId),
             this.plansService.resolveUserEntitlements(userId),
         ]);
+        const planFeatureFlags = entitlementData.plan?.featureFlags || {};
+        const planLimits = entitlementData.plan?.limits || {};
 
         return {
             id: subscription.id,
@@ -91,14 +94,18 @@ export class MobileController {
             googleProductId: subscription.googleProductId,
             googleOrderId: subscription.googleOrderId,
             billingCycle: subscription.billingCycle,
+            isPremium: premiumState.isPremium,
             entitlements: entitlementData.entitlements,
+            features: planFeatureFlags,
+            planFeatures: planFeatureFlags,
+            limits: planLimits,
             planEntity: entitlementData.plan
                 ? {
                       id: entitlementData.plan.id,
                       code: entitlementData.plan.code,
                       name: entitlementData.plan.name,
-                      features: entitlementData.plan.featureFlags || {},
-                      limits: entitlementData.plan.limits || {},
+                      features: planFeatureFlags,
+                      limits: planLimits,
                   }
                 : null,
         };
