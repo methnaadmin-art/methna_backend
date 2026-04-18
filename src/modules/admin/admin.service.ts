@@ -109,11 +109,11 @@ export class AdminService implements OnModuleInit {
     };
 
     private static readonly VERIFICATION_SORT_COLUMNS: Record<string, string> = {
-        createdAt: 'user.createdAt',
-        updatedAt: 'user.updatedAt',
-        firstName: 'user.firstName',
-        email: 'user.email',
-        status: 'user.status',
+        createdAt: '"user"."createdAt"',
+        updatedAt: '"user"."updatedAt"',
+        firstName: '"user"."firstName"',
+        email: '"user"."email"',
+        status: '"user"."status"',
     };
 
     private static readonly NOTIFICATION_SORT_COLUMNS: Record<string, string> = {
@@ -1639,13 +1639,14 @@ export class AdminService implements OnModuleInit {
             const verificationType = filters.type || 'all';
             const verificationStatus = filters.status || 'all';
 
-            // Use COALESCE(user.verification, '{}'::jsonb) to guard against NULL verification column
-            const v = `COALESCE(user.verification, '{}'::jsonb)`;
+            // Use COALESCE("user"."verification", '{}'::jsonb) to guard against NULL verification column
+            // NOTE: "user" must be quoted because it is a PostgreSQL reserved keyword
+            const v = `COALESCE("user"."verification", '{}'::jsonb)`;
 
             // Build safe WHERE conditions for each verification type
             if (verificationType === 'selfie') {
                 qb.andWhere(
-                    `COALESCE(${v}->'selfie'->>'status', CASE WHEN user."selfieUrl" IS NOT NULL AND user."selfieVerified" = true THEN :approvedStatus WHEN user."selfieUrl" IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END) ${
+                    `COALESCE(${v}->'selfie'->>'status', CASE WHEN "user"."selfieUrl" IS NOT NULL AND "user"."selfieVerified" = true THEN :approvedStatus WHEN "user"."selfieUrl" IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END) ${
                       verificationStatus === 'pending' ? '= :pendingStatus' : 
                       verificationStatus === 'approved' ? '= :approvedStatus' : 
                       verificationStatus === 'rejected' ? '= :rejectedStatus' : 
@@ -1654,7 +1655,7 @@ export class AdminService implements OnModuleInit {
                 );
             } else if (verificationType === 'identity') {
                 qb.andWhere(
-                    `COALESCE(${v}->'identity'->>'status', CASE WHEN user."documentUrl" IS NOT NULL AND user."documentVerified" = true THEN :approvedStatus WHEN user."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN user."documentUrl" IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END) ${
+                    `COALESCE(${v}->'identity'->>'status', CASE WHEN "user"."documentUrl" IS NOT NULL AND "user"."documentVerified" = true THEN :approvedStatus WHEN "user"."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN "user"."documentUrl" IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END) ${
                       verificationStatus === 'pending' ? '= :pendingStatus' : 
                       verificationStatus === 'approved' ? '= :approvedStatus' : 
                       verificationStatus === 'rejected' ? '= :rejectedStatus' : 
@@ -1674,7 +1675,7 @@ export class AdminService implements OnModuleInit {
                 // 'all' type - check if any verification is pending
                 if (verificationStatus === 'pending') {
                     qb.andWhere(
-                        `(user."selfieUrl" IS NOT NULL OR user."documentUrl" IS NOT NULL OR ${v}->'marital_status'->>'url' IS NOT NULL)`
+                        `("user"."selfieUrl" IS NOT NULL OR "user"."documentUrl" IS NOT NULL OR ${v}->'marital_status'->>'url' IS NOT NULL)`
                     );
                 }
             }
@@ -1687,7 +1688,7 @@ export class AdminService implements OnModuleInit {
             });
 
             if (filters.userStatus) {
-                qb.andWhere('user.status = :userStatus', { userStatus: filters.userStatus });
+                qb.andWhere('"user"."status" = :userStatus', { userStatus: filters.userStatus });
             }
 
             const normalizedSearch = filters.search?.trim();
@@ -1696,29 +1697,29 @@ export class AdminService implements OnModuleInit {
                 qb.andWhere(
                     new Brackets((searchQb) => {
                         searchQb
-                            .where('user.id::text = :exactSearch', { exactSearch: normalizedSearch })
-                            .orWhere('user.firstName ILIKE :likeSearch', { likeSearch })
-                            .orWhere('user.lastName ILIKE :likeSearch', { likeSearch })
-                            .orWhere("CONCAT(user.firstName, ' ', user.lastName) ILIKE :likeSearch", {
+                            .where('"user"."id"::text = :exactSearch', { exactSearch: normalizedSearch })
+                            .orWhere('"user"."firstName" ILIKE :likeSearch', { likeSearch })
+                            .orWhere('"user"."lastName" ILIKE :likeSearch', { likeSearch })
+                            .orWhere("CONCAT(\"user\".\"firstName\", ' ', \"user\".\"lastName\") ILIKE :likeSearch", {
                                 likeSearch,
                             })
-                            .orWhere('user.email ILIKE :likeSearch', { likeSearch })
-                            .orWhere('user.username ILIKE :likeSearch', { likeSearch });
+                            .orWhere('"user"."email" ILIKE :likeSearch', { likeSearch })
+                            .orWhere('"user"."username" ILIKE :likeSearch', { likeSearch });
                     }),
                 );
             }
 
             if (filters.dateFrom) {
-                qb.andWhere('user.updatedAt >= :dateFrom', { dateFrom: filters.dateFrom });
+                qb.andWhere('"user"."updatedAt" >= :dateFrom', { dateFrom: filters.dateFrom });
             }
             if (filters.dateTo) {
-                qb.andWhere('user.updatedAt <= :dateTo', { dateTo: this.endOfDay(filters.dateTo) });
+                qb.andWhere('"user"."updatedAt" <= :dateTo', { dateTo: this.endOfDay(filters.dateTo) });
             }
 
             const sortColumn = this.resolveSortColumn(
                 filters.sortBy,
                 AdminService.VERIFICATION_SORT_COLUMNS,
-                'user.createdAt',
+                '"user"."createdAt"',
             );
             const sortOrder = this.resolveSortOrder(filters.sortOrder);
 
