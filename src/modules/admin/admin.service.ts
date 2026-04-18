@@ -413,7 +413,9 @@ export class AdminService implements OnModuleInit {
             .take(pagination.limit);
 
         const [users, total] = await qb.getManyAndCount();
-        const normalizedUsers = users.map((user) => this.normalizeUserState(user));
+        const normalizedUsers = await this.attachCurrentSubscriptionsToUsers(
+            users.map((user) => this.normalizeUserState(user)),
+        );
         return {
             users: normalizedUsers,
             total,
@@ -438,11 +440,7 @@ export class AdminService implements OnModuleInit {
 
         const profile = await this.profileRepository.findOne({ where: { userId } });
         const photos = await this.photoRepository.find({ where: { userId } });
-        const subscription = await this.subscriptionRepository.findOne({
-            where: { userId },
-            order: { createdAt: 'DESC' },
-            relations: ['planEntity'],
-        });
+        const subscription = await this.subscriptionsService.getMySubscription(userId);
 
         // Compute premium display fields
         const now = new Date();
@@ -2249,6 +2247,51 @@ export class AdminService implements OnModuleInit {
             premiumExpiryDate: user.premiumExpiryDate ?? null,
             verification,
         };
+    }
+
+    private async attachCurrentSubscriptionsToUsers<T extends Record<string, any> & { id?: string }>(
+        users: T[],
+    ): Promise<T[]> {
+        const userIds = users
+            .map((user) => String(user.id || '').trim())
+            .filter(Boolean);
+
+        if (userIds.length === 0) {
+            return users;
+        }
+
+        const subscriptions = await this.subscriptionRepository.find({
+            where: [
+                { userId: In(userIds), status: SubscriptionStatus.ACTIVE },
+                { userId: In(userIds), status: SubscriptionStatus.PAST_DUE },
+                { userId: In(userIds), status: SubscriptionStatus.TRIAL },
+            ],
+            relations: ['planEntity'],
+            order: { userId: 'ASC', endDate: 'DESC', createdAt: 'DESC' },
+        });
+
+        const latestSubscriptionsByUserId = new Map<string, Subscription>();
+        for (const subscription of subscriptions) {
+            if (!latestSubscriptionsByUserId.has(subscription.userId)) {
+                latestSubscriptionsByUserId.set(subscription.userId, subscription);
+            }
+        }
+
+        return users.map((user) => {
+            const userId = String(user.id || '').trim();
+            const subscription = latestSubscriptionsByUserId.get(userId);
+
+            if (!subscription) {
+                return user;
+            }
+
+            return {
+                ...user,
+                subscription,
+                subscriptionStatus: subscription.status,
+                subscriptionPlan: subscription.planEntity?.code || subscription.plan || 'free',
+            };
+        });
     }
 
     private buildNotificationPayload(

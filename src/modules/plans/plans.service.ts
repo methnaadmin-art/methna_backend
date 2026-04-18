@@ -586,6 +586,7 @@ export class PlansService {
                 where: [
                     { userId, status: SubscriptionStatus.ACTIVE },
                     { userId, status: SubscriptionStatus.PAST_DUE },
+                    { userId, status: SubscriptionStatus.TRIAL },
                 ],
                 order: { createdAt: 'DESC' },
                 relations: ['planEntity'],
@@ -600,6 +601,7 @@ export class PlansService {
                 where: [
                     { userId, status: SubscriptionStatus.ACTIVE },
                     { userId, status: SubscriptionStatus.PAST_DUE },
+                    { userId, status: SubscriptionStatus.TRIAL },
                 ],
                 order: { createdAt: 'DESC' },
             });

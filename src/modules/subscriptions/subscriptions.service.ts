@@ -76,8 +76,12 @@ export class SubscriptionsService {
         let sub: Subscription | null;
         try {
             sub = await this.subscriptionRepository.findOne({
-                where: { userId },
-                order: { createdAt: 'DESC' },
+                where: [
+                    { userId, status: SubscriptionStatus.ACTIVE },
+                    { userId, status: SubscriptionStatus.PAST_DUE },
+                    { userId, status: SubscriptionStatus.TRIAL },
+                ],
+                order: { endDate: 'DESC', createdAt: 'DESC' },
                 relations: ['planEntity'],
             });
         } catch (error) {
@@ -87,24 +91,17 @@ export class SubscriptionsService {
 
             this.logMissingPlanCodeColumnWarning('getMySubscription');
             sub = await this.subscriptionRepository.findOne({
-                where: { userId },
-                order: { createdAt: 'DESC' },
+                where: [
+                    { userId, status: SubscriptionStatus.ACTIVE },
+                    { userId, status: SubscriptionStatus.PAST_DUE },
+                    { userId, status: SubscriptionStatus.TRIAL },
+                ],
+                order: { endDate: 'DESC', createdAt: 'DESC' },
             });
         }
 
         if (!sub) {
-            const freePlan = await this.planRepository.findOne({
-                where: { code: 'free', isActive: true },
-            });
-            // Create default free subscription
-            sub = this.subscriptionRepository.create({
-                userId,
-                plan: freePlan?.code ?? 'free',
-                planId: freePlan?.id ?? null,
-                planEntity: freePlan ?? null,
-                status: SubscriptionStatus.ACTIVE,
-            });
-            await this.subscriptionRepository.save(sub);
+            sub = await this.ensureFreeSubscriptionForUser(userId);
         }
 
         return sub;
