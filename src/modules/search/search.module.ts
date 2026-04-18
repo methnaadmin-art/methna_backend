@@ -9,6 +9,7 @@ import { Like } from '../../database/entities/like.entity';
 import { Match } from '../../database/entities/match.entity';
 import { UserPreference } from '../../database/entities/user-preference.entity';
 import { ModerationModule } from '../../common/moderation.module';
+import { PlansModule } from '../plans/plans.module';
 
 @Module({
     imports: [
@@ -21,6 +22,7 @@ import { ModerationModule } from '../../common/moderation.module';
             UserPreference,
         ]),
         ModerationModule,
+        PlansModule,
     ],
     controllers: [SearchController],
     providers: [SearchService],
