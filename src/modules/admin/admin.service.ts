@@ -373,7 +373,7 @@ export class AdminService implements OnModuleInit {
 
         if (filters.verificationState && filters.verificationState !== 'all') {
             const selfieUrlExpr = `NULLIF(COALESCE(user.verification->'selfie'->>'url', user."selfieUrl"), '')`;
-            const identityUrlExpr = `NULLIF(COALESCE(user.verification->'identity'->>'url', user."documentUrl"), '')`;
+            const identityUrlExpr = `NULLIF(COALESCE(user.verification->'identity'->>'url', CASE WHEN user.verification->'marital_status'->>'url' IS NOT NULL AND user."documentUrl" = user.verification->'marital_status'->>'url' THEN NULL ELSE user."documentUrl" END), '')`;
             const maritalUrlExpr = `NULLIF(user.verification->'marital_status'->>'url', '')`;
             const selfieStatusExpr = `COALESCE(user.verification->'selfie'->>'status', CASE WHEN ${selfieUrlExpr} IS NOT NULL AND user."selfieVerified" = true THEN :approvedStatus WHEN ${selfieUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
             const identityStatusExpr = `COALESCE(user.verification->'identity'->>'status', CASE WHEN ${identityUrlExpr} IS NOT NULL AND user."documentVerified" = true THEN :approvedStatus WHEN user."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN ${identityUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
@@ -1325,11 +1325,17 @@ export class AdminService implements OnModuleInit {
                         .orWhere('subscription.plan ILIKE :likeSearch', { likeSearch })
                         .orWhere('planEntity.code ILIKE :likeSearch', { likeSearch })
                         .orWhere('planEntity.name ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user.firstName ILIKE :likeSearch', { likeSearch })
+                        .orWhere('user.lastName ILIKE :likeSearch', { likeSearch })
+                        .orWhere("CONCAT(COALESCE(user.firstName, ''), ' ', COALESCE(user.lastName, '')) ILIKE :likeSearch", {
+                            likeSearch,
+                        })
+                        .orWhere("CONCAT(COALESCE(user.lastName, ''), ' ', COALESCE(user.firstName, '')) ILIKE :likeSearch", {
+                            likeSearch,
+                        })
                         .orWhere('user.email ILIKE :likeSearch', { likeSearch })
                         .orWhere('user.username ILIKE :likeSearch', { likeSearch })
-                        .orWhere("CONCAT(user.firstName, ' ', user.lastName) ILIKE :likeSearch", {
-                            likeSearch,
-                        });
+                        .orWhere('COALESCE(user.phone, \'\') ILIKE :likeSearch', { likeSearch });
                 }),
             );
         }
@@ -1386,9 +1392,18 @@ export class AdminService implements OnModuleInit {
     ): Promise<User | null> {
         const user = await this.userRepository.findOne({
             where: { id: userId },
-            select: { id: true },
+            select: { id: true, status: true },
         });
         if (!user) throw new NotFoundException('User not found');
+
+        const trimmedInternalAdminNote = options?.internalAdminNote?.trim() || null;
+        const isReactivation =
+            status === UserStatus.ACTIVE &&
+            user.status !== UserStatus.ACTIVE;
+
+        if (isReactivation && !trimmedInternalAdminNote) {
+            throw new BadRequestException('Activation note is required when reactivating a user.');
+        }
 
         const updateData: Partial<User> = {
             status,
@@ -1399,7 +1414,7 @@ export class AdminService implements OnModuleInit {
             supportMessage: options?.supportMessage || null,
             isUserVisible: options?.isUserVisible !== undefined ? options.isUserVisible : true,
             moderationExpiresAt: options?.expiresAt ? new Date(options.expiresAt) : null,
-            internalAdminNote: options?.internalAdminNote || null,
+            internalAdminNote: trimmedInternalAdminNote,
             updatedByAdminId: options?.updatedByAdminId || null,
         };
 
@@ -1411,7 +1426,6 @@ export class AdminService implements OnModuleInit {
             updateData.actionRequired = null;
             updateData.supportMessage = null;
             updateData.moderationExpiresAt = null;
-            updateData.internalAdminNote = null;
         }
 
         await this.userRepository.update(userId, updateData);
@@ -1624,7 +1638,7 @@ export class AdminService implements OnModuleInit {
             .distinct(true);
 
         const selfieUrlExpr = `NULLIF(COALESCE(user.verification->'selfie'->>'url', user."selfieUrl"), '')`;
-        const identityUrlExpr = `NULLIF(COALESCE(user.verification->'identity'->>'url', user."documentUrl"), '')`;
+        const identityUrlExpr = `NULLIF(COALESCE(user.verification->'identity'->>'url', CASE WHEN user.verification->'marital_status'->>'url' IS NOT NULL AND user."documentUrl" = user.verification->'marital_status'->>'url' THEN NULL ELSE user."documentUrl" END), '')`;
         const maritalUrlExpr = `NULLIF(user.verification->'marital_status'->>'url', '')`;
         const selfieStatusExpr = `COALESCE(user.verification->'selfie'->>'status', CASE WHEN ${selfieUrlExpr} IS NOT NULL AND user."selfieVerified" = true THEN :approvedStatus WHEN ${selfieUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END)`;
         const identityStatusExpr = `COALESCE(user.verification->'identity'->>'status', CASE WHEN ${identityUrlExpr} IS NOT NULL AND user."documentVerified" = true THEN :approvedStatus WHEN user."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN ${identityUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END)`;
@@ -2365,16 +2379,6 @@ export class AdminService implements OnModuleInit {
             user.selfieVerified = status === VerificationStatus.APPROVED;
         }
 
-        if (field === 'marital_status') {
-            (user as any).documentUrl = verification.marital_status.url;
-            user.documentVerified = status === VerificationStatus.APPROVED;
-            user.documentVerifiedAt = status === VerificationStatus.APPROVED ? new Date(now) : null;
-            (user as any).documentRejectionReason =
-                status === VerificationStatus.REJECTED
-                    ? rejectionReason || 'Verification rejected'
-                    : null;
-        }
-
         user.verification = verification;
         const savedUser = await this.userRepository.save(user);
 
@@ -2472,7 +2476,11 @@ export class AdminService implements OnModuleInit {
     private reconcileVerificationState(user: User) {
         const verification = normalizeVerificationState(user.verification);
         const selfieUrl = (user.selfieUrl || verification.selfie.url || null) as string | null;
-        const identityUrl = (user.documentUrl || verification.identity.url || null) as string | null;
+        const identityUrl = (verification.identity.url ||
+            (user.documentUrl && user.documentUrl !== verification.marital_status.url
+                ? user.documentUrl
+                : null) ||
+            null) as string | null;
         const maritalUrl = (verification.marital_status.url || null) as string | null;
 
         if (user.selfieVerified === true) {

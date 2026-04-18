@@ -45,18 +45,15 @@ export class SubscriptionsService {
         const endDate = new Date(now);
         endDate.setDate(endDate.getDate() + days);
         const planEntity = await this.planRepository.findOne({
-            where: [
-                { code: 'trial', isActive: true },
-                { code: 'premium', isActive: true },
-            ],
+            where: { code: 'trial', isActive: true },
         });
 
         const subscription = this.subscriptionRepository.create({
             userId,
-            plan: planEntity?.code ?? 'trial',
+            plan: 'trial',
             planId: planEntity?.id ?? null,
             planEntity: planEntity ?? null,
-            status: SubscriptionStatus.ACTIVE,
+            status: SubscriptionStatus.TRIAL,
             startDate: now,
             endDate,
             paymentProvider: 'trial',
@@ -304,7 +301,11 @@ export class SubscriptionsService {
         let expiredSubscriptions: Subscription[];
         try {
             expiredSubscriptions = await this.subscriptionRepository.find({
-                where: { status: SubscriptionStatus.ACTIVE },
+                where: [
+                    { status: SubscriptionStatus.ACTIVE },
+                    { status: SubscriptionStatus.PAST_DUE },
+                    { status: SubscriptionStatus.TRIAL },
+                ],
                 select: ['id', 'userId', 'endDate', 'plan', 'planId'],
                 relations: ['planEntity'],
             });
@@ -315,7 +316,11 @@ export class SubscriptionsService {
 
             this.logMissingPlanCodeColumnWarning('expirePremiums');
             expiredSubscriptions = await this.subscriptionRepository.find({
-                where: { status: SubscriptionStatus.ACTIVE },
+                where: [
+                    { status: SubscriptionStatus.ACTIVE },
+                    { status: SubscriptionStatus.PAST_DUE },
+                    { status: SubscriptionStatus.TRIAL },
+                ],
                 select: ['id', 'userId', 'endDate', 'plan', 'planId'],
             });
         }
@@ -323,7 +328,7 @@ export class SubscriptionsService {
         const expiredUserIds = new Set<string>();
 
         for (const subscription of expiredSubscriptions) {
-            const planCode = subscription.planEntity?.code ?? subscription.plan ?? 'free';
+            const planCode = this.getSubscriptionPlanCode(subscription);
             const isNonFree = planCode !== 'free';
             if (
                 isNonFree &&
@@ -346,7 +351,16 @@ export class SubscriptionsService {
 
         const ids = [...expiredUserIds];
         await Promise.all(
-            ids.map((userId) => this.updateUserPremiumState(userId, false, null, null, null)),
+            ids.map(async (userId) => {
+                const freeSubscription = await this.ensureFreeSubscriptionForUser(userId, now);
+                await this.updateUserPremiumState(
+                    userId,
+                    false,
+                    null,
+                    null,
+                    freeSubscription.planId ?? freeSubscription.planEntity?.id ?? null,
+                );
+            }),
         );
 
         await Promise.all(ids.map((userId) => this.invalidatePremiumCaches(userId)));
@@ -364,6 +378,7 @@ export class SubscriptionsService {
                 where: [
                     { userId, status: SubscriptionStatus.ACTIVE },
                     { userId, status: SubscriptionStatus.PAST_DUE },
+                    { userId, status: SubscriptionStatus.TRIAL },
                 ],
                 order: { endDate: 'DESC', createdAt: 'DESC' },
                 relations: ['planEntity'],
@@ -378,6 +393,7 @@ export class SubscriptionsService {
                 where: [
                     { userId, status: SubscriptionStatus.ACTIVE },
                     { userId, status: SubscriptionStatus.PAST_DUE },
+                    { userId, status: SubscriptionStatus.TRIAL },
                 ],
                 order: { endDate: 'DESC', createdAt: 'DESC' },
             });
@@ -385,21 +401,19 @@ export class SubscriptionsService {
 
         const now = new Date();
 
-        const isPremiumPlan = (sub: Subscription) =>
-            (sub.planEntity?.code ?? sub.plan ?? 'free') !== 'free';
-
         if (
             activeSubscription &&
-            isPremiumPlan(activeSubscription) &&
+            this.hasPremiumAccessSubscription(activeSubscription) &&
             (!activeSubscription.startDate || new Date(activeSubscription.startDate) <= now) &&
             (!activeSubscription.endDate || new Date(activeSubscription.endDate) > now)
         ) {
             const startDate = activeSubscription.startDate ? new Date(activeSubscription.startDate) : now;
             const expiryDate = activeSubscription.endDate ? new Date(activeSubscription.endDate) : null;
 
-            // PAST_DUE subscriptions still get premium access during grace period.
-            const isPremium = activeSubscription.status === SubscriptionStatus.ACTIVE ||
-                              activeSubscription.status === SubscriptionStatus.PAST_DUE;
+            const isPremium =
+                activeSubscription.status === SubscriptionStatus.ACTIVE ||
+                activeSubscription.status === SubscriptionStatus.PAST_DUE ||
+                activeSubscription.status === SubscriptionStatus.TRIAL;
 
             await this.updateUserPremiumState(
                 userId,
@@ -419,7 +433,7 @@ export class SubscriptionsService {
 
         if (
             activeSubscription &&
-            isPremiumPlan(activeSubscription) &&
+            this.getSubscriptionPlanCode(activeSubscription) !== 'free' &&
             activeSubscription.startDate &&
             new Date(activeSubscription.startDate) > now
         ) {
@@ -449,9 +463,25 @@ export class SubscriptionsService {
             this.logger.log(
                 `Premium expired for user ${userId} at ${new Date(activeSubscription.endDate).toISOString()}`,
             );
+
+            const freeSubscription = await this.ensureFreeSubscriptionForUser(userId, now);
+            await this.updateUserPremiumState(
+                userId,
+                false,
+                null,
+                null,
+                freeSubscription.planId ?? freeSubscription.planEntity?.id ?? null,
+            );
+            await this.invalidatePremiumCaches(userId);
+
+            return {
+                isPremium: false,
+                premiumStartDate: null,
+                premiumExpiryDate: null,
+            };
         }
 
-            await this.updateUserPremiumState(userId, false, null, null, null);
+        await this.updateUserPremiumState(userId, false, null, null, null);
         await this.invalidatePremiumCaches(userId);
 
         return {
@@ -513,8 +543,83 @@ export class SubscriptionsService {
             return false;
         }
 
-        const subscriptionPlanCode = this.normalizePlanToken(subscription.planEntity?.code ?? subscription.plan);
+        const subscriptionPlanCode = this.getSubscriptionPlanCode(subscription);
         return subscriptionPlanCode === normalizedPlanCode;
+    }
+
+    private getSubscriptionPlanCode(subscription?: Partial<Subscription> | null): string {
+        return this.normalizePlanToken(subscription?.planEntity?.code ?? subscription?.plan) || 'free';
+    }
+
+    private hasPremiumAccessSubscription(subscription?: Subscription | null): boolean {
+        if (!subscription) {
+            return false;
+        }
+
+        const planCode = this.getSubscriptionPlanCode(subscription);
+        if (planCode === 'free') {
+            return false;
+        }
+
+        return (
+            subscription.status === SubscriptionStatus.ACTIVE ||
+            subscription.status === SubscriptionStatus.PAST_DUE ||
+            subscription.status === SubscriptionStatus.TRIAL
+        );
+    }
+
+    private async ensureFreeSubscriptionForUser(
+        userId: string,
+        startDate: Date = new Date(),
+    ): Promise<Subscription> {
+        let freeSubscription: Subscription | null;
+        try {
+            freeSubscription = await this.subscriptionRepository.findOne({
+                where: {
+                    userId,
+                    status: SubscriptionStatus.ACTIVE,
+                    plan: 'free',
+                },
+                relations: ['planEntity'],
+                order: { createdAt: 'DESC' },
+            });
+        } catch (error) {
+            if (!this.isMissingPlanCodeColumnError(error)) {
+                throw error;
+            }
+
+            this.logMissingPlanCodeColumnWarning('ensureFreeSubscriptionForUser');
+            freeSubscription = await this.subscriptionRepository.findOne({
+                where: {
+                    userId,
+                    status: SubscriptionStatus.ACTIVE,
+                    plan: 'free',
+                },
+                order: { createdAt: 'DESC' },
+            });
+        }
+
+        if (freeSubscription) {
+            return freeSubscription;
+        }
+
+        const freePlan = await this.planRepository.findOne({
+            where: { code: 'free', isActive: true },
+        });
+
+        const createdFreeSubscription = this.subscriptionRepository.create({
+            userId,
+            plan: freePlan?.code ?? 'free',
+            planId: freePlan?.id ?? null,
+            planEntity: freePlan ?? null,
+            status: SubscriptionStatus.ACTIVE,
+            startDate,
+            endDate: null,
+            paymentReference: 'AUTO_FREE_FALLBACK',
+            paymentProvider: 'system',
+        });
+
+        return this.subscriptionRepository.save(createdFreeSubscription);
     }
 
     private normalizePlanToken(value?: string | null): string {

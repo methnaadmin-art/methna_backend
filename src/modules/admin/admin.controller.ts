@@ -44,6 +44,8 @@ import {
     ArrayMaxSize,
     ArrayUnique,
     IsUUID,
+    IsNotEmpty,
+    ValidateIf,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -89,9 +91,11 @@ class UpdateUserStatusDto {
     @IsDateString()
     expiresAt?: string;
 
-    @ApiProperty({ description: 'Required when status is not active. Explains why the action was taken.' })
+    @ApiPropertyOptional({ description: 'Required when reactivating a user. Stored as an internal admin-only audit note.' })
+    @ValidateIf((dto: UpdateUserStatusDto) => dto.status === UserStatus.ACTIVE || !!dto.internalAdminNote)
     @IsString()
-    internalAdminNote: string;
+    @IsNotEmpty()
+    internalAdminNote?: string;
 }
 
 class ResolveReportDto {
