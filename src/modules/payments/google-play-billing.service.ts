@@ -2,6 +2,7 @@ import {
     BadRequestException,
     Injectable,
     Logger,
+    ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -548,7 +549,11 @@ export class GooglePlayBillingService {
             };
         } catch (error) {
             const gError: any = error;
-            const status = gError?.response?.status ?? gError?.code;
+            const status =
+                gError?.response?.status ??
+                gError?.code ??
+                gError?.status ??
+                gError?.message;
             const reason = this.resolveGooglePlayFailureReason(status);
             this.logger.error(
                 `[GooglePlay] verification failed for productId=${productId}, status=${status}: ${gError?.message || gError}`,
@@ -658,7 +663,11 @@ export class GooglePlayBillingService {
             };
         } catch (error) {
             const gError: any = error;
-            const status = gError?.response?.status ?? gError?.code;
+            const status =
+                gError?.response?.status ??
+                gError?.code ??
+                gError?.status ??
+                gError?.message;
             const reason = this.resolveGooglePlayFailureReason(status);
             this.logger.error(
                 `[GooglePlay] consumable verification failed for productId=${productId}, status=${status}: ${gError?.message || gError}`,
@@ -935,6 +944,7 @@ export class GooglePlayBillingService {
     }
 
     private resolveGooglePlayFailureReason(status: unknown): string {
+        const normalizedStatus = String(status ?? '').trim().toLowerCase();
         const numericStatus = Number(status);
         if (numericStatus === 400) {
             return 'invalid_purchase_token';
@@ -948,6 +958,28 @@ export class GooglePlayBillingService {
         if (Number.isFinite(numericStatus) && numericStatus >= 500) {
             return 'google_play_api_unavailable';
         }
+
+        // Node/OpenSSL/network runtime failures should be treated as retryable infrastructure errors.
+        if (
+            normalizedStatus.includes('err_ossl_unsupported') ||
+            normalizedStatus.includes('error:1e08010c') ||
+            normalizedStatus.includes('unsupported') ||
+            normalizedStatus.includes('econnreset') ||
+            normalizedStatus.includes('etimedout') ||
+            normalizedStatus.includes('enotfound') ||
+            normalizedStatus.includes('eai_again') ||
+            normalizedStatus.includes('econnrefused')
+        ) {
+            return 'google_play_api_unavailable';
+        }
+
+        if (
+            normalizedStatus.includes('invalid_grant') ||
+            normalizedStatus.includes('insufficient authentication scopes')
+        ) {
+            return 'google_play_api_access_or_service_account';
+        }
+
         return 'google_play_verification_failed';
     }
 
@@ -987,7 +1019,9 @@ export class GooglePlayBillingService {
         );
     }
 
-    private buildInvalidVerificationException(rawVerification?: Record<string, any>): BadRequestException {
+    private buildInvalidVerificationException(
+        rawVerification?: Record<string, any>,
+    ): BadRequestException | ServiceUnavailableException {
         const googleStatus = rawVerification?.status ?? rawVerification?.googleStatus ?? null;
         const reason =
             rawVerification?.reason ??
@@ -997,17 +1031,40 @@ export class GooglePlayBillingService {
             'package_product_or_token_not_found',
         ].includes(reason);
 
-        return new BadRequestException({
-            status: 'verification_failed',
-            error: 'Invalid or unverified purchase',
-            message:
-                reason === 'invalid_purchase_token'
-                    ? 'Google Play rejected this purchase token. Fake, stale, or non-Play test tokens are expected to fail.'
-                    : 'Google Play purchase verification failed.',
+        const retryable = [
+            'google_play_api_access_or_service_account',
+            'package_product_or_token_not_found',
+            'google_play_api_unavailable',
+        ].includes(reason);
+
+        const messageByReason: Record<string, string> = {
+            invalid_purchase_token:
+                'Google Play rejected this purchase token. Fake, stale, or non-Play test tokens are expected to fail.',
+            google_play_api_access_or_service_account:
+                'Google Play verification is temporarily unavailable due to backend API access configuration.',
+            package_product_or_token_not_found:
+                'Google Play could not find this package/product/token combination. Verify product mapping and package configuration.',
+            google_play_api_unavailable:
+                'Google Play verification is temporarily unavailable. Please retry shortly.',
+            google_play_verification_failed:
+                'Google Play purchase verification failed.',
+        };
+
+        const payload = {
+            status: retryable ? 'verification_unavailable' : 'verification_failed',
+            error: retryable ? 'Verification temporarily unavailable' : 'Invalid or unverified purchase',
+            message: messageByReason[reason] || 'Google Play purchase verification failed.',
             googleStatus,
             reason,
+            retryable,
             externalConfigurationRequired,
-        });
+        };
+
+        if (retryable) {
+            return new ServiceUnavailableException(payload);
+        }
+
+        return new BadRequestException(payload);
     }
 
     private maskToken(token: string): string {
