@@ -27,6 +27,7 @@ import { TicketStatus, TicketPriority } from '../../database/entities/support-ti
 import { SubscriptionStatus } from '../../database/entities/subscription.entity';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import {
+    BadRequestException,
     IsEnum,
     IsOptional,
     IsString,
@@ -167,9 +168,15 @@ class BulkDeleteUsersDto {
 }
 
 class VerificationModerationDto {
-    @ApiProperty({ enum: VerificationStatus })
+    @ApiPropertyOptional({ enum: VerificationStatus })
+    @IsOptional()
     @IsEnum(VerificationStatus)
-    status: VerificationStatus;
+    status?: VerificationStatus;
+
+    @ApiPropertyOptional({ description: 'Legacy boolean fallback used by older admin panel builds.' })
+    @IsOptional()
+    @IsBoolean()
+    approved?: boolean;
 
     @ApiPropertyOptional()
     @IsOptional()
@@ -620,17 +627,22 @@ export class AdminController {
         @Param('id') userId: string,
         @Body() dto: VerificationModerationDto,
     ) {
+        const status = dto.status ?? (dto.approved === true ? VerificationStatus.APPROVED : dto.approved === false ? VerificationStatus.REJECTED : undefined);
+        if (!status) {
+            throw new BadRequestException('Either status or approved must be provided');
+        }
+
         this.redisService.appendAuditLog({
             type: 'admin',
             adminId,
             action: 'verify_selfie',
             targetUserId: userId,
-            status: dto.status,
+            status,
         }).catch(() => {});
 
         return this.adminService.verifySelfie(
             userId,
-            dto.status,
+            status,
             adminId,
             dto.rejectionReason,
         );
@@ -644,17 +656,22 @@ export class AdminController {
         @Param('id') userId: string,
         @Body() dto: VerificationModerationDto,
     ) {
+        const status = dto.status ?? (dto.approved === true ? VerificationStatus.APPROVED : dto.approved === false ? VerificationStatus.REJECTED : undefined);
+        if (!status) {
+            throw new BadRequestException('Either status or approved must be provided');
+        }
+
         this.redisService.appendAuditLog({
             type: 'admin',
             adminId,
             action: 'verify_marital_status',
             targetUserId: userId,
-            status: dto.status,
+            status,
         }).catch(() => {});
 
         return this.adminService.verifyMaritalStatus(
             userId,
-            dto.status,
+            status,
             adminId,
             dto.rejectionReason,
         );

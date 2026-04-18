@@ -5,7 +5,12 @@ import {
     NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, MoreThan, In } from 'typeorm';
+import {
+    Repository,
+    DataSource,
+    MoreThan,
+    In,
+} from 'typeorm';
 import {
     ConsumableProduct,
     ConsumableType,
@@ -70,6 +75,7 @@ export interface ConsumeBalanceDto {
 @Injectable()
 export class ConsumableService {
     private readonly logger = new Logger(ConsumableService.name);
+    private static readonly MAX_DAILY_PURCHASES = 10;
 
     constructor(
         @InjectRepository(ConsumableProduct)
@@ -212,6 +218,23 @@ export class ConsumableService {
             const purchaseRepo = manager.getRepository(PurchaseTransaction);
             const userRepo = manager.getRepository(User);
 
+            const { startOfDay, endOfDay } = this.getUtcDayWindow(new Date());
+            const purchasesToday = await purchaseRepo
+                .createQueryBuilder('purchase')
+                .where('purchase.userId = :userId', { userId })
+                .andWhere('purchase.status = :status', { status: PurchaseStatus.VERIFIED })
+                .andWhere('purchase.consumableProductId IS NOT NULL')
+                .andWhere('purchase.transactionDate >= :startOfDay', { startOfDay })
+                .andWhere('purchase.transactionDate < :endOfDay', { endOfDay })
+                .getCount();
+
+            const reachedDailyLimit = purchasesToday >= ConsumableService.MAX_DAILY_PURCHASES;
+            if (reachedDailyLimit) {
+                throw new BadRequestException(
+                    `Daily consumable purchase limit reached (${ConsumableService.MAX_DAILY_PURCHASES}/day).`,
+                );
+            }
+
             // Create/update purchase record
             const purchase = existing || purchaseRepo.create({
                 userId,
@@ -226,6 +249,11 @@ export class ConsumableService {
                 expiryDate: null,
                 paymentReference: null,
             });
+
+            const effectiveTransactionDate = purchase.transactionDate || new Date();
+            if (effectiveTransactionDate < startOfDay || effectiveTransactionDate >= endOfDay) {
+                purchase.transactionDate = new Date();
+            }
 
             purchase.status = PurchaseStatus.VERIFIED;
             purchase.rawVerification = {
@@ -251,6 +279,14 @@ export class ConsumableService {
             const user = await userRepo.findOne({ where: { id: userId }, select: ['id', 'likesBalance', 'complimentsBalance', 'boostsBalance'] });
             return { granted: true, balances: this.extractBalances(user!) };
         });
+    }
+
+    private getUtcDayWindow(date: Date): { startOfDay: Date; endOfDay: Date } {
+        const startOfDay = new Date(
+            Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0),
+        );
+        const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+        return { startOfDay, endOfDay };
     }
 
     // ─── CONSUME BALANCE (used by like/compliment/boost actions) ─
