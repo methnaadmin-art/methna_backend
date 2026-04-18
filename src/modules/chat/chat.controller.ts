@@ -52,7 +52,7 @@ export class ChatController {
     }
 
     @Post('conversations/:conversationId/messages')
-    @SetModerationLevel('limited')
+    @SetModerationLevel('suspended')
     @ApiOperation({ summary: 'Send a message via HTTP (fallback for socket)' })
     async sendMessage(
         @CurrentUser('sub') userId: string,

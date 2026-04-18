@@ -20,8 +20,8 @@ export const MODERATION_BANNED = 'banned';
 /**
  * Moderation levels for route protection.
  * - 'none'       → only BANNED users are blocked
- * - 'limited'    → LIMITED, SUSPENDED, BANNED are blocked
- * - 'suspended'  → SUSPENDED, BANNED are blocked (LIMITED allowed)
+ * - 'limited'    → LIMITED, SHADOW_SUSPENDED, BANNED (and other hard blocks) are blocked
+ * - 'suspended'  → LIMITED, SUSPENDED, SHADOW_SUSPENDED, BANNED (and hard blocks) are blocked
  * - 'banned'     → only BANNED users are blocked (everyone else allowed)
  */
 export type ModerationLevel = 'none' | 'limited' | 'suspended' | 'banned';
@@ -34,7 +34,7 @@ export type ModerationLevel = 'none' | 'limited' | 'suspended' | 'banned';
  *   @UseGuards(ModerationGuard)
  *
  * If no @ModerationLevel decorator is set, defaults to 'limited'
- * (blocks LIMITED, SUSPENDED, SHADOW_SUSPENDED, BANNED).
+ * (blocks LIMITED, SHADOW_SUSPENDED, BANNED and hard-block statuses).
  */
 @Injectable()
 export class ModerationGuard implements CanActivate {
@@ -173,7 +173,6 @@ export class ModerationGuard implements CanActivate {
                 UserStatus.DEACTIVATED,
                 UserStatus.CLOSED,
                 UserStatus.LIMITED,
-                UserStatus.SUSPENDED,
                 UserStatus.SHADOW_SUSPENDED,
                 UserStatus.BANNED,
             ],
@@ -182,7 +181,9 @@ export class ModerationGuard implements CanActivate {
                 UserStatus.REJECTED,
                 UserStatus.DEACTIVATED,
                 UserStatus.CLOSED,
+                UserStatus.LIMITED,
                 UserStatus.SUSPENDED,
+                UserStatus.SHADOW_SUSPENDED,
                 UserStatus.BANNED,
             ],
             banned: [UserStatus.BANNED],

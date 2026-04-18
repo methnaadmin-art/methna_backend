@@ -12,12 +12,25 @@ import { Logger, Inject, Optional, forwardRef } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
 import { ChatService } from './chat.service';
 import { RedisService } from '../redis/redis.service';
 import { TrustSafetyService } from '../trust-safety/trust-safety.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MessageType } from '../../database/entities/message.entity';
+import { User, UserStatus } from '../../database/entities/user.entity';
+
+type MessagingModerationSnapshot = {
+    status: UserStatus;
+    statusReason: string | null;
+    moderationReasonCode: string | null;
+    moderationReasonText: string | null;
+    actionRequired: string | null;
+    supportMessage: string | null;
+    expiresAt: string | null;
+};
 
 @WebSocketGateway({
     cors: {
@@ -36,6 +49,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     constructor(
         @Inject(forwardRef(() => ChatService))
         private readonly chatService: ChatService,
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
         private readonly redisService: RedisService,
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
@@ -142,6 +157,22 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         const { conversationId, content, type, imageUrl, clientMsgId } = payload;
 
         try {
+            const moderation = await this.getMessagingModeration(senderId);
+            if (this.isMessagingBlockedStatus(moderation.status)) {
+                return {
+                    success: false,
+                    error: this.getMessagingBlockedMessage(moderation.status),
+                    code: 'MODERATION_BLOCKED',
+                    status: moderation.status,
+                    reason: moderation.statusReason,
+                    moderationReasonCode: moderation.moderationReasonCode,
+                    moderationReasonText: moderation.moderationReasonText,
+                    actionRequired: moderation.actionRequired,
+                    supportMessage: moderation.supportMessage,
+                    expiresAt: moderation.expiresAt,
+                };
+            }
+
             const msgType = MessageType.TEXT;
             let msgContent = content;
 
@@ -229,6 +260,95 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         } catch (error) {
             this.logger.error(`Failed to send message notification: ${(error as Error).message}`);
         }
+    }
+
+    private isMessagingBlockedStatus(status: UserStatus): boolean {
+        return [
+            UserStatus.PENDING_VERIFICATION,
+            UserStatus.REJECTED,
+            UserStatus.DEACTIVATED,
+            UserStatus.CLOSED,
+            UserStatus.LIMITED,
+            UserStatus.SUSPENDED,
+            UserStatus.SHADOW_SUSPENDED,
+            UserStatus.BANNED,
+        ].includes(status);
+    }
+
+    private getMessagingBlockedMessage(status: UserStatus): string {
+        switch (status) {
+            case UserStatus.SUSPENDED:
+                return 'Your account is suspended. Messaging is temporarily disabled.';
+            case UserStatus.BANNED:
+                return 'Your account has been banned. Contact support for more information.';
+            case UserStatus.CLOSED:
+                return 'Your account is closed. Messaging is no longer available.';
+            case UserStatus.DEACTIVATED:
+                return 'Your account is deactivated. Reactivate your account to send messages.';
+            case UserStatus.LIMITED:
+                return 'Your account has limited access. Messaging is currently unavailable.';
+            case UserStatus.SHADOW_SUSPENDED:
+                return 'Your account has limited access. Messaging is currently unavailable.';
+            case UserStatus.PENDING_VERIFICATION:
+                return 'Complete verification before sending messages.';
+            case UserStatus.REJECTED:
+                return 'Your verification was rejected. Please resubmit verification details.';
+            default:
+                return 'Messaging is unavailable for this account.';
+        }
+    }
+
+    private async getMessagingModeration(userId: string): Promise<MessagingModerationSnapshot> {
+        const cacheKey = `user_status:${userId}`;
+        const cached = await this.redisService
+            .getJson<MessagingModerationSnapshot>(cacheKey)
+            .catch(() => null);
+
+        if (cached?.status) {
+            return {
+                ...cached,
+                status: cached.status as UserStatus,
+            };
+        }
+
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: [
+                'id',
+                'status',
+                'statusReason',
+                'moderationReasonCode',
+                'moderationReasonText',
+                'actionRequired',
+                'supportMessage',
+                'moderationExpiresAt',
+            ],
+        });
+
+        if (!user) {
+            return {
+                status: UserStatus.BANNED,
+                statusReason: 'User not found',
+                moderationReasonCode: null,
+                moderationReasonText: null,
+                actionRequired: null,
+                supportMessage: null,
+                expiresAt: null,
+            };
+        }
+
+        const moderation: MessagingModerationSnapshot = {
+            status: user.status,
+            statusReason: user.statusReason,
+            moderationReasonCode: user.moderationReasonCode,
+            moderationReasonText: user.moderationReasonText,
+            actionRequired: user.actionRequired,
+            supportMessage: user.supportMessage,
+            expiresAt: user.moderationExpiresAt?.toISOString() || null,
+        };
+
+        await this.redisService.setJson(cacheKey, moderation, 60).catch(() => undefined);
+        return moderation;
     }
 
     @SubscribeMessage('typing')

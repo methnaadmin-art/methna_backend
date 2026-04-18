@@ -1192,10 +1192,10 @@ export class AuthService {
                 return 'Your account is pending verification approval.';
             case UserStatus.REJECTED:
                 return 'Your verification was rejected. Please resubmit your verification details.';
+            // BANNED and SUSPENDED users can authenticate and are routed in-app.
             case UserStatus.BANNED:
-                return 'Your account is banned.';
             case UserStatus.SUSPENDED:
-                return 'Your account is suspended. Please contact support.';
+                return null;
             case UserStatus.DEACTIVATED:
                 return 'Your account is deactivated. Please contact support.';
             case UserStatus.CLOSED:
