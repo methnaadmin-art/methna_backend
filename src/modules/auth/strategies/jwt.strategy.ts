@@ -13,6 +13,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         UserStatus.ACTIVE,
         UserStatus.LIMITED,
         UserStatus.SHADOW_SUSPENDED,
+        UserStatus.SUSPENDED,
     ]);
 
     constructor(

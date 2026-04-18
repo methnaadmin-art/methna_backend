@@ -1,0 +1,942 @@
+{
+  "startedAt": "2026-04-17T11:27:22.843Z",
+  "baseUrl": "http://127.0.0.1:3000/api/v1",
+  "setup": {
+    "adminId": "ee81b732-16c3-4b68-9180-9e83040783c5",
+    "viewer": {
+      "id": "5e541b74-0868-4741-979a-49ef45f28f83",
+      "email": "runtime.v6.viewer.1776425245744_6719@methna.test",
+      "completion": 76
+    },
+    "liker": {
+      "id": "f63bdf1d-4ba7-458d-8225-4c09eedf8c2f",
+      "email": "runtime.v6.liker.1776425252184_3985@methna.test",
+      "completion": 76
+    },
+    "moderationUser": {
+      "id": "2166578e-868e-4b66-9052-61b810da88fa",
+      "email": "runtime.v6.moderation.1776425258715_1556@methna.test",
+      "completion": 76
+    }
+  },
+  "checks": [
+    {
+      "group": "setup",
+      "key": "profiles_complete",
+      "name": "Runtime QA users have complete profiles for positive swipes",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "viewerCompletion": 76,
+        "likerCompletion": 76,
+        "moderationCompletion": 76
+      },
+      "severity": "critical",
+      "repro": [
+        "Create runtime QA users and open profile completion.",
+        "Attempt positive swipe action.",
+        "Expected: no profile-completion gate for this QA run."
+      ]
+    },
+    {
+      "group": "swipe",
+      "key": "home_load_fast",
+      "name": "Home users load quickly",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "homeUsableFirstCardMs": 0,
+        "initialBatchFetchMs": 2028,
+        "medianBatchFetchMs": 2028,
+        "p95BatchFetchMs": 2028,
+        "firstPageCount": 7
+      },
+      "severity": "critical",
+      "repro": [
+        "Preload discovery deck in background before Home becomes active.",
+        "Open Home and read first renderable card from local buffer.",
+        "Expected target in this QA: first usable card <= 1.2s."
+      ]
+    },
+    {
+      "group": "swipe",
+      "key": "batch_discovery_mode",
+      "name": "Discovery provides 10-20 card batches for buffered deck",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "batchSize": 7,
+        "configuredBatchSize": 20,
+        "nextCursorPresent": false
+      },
+      "severity": "critical",
+      "repro": [
+        "Request initial ranked discovery batch with includeDeckMeta enabled.",
+        "Validate that one batch returns between 10 and 20 cards for local buffering."
+      ]
+    },
+    {
+      "group": "swipe",
+      "key": "perceived_next_card_instant",
+      "name": "Perceived next-card latency is instant with local buffer",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "perceivedNextCardLatencyMs": 1,
+        "localSamples": [
+          1,
+          1,
+          0
+        ]
+      },
+      "severity": "critical",
+      "repro": [
+        "Swipe from local buffered deck without waiting for backend writes.",
+        "Measure local next-card render latency only.",
+        "Expected: perceived next card latency <= 100ms."
+      ]
+    },
+    {
+      "group": "swipe",
+      "key": "next_batch_fetch_fast",
+      "name": "Next-batch fetch latency stays low during background prefetch",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "nextCursorPresent": false,
+        "nextBatchDurations": [
+          792
+        ],
+        "nextBatchMedian": 792,
+        "thresholdMs": 1500
+      },
+      "severity": "critical",
+      "repro": [
+        "Keep deck buffered and fetch continuation batches asynchronously.",
+        "Record background prefetch latency while UI continues swiping locally.",
+        "Expected: median next-batch fetch latency <= 1.5s."
+      ]
+    },
+    {
+      "group": "swipe",
+      "key": "swipe_roundtrip",
+      "name": "Swipe round-trips are smooth (no post-swipe lag spikes)",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "swipeDurations": [
+          575,
+          559,
+          558
+        ],
+        "swipeMedian": 559,
+        "perceivedNextCardLatencyMs": 1,
+        "swipeWriteFailures": []
+      },
+      "severity": "critical",
+      "repro": [
+        "Swipe through cards from local deck buffer.",
+        "Dispatch backend writes asynchronously and track completion latencies.",
+        "Expected: smooth UX with immediate next card and stable async write completion."
+      ]
+    },
+    {
+      "group": "swipe",
+      "key": "seen_not_reappear",
+      "name": "Seen users do not reappear after refresh/reopen/filter change",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "seenIds": [
+          "1568f741-63b2-4089-8aa2-1af15bf4ad39",
+          "94e23ec4-172a-479b-9e66-57a809ca245e",
+          "41898d34-390a-4176-8510-8f933bfbd172"
+        ],
+        "refreshTop": [
+          "7289ca59-ccbd-4651-805d-480c84b083ab",
+          "97d98ceb-0347-4254-a624-58e04c47ac06",
+          "4b629632-9522-4dd4-a59b-9ebb424e89ed",
+          "0b3f081e-1667-4fd0-bfa2-9d9352be8e31"
+        ],
+        "reopenTop": [
+          "7289ca59-ccbd-4651-805d-480c84b083ab",
+          "97d98ceb-0347-4254-a624-58e04c47ac06",
+          "4b629632-9522-4dd4-a59b-9ebb424e89ed",
+          "0b3f081e-1667-4fd0-bfa2-9d9352be8e31"
+        ],
+        "filterTop": [
+          "4b629632-9522-4dd4-a59b-9ebb424e89ed",
+          "0b3f081e-1667-4fd0-bfa2-9d9352be8e31"
+        ]
+      },
+      "severity": "critical",
+      "repro": [
+        "Swipe a set of users into local seen history.",
+        "Trigger refresh, reopen, and filter changes.",
+        "Expected: seen IDs remain excluded from new server batches."
+      ]
+    },
+    {
+      "group": "swipe",
+      "key": "queue_stable",
+      "name": "Queue remains stable across refresh and reopen",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "localTopBeforeRefresh": [
+          "97d98ceb-0347-4254-a624-58e04c47ac06",
+          "4b629632-9522-4dd4-a59b-9ebb424e89ed"
+        ],
+        "localTopAfterReopen": [
+          "97d98ceb-0347-4254-a624-58e04c47ac06",
+          "4b629632-9522-4dd4-a59b-9ebb424e89ed"
+        ]
+      },
+      "severity": "critical",
+      "repro": [
+        "Capture top local-buffer cards.",
+        "Refresh and reopen Home while keeping local deck state.",
+        "Expected: top queue order remains deterministic."
+      ]
+    },
+    {
+      "group": "swipe",
+      "key": "rewind_flow",
+      "name": "Premium rewind flow works end-to-end (restore, reverse, re-swipe, continuity)",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "rewindTarget": "97d98ceb-0347-4254-a624-58e04c47ac06",
+        "rewoundTargetFromServer": "97d98ceb-0347-4254-a624-58e04c47ac06",
+        "restoredLocalCardId": "97d98ceb-0347-4254-a624-58e04c47ac06",
+        "expectedNextAfterReswipe": "4b629632-9522-4dd4-a59b-9ebb424e89ed",
+        "postReswipeTopCardId": "4b629632-9522-4dd4-a59b-9ebb424e89ed",
+        "localRewindLatencyMs": 0,
+        "reswipeStatus": 201
+      },
+      "severity": "critical",
+      "repro": [
+        "Swipe a card from local buffer and keep next-card order snapshot.",
+        "Perform local rewind instantly, then sync rewind to backend.",
+        "Re-swipe restored card and verify queue continuity is deterministic."
+      ]
+    },
+    {
+      "group": "swipe",
+      "key": "distance_values_correct",
+      "name": "Distance values are shown correctly",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "distanceSamples": [
+          {
+            "id": "1568f741-63b2-4089-8aa2-1af15bf4ad39",
+            "expectedKm": 371.64,
+            "actualKm": 371.64,
+            "diffKm": 0,
+            "toleranceKm": 111.49,
+            "pass": true
+          },
+          {
+            "id": "94e23ec4-172a-479b-9e66-57a809ca245e",
+            "expectedKm": 371.64,
+            "actualKm": 371.64,
+            "diffKm": 0,
+            "toleranceKm": 111.49,
+            "pass": true
+          },
+          {
+            "id": "41898d34-390a-4176-8510-8f933bfbd172",
+            "expectedKm": 371.64,
+            "actualKm": 371.64,
+            "diffKm": 0,
+            "toleranceKm": 111.49,
+            "pass": true
+          },
+          {
+            "id": "7289ca59-ccbd-4651-805d-480c84b083ab",
+            "expectedKm": 371.65,
+            "actualKm": 371.65,
+            "diffKm": 0,
+            "toleranceKm": 111.49,
+            "pass": true
+          },
+          {
+            "id": "97d98ceb-0347-4254-a624-58e04c47ac06",
+            "expectedKm": 371.65,
+            "actualKm": 371.65,
+            "diffKm": 0,
+            "toleranceKm": 111.49,
+            "pass": true
+          },
+          {
+            "id": "4b629632-9522-4dd4-a59b-9ebb424e89ed",
+            "expectedKm": 371.65,
+            "actualKm": 371.65,
+            "diffKm": 0,
+            "toleranceKm": 111.49,
+            "pass": true
+          },
+          {
+            "id": "0b3f081e-1667-4fd0-bfa2-9d9352be8e31",
+            "expectedKm": 1882.99,
+            "actualKm": 1882.99,
+            "diffKm": 0,
+            "toleranceKm": 564.9,
+            "pass": true
+          }
+        ]
+      },
+      "severity": "critical",
+      "repro": [
+        "Call /search sortBy=distance with known viewer location.",
+        "Compare distanceKm to haversine baseline from returned coordinates.",
+        "Expected: values remain within practical tolerance."
+      ]
+    },
+    {
+      "group": "swipe",
+      "key": "distance_order",
+      "name": "Distance-first ordering works when requested",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "distanceOrderValues": [
+          371.6446924333468,
+          371.64471534978446,
+          371.6449463022459,
+          371.64628932984954,
+          371.64659952931606,
+          371.64919323412767,
+          1882.990521211165
+        ]
+      },
+      "severity": "normal",
+      "repro": [
+        "Call /search sortBy=distance.",
+        "Inspect returned distance sequence.",
+        "Expected: nearest to farthest ordering."
+      ]
+    },
+    {
+      "group": "swipe",
+      "key": "gender_filter_effective",
+      "name": "Gender filter changes discovery results",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "genderTarget": "male",
+        "count": 6,
+        "sample": [
+          {
+            "id": "1568f741-63b2-4089-8aa2-1af15bf4ad39",
+            "gender": "male"
+          },
+          {
+            "id": "94e23ec4-172a-479b-9e66-57a809ca245e",
+            "gender": "male"
+          },
+          {
+            "id": "41898d34-390a-4176-8510-8f933bfbd172",
+            "gender": "male"
+          },
+          {
+            "id": "7289ca59-ccbd-4651-805d-480c84b083ab",
+            "gender": "male"
+          },
+          {
+            "id": "4b629632-9522-4dd4-a59b-9ebb424e89ed",
+            "gender": "male"
+          },
+          {
+            "id": "0b3f081e-1667-4fd0-bfa2-9d9352be8e31",
+            "gender": "male"
+          }
+        ]
+      },
+      "severity": "critical",
+      "repro": [
+        "Apply a concrete gender filter value from existing deck.",
+        "Refresh search results.",
+        "Expected: all returned profiles match selected gender."
+      ]
+    },
+    {
+      "group": "swipe",
+      "key": "age_filter_effective",
+      "name": "Age filter changes discovery results",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "count": 1,
+        "outOfRange": []
+      },
+      "severity": "critical",
+      "repro": [
+        "Apply age range filter min=25 max=35.",
+        "Refresh results and inspect ages.",
+        "Expected: returned profiles stay within selected range."
+      ]
+    },
+    {
+      "group": "swipe",
+      "key": "verified_filter_effective",
+      "name": "Verified filter changes discovery results",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "count": 3,
+        "sample": [
+          {
+            "id": "1568f741-63b2-4089-8aa2-1af15bf4ad39",
+            "selfieVerified": true
+          },
+          {
+            "id": "4b629632-9522-4dd4-a59b-9ebb424e89ed",
+            "selfieVerified": true
+          },
+          {
+            "id": "0b3f081e-1667-4fd0-bfa2-9d9352be8e31",
+            "selfieVerified": true
+          }
+        ]
+      },
+      "severity": "critical",
+      "repro": [
+        "Enable verified-only filter.",
+        "Refresh search results.",
+        "Expected: all returned profiles are selfieVerified=true."
+      ]
+    },
+    {
+      "group": "swipe",
+      "key": "filters_fast",
+      "name": "Filters keep discovery responsive",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "baselineMedian": 2028,
+        "filteredMedian": 1519,
+        "ratio": 0.75,
+        "filteredTimes": [
+          1456,
+          1519,
+          1644
+        ]
+      },
+      "severity": "normal",
+      "repro": [
+        "Apply combined filters (age + verified).",
+        "Measure repeated search latency.",
+        "Expected: filtered performance remains in practical range."
+      ]
+    },
+    {
+      "group": "purchase",
+      "key": "catalog_display",
+      "name": "Likes/compliments/boost packs display correctly in app and web payloads",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "mobileCount": 3,
+        "webCount": 3,
+        "mobileTypes": [
+          "likes_pack",
+          "compliments_pack",
+          "boosts_pack"
+        ],
+        "webTypes": [
+          "likes_pack",
+          "compliments_pack",
+          "boosts_pack"
+        ]
+      },
+      "severity": "critical",
+      "repro": [
+        "Open mobile consumables endpoint and web products endpoint.",
+        "Verify likes, compliments, and boosts packs are present in both."
+      ]
+    },
+    {
+      "group": "purchase",
+      "key": "catalog_clarity",
+      "name": "Purchase card payload is clean and understandable for UI rendering",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "sample": [
+          {
+            "code": "likes_25_pack",
+            "title": "25 Likes Pack",
+            "descLen": 30,
+            "price": 4.99,
+            "currency": "usd",
+            "quantity": 25
+          },
+          {
+            "code": "compliments_10_pack",
+            "title": "10 Compliments Pack",
+            "descLen": 36,
+            "price": 3.99,
+            "currency": "usd",
+            "quantity": 10
+          },
+          {
+            "code": "boosts_3_pack",
+            "title": "3 Boosts Pack",
+            "descLen": 38,
+            "price": 6.99,
+            "currency": "usd",
+            "quantity": 3
+          }
+        ]
+      },
+      "severity": "normal",
+      "repro": null
+    },
+    {
+      "group": "purchase",
+      "key": "purchase_success_balance_up",
+      "name": "Balances update after successful purchase",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "verifyAttempts": [
+          {
+            "type": "likes_pack",
+            "productId": "com.methna.consumable.likes_25",
+            "purchaseToken": "final-v6-likes_pack-1776425288446-170",
+            "status": 200,
+            "ok": true,
+            "response": {
+              "status": "verified",
+              "provider": "google_play",
+              "product": {
+                "id": "105af8f9-127e-453a-8dce-0ac8c4db25be",
+                "code": "likes_25_pack",
+                "title": "25 Likes Pack",
+                "type": "likes_pack",
+                "quantity": 25
+              },
+              "balances": {
+                "granted": true,
+                "balances": {
+                  "likes": 25,
+                  "compliments": 0,
+                  "boosts": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "compliments_pack",
+            "productId": "com.methna.consumable.compliments_10",
+            "purchaseToken": "final-v6-compliments_pack-1776425291420-534",
+            "status": 200,
+            "ok": true,
+            "response": {
+              "status": "verified",
+              "provider": "google_play",
+              "product": {
+                "id": "0f67459c-b64f-47d5-9cff-77a546d40e11",
+                "code": "compliments_10_pack",
+                "title": "10 Compliments Pack",
+                "type": "compliments_pack",
+                "quantity": 10
+              },
+              "balances": {
+                "granted": true,
+                "balances": {
+                  "likes": 25,
+                  "compliments": 10,
+                  "boosts": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "boosts_pack",
+            "productId": "com.methna.consumable.boosts_3",
+            "purchaseToken": "final-v6-boosts_pack-1776425293788-927",
+            "status": 200,
+            "ok": true,
+            "response": {
+              "status": "verified",
+              "provider": "google_play",
+              "product": {
+                "id": "5347a0a6-db44-4ab6-a9f5-d62bcbbe2dfe",
+                "code": "boosts_3_pack",
+                "title": "3 Boosts Pack",
+                "type": "boosts_pack",
+                "quantity": 3
+              },
+              "balances": {
+                "granted": true,
+                "balances": {
+                  "likes": 25,
+                  "compliments": 10,
+                  "boosts": 3
+                }
+              }
+            }
+          }
+        ],
+        "balancesBefore": {
+          "likes": 0,
+          "compliments": 0,
+          "boosts": 0
+        },
+        "balancesAfterPurchase": {
+          "likes": 25,
+          "compliments": 10,
+          "boosts": 3
+        }
+      },
+      "severity": "critical",
+      "repro": [
+        "Attempt purchase verification for each consumable pack.",
+        "Open balances endpoint immediately after.",
+        "Expected: at least one pack purchase succeeds and increments balance."
+      ]
+    },
+    {
+      "group": "purchase",
+      "key": "purchase_duplicate_guard",
+      "name": "Duplicate purchase tokens do not grant duplicate balances",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "duplicateStatus": 200,
+        "afterDuplicate": {
+          "likes": 25,
+          "compliments": 10,
+          "boosts": 3
+        },
+        "balancesAfterPurchase": {
+          "likes": 25,
+          "compliments": 10,
+          "boosts": 3
+        }
+      },
+      "severity": "critical",
+      "repro": [
+        "Replay same purchaseToken to verify endpoint.",
+        "Expected: no additional balance grant."
+      ]
+    },
+    {
+      "group": "purchase",
+      "key": "purchase_consume_decrement",
+      "name": "Balances decrement correctly when likes/compliments/boosts are consumed",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "beforeConsume": {
+          "likes": 25,
+          "compliments": 10,
+          "boosts": 3
+        },
+        "afterConsume": {
+          "likes": 24,
+          "compliments": 9,
+          "boosts": 2
+        }
+      },
+      "severity": "critical",
+      "repro": [
+        "Use purchased like, compliment, and boost once.",
+        "Compare balances before/after use.",
+        "Expected: corresponding balances decrement."
+      ]
+    },
+    {
+      "group": "purchase",
+      "key": "purchase_rebuy_after_runout",
+      "name": "User can buy again after quantity runs out",
+      "status": "blocked",
+      "passed": false,
+      "details": {
+        "reason": "Could not drain boosts to zero using available actions.",
+        "afterDrain": {
+          "likes": 24,
+          "compliments": 9,
+          "boosts": 2
+        }
+      },
+      "severity": "critical",
+      "repro": null
+    },
+    {
+      "group": "polish",
+      "key": "profile_settings_reflect",
+      "name": "Profile/settings changes reflect correctly",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "patchStatus": 200,
+        "firstName": "FinalRuntime",
+        "lastName": "QA"
+      },
+      "severity": "critical",
+      "repro": [
+        "Update profile name fields.",
+        "Reload /users/me.",
+        "Expected: updated values persist immediately."
+      ]
+    },
+    {
+      "group": "polish",
+      "key": "notification_settings_persist",
+      "name": "Notification settings persist after relogin",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "promotionsNotifications": false,
+        "weeklySummaryNotifications": false
+      },
+      "severity": "critical",
+      "repro": [
+        "Toggle notification settings.",
+        "Relogin and fetch settings.",
+        "Expected: same values persist."
+      ]
+    },
+    {
+      "group": "polish",
+      "key": "premium_gating_badge",
+      "name": "Premium badge/gating behaves correctly (blurred free vs unblurred premium)",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "freeCount": 1,
+        "freeBlurred": true,
+        "premiumGrantStatus": 201,
+        "premiumCount": 1,
+        "premiumUnblurred": true
+      },
+      "severity": "critical",
+      "repro": [
+        "Generate inbound like for free user.",
+        "Open who-liked-me (expect blurred).",
+        "Grant premium and reopen (expect unblurred identity)."
+      ]
+    },
+    {
+      "group": "polish",
+      "key": "notification_routing",
+      "name": "Notification routing still works after latest fixes",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "notificationTypes": [
+          "system",
+          "verification",
+          "ticket",
+          "message",
+          "match",
+          "subscription",
+          "like"
+        ],
+        "count": 7
+      },
+      "severity": "critical",
+      "repro": [
+        "Trigger like/match/message/ticket/verification/system events.",
+        "Open notification feed.",
+        "Expected: each event type appears in feed."
+      ]
+    },
+    {
+      "group": "polish",
+      "key": "support_flow",
+      "name": "Support ticket flow works fully in app",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "createStatus": 201,
+        "detailStatus": 200,
+        "listStatus": 200,
+        "hasReplyInDetail": true,
+        "hasReplyInList": true
+      },
+      "severity": "critical",
+      "repro": [
+        "Create support ticket as user.",
+        "Reply as admin.",
+        "Check ticket detail and list in user app.",
+        "Expected: admin reply visible in both places."
+      ]
+    },
+    {
+      "group": "polish",
+      "key": "moderation_messaging",
+      "name": "Moderation/account-state messaging has no obvious regression",
+      "status": "pass",
+      "passed": true,
+      "details": {
+        "limitedUpdateStatus": 200,
+        "limitedStatusCode": 200,
+        "limitedStatusPayload": {
+          "status": "limited",
+          "reason": "Final v6 limited moderation check",
+          "isLimited": true,
+          "isSuspended": false,
+          "isBanned": false,
+          "isShadowSuspended": false,
+          "moderationReasonCode": "OTHER",
+          "moderationReasonText": "Final v6 moderation test",
+          "actionRequired": "CONTACT_SUPPORT",
+          "supportMessage": "Contact support for review.",
+          "isUserVisible": false,
+          "expiresAt": null
+        },
+        "limitedGateStatus": 403,
+        "suspendedUpdateStatus": 200,
+        "suspendedLoginStatus": 403
+      },
+      "severity": "critical",
+      "repro": [
+        "Set user to LIMITED with internalAdminNote and verify restricted route denial.",
+        "Set same user to SUSPENDED and attempt login.",
+        "Expected: status payload updated and login blocked when suspended."
+      ]
+    }
+  ],
+  "metrics": {
+    "swipe": {
+      "homeLoad": {
+        "baselineTimes": [
+          2028
+        ],
+        "baselineMedian": 2028,
+        "baselineP95": 2028,
+        "initialBatchFetchMs": 2028,
+        "homeUsableFirstCardMs": 0,
+        "firstPageCount": 7,
+        "prefetchEvents": [
+          {
+            "reason": "session_warmup",
+            "durationMs": 2028,
+            "fetchedCount": 7,
+            "bufferedCount": 7,
+            "usedCursor": null,
+            "nextCursor": null
+          },
+          {
+            "reason": "threshold_prefetch",
+            "durationMs": 792,
+            "fetchedCount": 5,
+            "bufferedCount": 4,
+            "usedCursor": null,
+            "nextCursor": null
+          },
+          {
+            "reason": "threshold_prefetch",
+            "durationMs": 794,
+            "fetchedCount": 4,
+            "bufferedCount": 4,
+            "usedCursor": null,
+            "nextCursor": null
+          },
+          {
+            "reason": "threshold_prefetch",
+            "durationMs": 858,
+            "fetchedCount": 4,
+            "bufferedCount": 3,
+            "usedCursor": null,
+            "nextCursor": null
+          }
+        ]
+      },
+      "roundTrip": {
+        "renderedCardIds": [
+          "1568f741-63b2-4089-8aa2-1af15bf4ad39",
+          "94e23ec4-172a-479b-9e66-57a809ca245e",
+          "41898d34-390a-4176-8510-8f933bfbd172"
+        ],
+        "swipeDurations": [
+          575,
+          559,
+          558
+        ],
+        "nextDurations": [
+          1,
+          1,
+          0
+        ],
+        "swipeMedian": 559,
+        "nextMedian": 1,
+        "perceivedNextCardLatencyMs": 1,
+        "nextBatchDurations": [
+          792
+        ],
+        "nextBatchMedian": 792,
+        "swipeWriteFailures": []
+      },
+      "scoring": {
+        "score": 100,
+        "confidence": 1,
+        "testedWeight": 135,
+        "totalWeight": 135,
+        "earnedWeight": 135
+      }
+    },
+    "purchase": {
+      "scoring": {
+        "score": 100,
+        "confidence": 0.85,
+        "testedWeight": 85,
+        "totalWeight": 100,
+        "earnedWeight": 85
+      }
+    },
+    "polish": {},
+    "architecture": {}
+  },
+  "scores": {
+    "swipeExperience": 100,
+    "purchaseUsability": 100,
+    "swipeConfidence": 1,
+    "purchaseConfidence": 0.85
+  },
+  "criticalIssues": [],
+  "failingScenarios": [],
+  "architectureSummary": {
+    "homeFirstLoadMs": 0,
+    "swipeWriteLatencyMedianMs": 559,
+    "perceivedNextCardLatencyMs": 1,
+    "nextBatchFetchLatencyMedianMs": 792,
+    "rewindContinuityStatus": "pass",
+    "seenUserExclusionStatus": "pass",
+    "filterCorrectnessStatus": "pass",
+    "tier": "tier-1-tinder-grade"
+  },
+  "verdict": "Tinder-grade",
+  "verdictTier": "tier-1-tinder-grade",
+  "professionalFeel": "Yes - runtime behavior is fast and polished enough to feel Tinder-grade.",
+  "summary": {
+    "totalChecks": 27,
+    "pass": 26,
+    "fail": 0,
+    "blocked": 1,
+    "criticalFailures": 0,
+    "swipeScore": 100,
+    "purchaseScore": 100,
+    "swipeConfidence": 1,
+    "purchaseConfidence": 0.85,
+    "verdict": "Tinder-grade",
+    "verdictTier": "tier-1-tinder-grade",
+    "professionalFeel": "Yes - runtime behavior is fast and polished enough to feel Tinder-grade.",
+    "architectureSummary": {
+      "homeFirstLoadMs": 0,
+      "swipeWriteLatencyMedianMs": 559,
+      "perceivedNextCardLatencyMs": 1,
+      "nextBatchFetchLatencyMedianMs": 792,
+      "rewindContinuityStatus": "pass",
+      "seenUserExclusionStatus": "pass",
+      "filterCorrectnessStatus": "pass",
+      "tier": "tier-1-tinder-grade"
+    }
+  },
+  "finishedAt": "2026-04-17T11:29:08.776Z"
+}

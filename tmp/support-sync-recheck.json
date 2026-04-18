@@ -1,0 +1,54 @@
+﻿{
+  "group": "support_sync_recheck",
+  "beforeReference": {
+    "source": "tmp/runtime-validation-report-v3.json",
+    "failingCheck": "User sees reply and updated ticket status",
+    "status": 403
+  },
+  "steps": [
+    {
+      "name": "admin_login",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "name": "runtime_user_ready",
+      "ok": true,
+      "userId": "9b440260-74e0-40dc-872b-59c178372823",
+      "email": "runtime.support.1776356873170_5712@methna.test"
+    },
+    {
+      "name": "user_create_ticket",
+      "ok": true,
+      "status": 201,
+      "ticketId": "ffca826b-a732-4566-be48-0e7c21ee80de"
+    },
+    {
+      "name": "admin_reply_ticket",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "name": "user_read_ticket_detail",
+      "ok": true,
+      "status": 200,
+      "ticketStatus": "in_progress",
+      "hasAdminReply": true
+    },
+    {
+      "name": "user_read_ticket_list_for_mobile",
+      "ok": true,
+      "status": 200,
+      "foundTicket": true,
+      "hasAdminReply": true,
+      "total": 1
+    }
+  ],
+  "passed": true,
+  "after": {
+    "detailStatus": 200,
+    "listStatus": 200,
+    "replyVisibleInDetail": true,
+    "replyVisibleInList": true
+  }
+}

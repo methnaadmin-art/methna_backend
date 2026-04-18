@@ -1,0 +1,87 @@
+﻿{
+  "group": "premium_consumables_recheck",
+  "beforeReference": {
+    "source": "tmp/runtime-validation-report-v3.json",
+    "failingChecks": [
+      "Consumables catalog available with at least one product",
+      "Consumable purchase verification flow executes"
+    ]
+  },
+  "steps": [
+    {
+      "name": "admin_login",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "name": "runtime_user_ready",
+      "ok": true,
+      "email": "runtime.premium.1776356890453_2090@methna.test",
+      "userId": "36586b79-7b66-42ce-baa5-de9fe47d1f97"
+    },
+    {
+      "name": "grant_premium",
+      "ok": true,
+      "status": 201
+    },
+    {
+      "name": "mobile_subscription_reflects_premium",
+      "ok": true,
+      "status": 200,
+      "plan": "gold",
+      "subscriptionStatus": "active"
+    },
+    {
+      "name": "mobile_consumables_catalog_ready",
+      "ok": true,
+      "status": 200,
+      "count": 3,
+      "products": [
+        {
+          "code": "likes_25_pack",
+          "type": "likes_pack",
+          "googleProductId": "com.methna.consumable.likes_25"
+        },
+        {
+          "code": "compliments_10_pack",
+          "type": "compliments_pack",
+          "googleProductId": "com.methna.consumable.compliments_10"
+        },
+        {
+          "code": "boosts_3_pack",
+          "type": "boosts_pack",
+          "googleProductId": "com.methna.consumable.boosts_3"
+        }
+      ]
+    },
+    {
+      "name": "web_consumables_catalog_ready",
+      "ok": true,
+      "status": 200,
+      "count": 3
+    },
+    {
+      "name": "mobile_verify_path_unblocked",
+      "ok": true,
+      "mappedProductId": "com.methna.consumable.likes_25",
+      "status": 400,
+      "response": {
+        "success": false,
+        "statusCode": 400,
+        "status": "verification_failed",
+        "message": "Invalid or unverified purchase",
+        "errors": null,
+        "error": "Invalid or unverified purchase",
+        "timestamp": "2026-04-16T16:28:17.941Z",
+        "path": "/api/v1/mobile/consumables/google-play/verify"
+      }
+    }
+  ],
+  "passed": true,
+  "after": {
+    "mobileCatalogCount": 3,
+    "webCatalogCount": 3,
+    "verificationStatus": 400,
+    "verificationBlockedByMapping": false
+  }
+}

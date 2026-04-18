@@ -31,7 +31,7 @@ const SEED_PRODUCTS: SeedProduct[] = [
         currency: 'usd',
         platformAvailability: PlatformAvailability.ALL,
         sortOrder: 10,
-        googleProductId: 'com.methna.consumable.likes_25',
+        googleProductId: 'methna_likes_50',
         stripePriceId: null,
         stripeProductId: null,
     },

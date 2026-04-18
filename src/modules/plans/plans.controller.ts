@@ -21,6 +21,7 @@ import { IsString, IsNumber, IsBoolean, IsOptional, IsEnum, ValidateNested, IsIn
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+    Plan,
     PlanEntitlements,
     PlanFeatureFlags,
     PlanLimits,
@@ -155,7 +156,20 @@ export class PlansController {
     @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Get current user entitlements' })
     async getMyEntitlements(@CurrentUser('sub') userId: string) {
-        return this.plansService.resolveUserEntitlements(userId);
+        const resolved = await this.plansService.resolveUserEntitlements(userId);
+        const plan = resolved.plan;
+        const entitlements = resolved.entitlements;
+
+        const planFeatures = this.buildPlanFeatureMatrix(plan.featureFlags, entitlements);
+        const limits = this.buildPlanLimits(plan, entitlements);
+        const features = this.buildFeatureList(plan.features, planFeatures, limits);
+
+        return {
+            ...resolved,
+            features,
+            planFeatures,
+            limits,
+        };
     }
 
     @Get(':id')
@@ -201,5 +215,124 @@ export class PlansController {
     @ApiOperation({ summary: 'Delete/deactivate a plan (admin)' })
     async deletePlan(@Param('id') id: string) {
         return this.plansService.deletePlan(id);
+    }
+
+    private buildPlanFeatureMatrix(
+        featureFlags: PlanFeatureFlags | null | undefined,
+        entitlements: PlanEntitlements,
+    ): PlanFeatureFlags {
+        return {
+            ...(featureFlags || {}),
+            unlimitedLikes: featureFlags?.unlimitedLikes ?? entitlements.unlimitedLikes,
+            unlimitedRewinds: featureFlags?.unlimitedRewinds ?? entitlements.unlimitedRewinds,
+            advancedFilters: featureFlags?.advancedFilters ?? entitlements.advancedFilters,
+            seeWhoLikesYou: featureFlags?.seeWhoLikesYou ?? entitlements.seeWhoLikesYou,
+            whoLikedMe: featureFlags?.whoLikedMe ?? entitlements.whoLikedMe,
+            readReceipts: featureFlags?.readReceipts ?? entitlements.readReceipts,
+            typingIndicators: featureFlags?.typingIndicators ?? entitlements.typingIndicators,
+            invisibleMode: featureFlags?.invisibleMode ?? entitlements.invisibleMode,
+            ghostMode: featureFlags?.ghostMode ?? entitlements.ghostMode,
+            passportMode: featureFlags?.passportMode ?? entitlements.passportMode,
+            boost: featureFlags?.boost ?? entitlements.boost,
+            likes: featureFlags?.likes ?? entitlements.likes,
+            premiumBadge: featureFlags?.premiumBadge ?? entitlements.premiumBadge,
+            hideAds: featureFlags?.hideAds ?? entitlements.hideAds,
+            rematch: featureFlags?.rematch ?? entitlements.rematch,
+            videoChat: featureFlags?.videoChat ?? entitlements.videoChat,
+            superLike: featureFlags?.superLike ?? entitlements.superLike,
+            profileBoostPriority:
+                featureFlags?.profileBoostPriority ?? entitlements.profileBoostPriority,
+            priorityMatching: featureFlags?.priorityMatching ?? entitlements.priorityMatching,
+            improvedVisits: featureFlags?.improvedVisits ?? entitlements.improvedVisits,
+        };
+    }
+
+    private buildPlanLimits(plan: Plan, entitlements: PlanEntitlements): PlanLimits {
+        const limits = (plan.limits || {}) as PlanLimits;
+
+        return {
+            ...limits,
+            dailyLikes: entitlements.dailyLikes ?? limits.dailyLikes ?? plan.dailyLikesLimit,
+            dailySuperLikes:
+                entitlements.dailySuperLikes ??
+                limits.dailySuperLikes ??
+                plan.dailySuperLikesLimit,
+            dailyCompliments:
+                entitlements.dailyCompliments ??
+                limits.dailyCompliments ??
+                plan.dailyComplimentsLimit,
+            monthlyRewinds:
+                entitlements.monthlyRewinds ??
+                limits.monthlyRewinds ??
+                plan.monthlyRewindsLimit,
+            weeklyBoosts:
+                entitlements.weeklyBoosts ??
+                limits.weeklyBoosts ??
+                plan.weeklyBoostsLimit,
+            likesLimit: entitlements.likesLimit ?? limits.likesLimit,
+            boostsLimit: entitlements.boostsLimit ?? limits.boostsLimit,
+            complimentsLimit: entitlements.complimentsLimit ?? limits.complimentsLimit,
+        };
+    }
+
+    private buildFeatureList(
+        planFeatures: string[] | null | undefined,
+        featureMatrix: PlanFeatureFlags,
+        limits: PlanLimits,
+    ): string[] {
+        const features = new Set<string>();
+
+        for (const rawFeature of planFeatures || []) {
+            const normalized = String(rawFeature || '').trim().toLowerCase();
+            if (normalized) {
+                features.add(normalized);
+            }
+        }
+
+        const addFeature = (enabled: boolean | undefined, ...tokens: string[]) => {
+            if (enabled !== true) {
+                return;
+            }
+            for (const token of tokens) {
+                features.add(token);
+            }
+        };
+
+        addFeature(featureMatrix.unlimitedLikes, 'unlimited_likes');
+        addFeature(featureMatrix.unlimitedRewinds, 'rewind');
+        addFeature(featureMatrix.advancedFilters, 'advanced_filters');
+        addFeature(featureMatrix.seeWhoLikesYou, 'see_who_liked', 'who_liked_me');
+        addFeature(featureMatrix.whoLikedMe, 'who_liked_me', 'see_who_liked');
+        addFeature(featureMatrix.readReceipts, 'read_receipts');
+        addFeature(featureMatrix.typingIndicators, 'typing_indicators');
+        addFeature(featureMatrix.invisibleMode, 'invisible_mode', 'ghost_mode');
+        addFeature(featureMatrix.ghostMode, 'ghost_mode', 'invisible_mode');
+        addFeature(featureMatrix.passportMode, 'passport_mode');
+        addFeature(featureMatrix.boost, 'boost', 'profile_boost');
+        addFeature(featureMatrix.likes, 'likes');
+        addFeature(featureMatrix.premiumBadge, 'premium_badge');
+        addFeature(featureMatrix.hideAds, 'hide_ads');
+        addFeature(featureMatrix.rematch, 'rematch');
+        addFeature(featureMatrix.videoChat, 'video_chat');
+        addFeature(featureMatrix.superLike, 'super_like');
+        addFeature(featureMatrix.profileBoostPriority, 'profile_boost');
+        addFeature(featureMatrix.priorityMatching, 'priority_matching');
+        addFeature(featureMatrix.improvedVisits, 'improved_visits');
+
+        if (this.isPositiveOrUnlimited(limits.weeklyBoosts) || this.isPositiveOrUnlimited(limits.boostsLimit)) {
+            features.add('profile_boost');
+        }
+        if (this.isPositiveOrUnlimited(limits.dailyCompliments) || this.isPositiveOrUnlimited(limits.complimentsLimit)) {
+            features.add('compliment_credits');
+        }
+        if (this.isPositiveOrUnlimited(limits.dailySuperLikes)) {
+            features.add('super_like');
+        }
+
+        return Array.from(features);
+    }
+
+    private isPositiveOrUnlimited(value: number | undefined): boolean {
+        return typeof value === 'number' && (value === -1 || value > 0);
     }
 }

@@ -1,0 +1,1205 @@
+{
+  "startedAt": "2026-04-16T15:50:36.549Z",
+  "baseUrl": "http://127.0.0.1:3000/api/v1",
+  "setup": {
+    "adminId": "ee81b732-16c3-4b68-9180-9e83040783c5",
+    "userA": {
+      "id": "83593490-1c50-4cb5-8361-1e3813c32bd2",
+      "email": "runtime.a.1776354642042_4090@methna.test",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4MzU5MzQ5MC0xYzUwLTRjYjUtODM2MS0xZTM4MTNjMzJiZDIiLCJlbWFpbCI6InJ1bnRpbWUuYS4xNzc2MzU0NjQyMDQyXzQwOTBAbWV0aG5hLnRlc3QiLCJyb2xlIjoidXNlciIsImZhbWlseUlkIjoiNzczNzc3YzQtNWNjNi00NjE1LTlmMzgtODc1ODg4YjE5ZjNiIiwianRpIjoiY2Q4Y2ZmMzYtMTJkYi00NWYxLTkwN2EtOTU1MTFkZWI2MmIwIiwiaWF0IjoxNzc2MzU0NjQ1LCJleHAiOjE3NzYzNTU1NDV9.WPtK5AXwyozlL1LxGkeCMbyqyJ8cvum8JlSUB-oFVns"
+    },
+    "userB": {
+      "id": "4572e7ac-7a39-4fee-bae3-d1ab93c3476d",
+      "email": "runtime.b.1776354646510_2963@methna.test",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0NTcyZTdhYy03YTM5LTRmZWUtYmFlMy1kMWFiOTNjMzQ3NmQiLCJlbWFpbCI6InJ1bnRpbWUuYi4xNzc2MzU0NjQ2NTEwXzI5NjNAbWV0aG5hLnRlc3QiLCJyb2xlIjoidXNlciIsImZhbWlseUlkIjoiNzRlMjAyNDMtNTZiMi00ZGYwLWFkNGEtMzI5YTJjOTBmZjMyIiwianRpIjoiNDA0MDBjZjUtZTJhNi00MmUyLTk2NzEtNzAwY2Y1MmY0MTgwIiwiaWF0IjoxNzc2MzU0NzM3LCJleHAiOjE3NzYzNTU2Mzd9.wuDNkpj6cqnWytuJ3f2iWA2r6BK0aaIyJ-zegUcSamM"
+    },
+    "userC": {
+      "id": "5b810e6c-3e4e-4b8c-a61c-4eae39bcbcd2",
+      "email": "runtime.c.1776354651994_7345@methna.test",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1YjgxMGU2Yy0zZTRlLTRiOGMtYTYxYy00ZWFlMzliY2JjZDIiLCJlbWFpbCI6InJ1bnRpbWUuYy4xNzc2MzU0NjUxOTk0XzczNDVAbWV0aG5hLnRlc3QiLCJyb2xlIjoidXNlciIsImZhbWlseUlkIjoiMTY5NDA5NzYtNjM3My00NzAzLWIzOWMtNWNiZTFiYTU5NWY0IiwianRpIjoiOWU5ZGMzNzktMDdlYS00ZTc0LThmNjYtMmJjNTlkY2Y1MGJjIiwiaWF0IjoxNzc2MzU0NjU2LCJleHAiOjE3NzYzNTU1NTZ9.PG3ZaoLHw1DB8w5TigTmTMIteao3EER3S8e9q2GQIDI"
+    },
+    "userD": {
+      "id": "5715e590-2eb7-4807-b82b-80f45d2b80e6",
+      "email": "runtime.d.1776354657842_2550@methna.test",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NzE1ZTU5MC0yZWI3LTQ4MDctYjgyYi04MGY0NWQyYjgwZTYiLCJlbWFpbCI6InJ1bnRpbWUuZC4xNzc2MzU0NjU3ODQyXzI1NTBAbWV0aG5hLnRlc3QiLCJyb2xlIjoidXNlciIsImZhbWlseUlkIjoiYWNlMDAwYmMtMTU1My00MGEyLTlmZmYtMmMyNjkzYzRhZTg2IiwianRpIjoiN2UyODZlNjctMGNkMS00NjkwLWFmMmYtMjM5NTQzODhkYTY2IiwiaWF0IjoxNzc2MzU0NjYyLCJleHAiOjE3NzYzNTU1NjJ9.7pSmjWHt7xNbT3ozbyDERtdrb9gBIZF_mekJvsCgZvQ"
+    }
+  },
+  "checks": [
+    {
+      "group": "setup",
+      "name": "User A rich profile created",
+      "passed": true,
+      "details": {
+        "status": 201
+      }
+    },
+    {
+      "group": "setup",
+      "name": "User B rich profile created",
+      "passed": true,
+      "details": {
+        "status": 201
+      }
+    },
+    {
+      "group": "setup",
+      "name": "User C rich profile created",
+      "passed": true,
+      "details": {
+        "status": 201
+      }
+    },
+    {
+      "group": "setup",
+      "name": "User D rich profile created",
+      "passed": true,
+      "details": {
+        "status": 201
+      }
+    },
+    {
+      "group": "setup",
+      "name": "Main user profile completion >= 60",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "profileCompletionPercentage": 76
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Admin sets LIMITED status",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Limited user sees status payload",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "data": {
+          "status": "limited",
+          "reason": "Runtime limited state",
+          "isLimited": true,
+          "isSuspended": false,
+          "isBanned": false,
+          "isShadowSuspended": false,
+          "moderationReasonCode": "OTHER",
+          "moderationReasonText": "Runtime limited state",
+          "actionRequired": "CONTACT_SUPPORT",
+          "supportMessage": "Contact support for review.",
+          "isUserVisible": false,
+          "expiresAt": null
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Limited user blocked from restricted route",
+      "passed": true,
+      "details": {
+        "status": 403,
+        "response": {
+          "success": false,
+          "statusCode": 403,
+          "status": "limited",
+          "message": "Your account has limited access. Some features are restricted.",
+          "errors": null,
+          "code": "MODERATION_BLOCKED",
+          "reason": "Runtime limited state",
+          "moderationReasonCode": "OTHER",
+          "moderationReasonText": "Runtime limited state",
+          "actionRequired": "CONTACT_SUPPORT",
+          "supportMessage": "Contact support for review.",
+          "isUserVisible": false,
+          "expiresAt": null,
+          "timestamp": "2026-04-16T15:51:13.859Z",
+          "path": "/api/v1/matches/suggestions?limit=5"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Admin sets SUSPENDED status",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "SUSPENDED revokes existing session",
+      "passed": true,
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Invalid or inactive account",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:51:16.230Z",
+          "path": "/api/v1/users/me"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Admin view reflects SUSPENDED state",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "adminStatus": "suspended"
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Admin sets PENDING_VERIFICATION status",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "PENDING_VERIFICATION revokes existing session",
+      "passed": true,
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Invalid or inactive account",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:51:20.131Z",
+          "path": "/api/v1/users/me"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Admin view reflects PENDING_VERIFICATION state",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "adminStatus": "pending_verification"
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Admin sets REJECTED status",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "REJECTED revokes existing session",
+      "passed": true,
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Invalid or inactive account",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:51:24.856Z",
+          "path": "/api/v1/users/me"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Admin view reflects REJECTED state",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "adminStatus": "rejected"
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Admin sets BANNED status",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "BANNED revokes existing session",
+      "passed": true,
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:51:30.597Z",
+          "path": "/api/v1/users/me"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Admin view reflects BANNED state",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "adminStatus": "banned"
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Admin restores ACTIVE status",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Admin view shows ACTIVE after restore",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "adminStatus": "active"
+      }
+    },
+    {
+      "group": "support_sync",
+      "name": "User creates support ticket",
+      "passed": true,
+      "details": {
+        "status": 201,
+        "ticketId": "7049ccef-a1fa-40e3-bf37-5a6dc8b5b984"
+      }
+    },
+    {
+      "group": "support_sync",
+      "name": "Admin sees created ticket",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "total": 1
+      }
+    },
+    {
+      "group": "support_sync",
+      "name": "Admin replies to ticket",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "response": {
+          "success": true,
+          "data": {
+            "id": "7049ccef-a1fa-40e3-bf37-5a6dc8b5b984",
+            "userId": "4572e7ac-7a39-4fee-bae3-d1ab93c3476d",
+            "contactEmail": null,
+            "subject": "Runtime support ticket 1776354696492",
+            "message": "Validating support sync between mobile and admin.",
+            "status": "in_progress",
+            "priority": "medium",
+            "assignedToId": "ee81b732-16c3-4b68-9180-9e83040783c5",
+            "adminReply": "Runtime QA admin reply",
+            "repliedAt": "2026-04-16T15:51:39.521Z",
+            "createdAt": "2026-04-16T13:51:37.907Z",
+            "updatedAt": "2026-04-16T13:51:40.545Z",
+            "user": {
+              "id": "4572e7ac-7a39-4fee-bae3-d1ab93c3476d",
+              "username": "rt_b_99578",
+              "email": "runtime.b.1776354646510_2963@methna.test",
+              "firstName": "Runtimeb",
+              "lastName": "Tester",
+              "phone": null,
+              "role": "user",
+              "status": "active",
+              "statusReason": null,
+              "moderationReasonCode": null,
+              "moderationReasonText": null,
+              "actionRequired": null,
+              "supportMessage": null,
+              "isUserVisible": true,
+              "moderationExpiresAt": null,
+              "internalAdminNote": null,
+              "updatedByAdminId": null,
+              "isPremium": false,
+              "premiumStartDate": null,
+              "premiumExpiryDate": null,
+              "subscriptionPlanId": null,
+              "isGhostModeEnabled": false,
+              "isPassportActive": false,
+              "realLocation": null,
+              "passportLocation": null,
+              "verification": {
+                "selfie": {
+                  "url": null,
+                  "status": "not_submitted",
+                  "reviewedAt": null,
+                  "reviewedBy": null,
+                  "submittedAt": null,
+                  "rejectionReason": null
+                },
+                "identity": {
+                  "url": null,
+                  "status": "not_submitted",
+                  "reviewedAt": null,
+                  "reviewedBy": null,
+                  "submittedAt": null,
+                  "rejectionReason": null
+                },
+                "marital_status": {
+                  "url": null,
+                  "status": "not_submitted",
+                  "reviewedAt": null,
+                  "reviewedBy": null,
+                  "submittedAt": null,
+                  "rejectionReason": null
+                }
+              },
+              "emailVerified": true,
+              "selfieVerified": false,
+              "selfieUrl": null,
+              "documentUrl": null,
+              "documentType": null,
+              "documentVerified": false,
+              "documentVerifiedAt": null,
+              "documentRejectionReason": null,
+              "fcmToken": null,
+              "notificationsEnabled": true,
+              "matchNotifications": true,
+              "messageNotifications": true,
+              "likeNotifications": true,
+              "profileVisitorNotifications": false,
+              "eventsNotifications": false,
+              "safetyAlertNotifications": true,
+              "promotionsNotifications": false,
+              "inAppRecommendationNotifications": false,
+              "weeklySummaryNotifications": false,
+              "connectionRequestNotifications": true,
+              "surveyNotifications": false,
+              "readReceipts": true,
+              "typingIndicator": true,
+              "autoDownloadMedia": true,
+              "receiveDMs": true,
+              "locationEnabled": false,
+              "boostedUntil": null,
+              "isShadowBanned": false,
+              "trustScore": 100,
+              "flagCount": 0,
+              "lastKnownIp": "127.0.0.1",
+              "deviceCount": 0,
+              "lastLoginAt": "2026-04-16T15:50:51.225Z",
+              "likesBalance": 0,
+              "complimentsBalance": 0,
+              "boostsBalance": 0,
+              "createdAt": "2026-04-16T13:50:49.234Z",
+              "updatedAt": "2026-04-16T13:50:52.009Z",
+              "deletedAt": null
+            },
+            "assignedTo": {
+              "id": "ee81b732-16c3-4b68-9180-9e83040783c5",
+              "username": "admin",
+              "email": "admin@methna.app",
+              "firstName": "Super",
+              "lastName": "Admin",
+              "phone": null,
+              "role": "admin",
+              "status": "active",
+              "statusReason": null,
+              "moderationReasonCode": null,
+              "moderationReasonText": null,
+              "actionRequired": null,
+              "supportMessage": null,
+              "isUserVisible": true,
+              "moderationExpiresAt": null,
+              "internalAdminNote": null,
+              "updatedByAdminId": null,
+              "isPremium": false,
+              "premiumStartDate": null,
+              "premiumExpiryDate": null,
+              "subscriptionPlanId": null,
+              "isGhostModeEnabled": false,
+              "isPassportActive": false,
+              "realLocation": null,
+              "passportLocation": null,
+              "verification": {
+                "selfie": {
+                  "url": null,
+                  "status": "not_uploaded",
+                  "reviewedAt": null,
+                  "reviewedBy": null,
+                  "submittedAt": null,
+                  "rejectionReason": null
+                },
+                "marital_status": {
+                  "url": null,
+                  "status": "not_uploaded",
+                  "reviewedAt": null,
+                  "reviewedBy": null,
+                  "submittedAt": null,
+                  "rejectionReason": null
+                }
+              },
+              "emailVerified": true,
+              "selfieVerified": false,
+              "selfieUrl": null,
+              "documentUrl": null,
+              "documentType": null,
+              "documentVerified": false,
+              "documentVerifiedAt": null,
+              "documentRejectionReason": null,
+              "fcmToken": null,
+              "notificationsEnabled": true,
+              "matchNotifications": true,
+              "messageNotifications": true,
+              "likeNotifications": true,
+              "profileVisitorNotifications": true,
+              "eventsNotifications": true,
+              "safetyAlertNotifications": true,
+              "promotionsNotifications": true,
+              "inAppRecommendationNotifications": true,
+              "weeklySummaryNotifications": true,
+              "connectionRequestNotifications": true,
+              "surveyNotifications": true,
+              "readReceipts": true,
+              "typingIndicator": true,
+              "autoDownloadMedia": true,
+              "receiveDMs": true,
+              "locationEnabled": false,
+              "boostedUntil": null,
+              "isShadowBanned": false,
+              "trustScore": 100,
+              "flagCount": 0,
+              "lastKnownIp": "127.0.0.1",
+              "deviceCount": 0,
+              "lastLoginAt": "2026-04-16T15:50:39.756Z",
+              "likesBalance": 0,
+              "complimentsBalance": 0,
+              "boostsBalance": 0,
+              "createdAt": "2026-03-30T09:24:18.196Z",
+              "updatedAt": "2026-04-16T13:50:40.541Z",
+              "deletedAt": null
+            }
+          },
+          "timestamp": "2026-04-16T15:51:41.385Z"
+        }
+      }
+    },
+    {
+      "group": "support_sync",
+      "name": "User sees reply and updated ticket status",
+      "passed": false,
+      "details": {
+        "status": 403,
+        "data": {
+          "success": false,
+          "statusCode": 403,
+          "status": null,
+          "message": "Access denied",
+          "errors": null,
+          "error": "Forbidden",
+          "timestamp": "2026-04-16T15:51:41.711Z",
+          "path": "/api/v1/support/my-tickets/7049ccef-a1fa-40e3-bf37-5a6dc8b5b984"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "LIKE trigger action succeeds",
+      "passed": true,
+      "details": {
+        "status": 201,
+        "response": {
+          "success": true,
+          "data": {
+            "liked": true,
+            "matched": false,
+            "action": "like"
+          },
+          "timestamp": "2026-04-16T15:51:46.246Z"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "MATCH trigger action succeeds",
+      "passed": true,
+      "details": {
+        "status": 201,
+        "response": {
+          "success": true,
+          "data": {
+            "liked": true,
+            "matched": true,
+            "matchId": "0b644d55-c162-4eae-ae4b-ad68a1095e41",
+            "action": "like"
+          },
+          "timestamp": "2026-04-16T15:51:51.657Z"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "Conversation open succeeds",
+      "passed": true,
+      "details": {
+        "status": 201,
+        "conversationId": "aa16d870-785e-4272-a960-ad1fa2b14f09"
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "MESSAGE trigger action succeeds",
+      "passed": true,
+      "details": {
+        "status": 201,
+        "response": {
+          "success": true,
+          "data": {
+            "id": "f6d6d0ac-a7cf-4136-8551-6b709ae19091",
+            "conversationId": "aa16d870-785e-4272-a960-ad1fa2b14f09",
+            "senderId": "5b810e6c-3e4e-4b8c-a61c-4eae39bcbcd2",
+            "content": "Runtime message notification test",
+            "type": "text",
+            "status": "sent",
+            "createdAt": "2026-04-16T13:51:55.509Z"
+          },
+          "timestamp": "2026-04-16T15:51:55.326Z"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "Selfie URL prepared for verification notification",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "VERIFICATION trigger action succeeds",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "response": {
+          "success": true,
+          "data": {
+            "id": "4572e7ac-7a39-4fee-bae3-d1ab93c3476d",
+            "verification": {
+              "selfie": {
+                "status": "rejected",
+                "url": "https://example.com/runtime-selfie-b.jpg",
+                "rejectionReason": "Runtime verification rejection for notification test.",
+                "submittedAt": "2026-04-16T15:51:57.682Z",
+                "reviewedAt": "2026-04-16T15:51:57.682Z",
+                "reviewedBy": "ee81b732-16c3-4b68-9180-9e83040783c5"
+              },
+              "identity": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "marital_status": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              }
+            },
+            "selfieVerified": false,
+            "selfieUrl": "https://example.com/runtime-selfie-b.jpg",
+            "username": null,
+            "phone": null,
+            "statusReason": null,
+            "moderationReasonCode": null,
+            "moderationReasonText": null,
+            "actionRequired": null,
+            "supportMessage": null,
+            "moderationExpiresAt": null,
+            "internalAdminNote": null,
+            "updatedByAdminId": null,
+            "premiumStartDate": null,
+            "premiumExpiryDate": null,
+            "subscriptionPlanId": null,
+            "realLocation": null,
+            "passportLocation": null,
+            "refreshToken": null,
+            "otpCode": null,
+            "otpExpiresAt": null,
+            "otpCooldownUntil": null,
+            "resetOtpCode": null,
+            "resetOtpExpiresAt": null,
+            "documentUrl": null,
+            "documentType": null,
+            "documentVerifiedAt": null,
+            "documentRejectionReason": null,
+            "fcmToken": null,
+            "boostedUntil": null,
+            "lastKnownIp": null,
+            "lastLoginAt": null,
+            "stripeCustomerId": null,
+            "updatedAt": "2026-04-16T13:51:58.676Z",
+            "isPremium": false
+          },
+          "timestamp": "2026-04-16T15:51:58.878Z"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "SYSTEM notification send succeeds",
+      "passed": true,
+      "details": {
+        "status": 201,
+        "response": {
+          "success": true,
+          "data": {
+            "sent": 1,
+            "notification": {
+              "userId": "4572e7ac-7a39-4fee-bae3-d1ab93c3476d",
+              "type": "system",
+              "title": "Runtime System Notification",
+              "body": "System route validation",
+              "data": {
+                "type": "system",
+                "title": "Runtime System Notification",
+                "body": "System route validation",
+                "extraData": {
+                  "route": "/notifications",
+                  "targetScreen": "notifications",
+                  "conversationId": null,
+                  "userId": null
+                },
+                "payload": {
+                  "type": "system",
+                  "title": "Runtime System Notification",
+                  "body": "System route validation",
+                  "extraData": {
+                    "route": "/notifications",
+                    "targetScreen": "notifications",
+                    "conversationId": null,
+                    "userId": null
+                  }
+                }
+              },
+              "id": "f5dd2154-72bd-45e8-9a04-d4e0ddddadac",
+              "isRead": false,
+              "createdAt": "2026-04-16T13:52:00.431Z"
+            }
+          },
+          "timestamp": "2026-04-16T15:51:59.981Z"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "LIKE notification delivered",
+      "passed": true,
+      "details": {
+        "id": "7bf44fb3-d440-48fc-bd2a-c92843f43fb7",
+        "type": "like"
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "MATCH notification delivered",
+      "passed": true,
+      "details": {
+        "id": "b47a9328-147e-49f3-9247-0aa6bd57c81d",
+        "type": "match"
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "MESSAGE notification delivered",
+      "passed": true,
+      "details": {
+        "id": "a2a18eb1-c1b9-49a7-920a-63c5bd0d34fa",
+        "type": "message"
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "TICKET notification delivered",
+      "passed": true,
+      "details": {
+        "id": "903f726d-6091-4006-811e-3022a938006c",
+        "type": "ticket"
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "VERIFICATION notification delivered",
+      "passed": true,
+      "details": {
+        "id": "dde24dc3-ed9e-430b-ac28-7e79086e354e",
+        "type": "verification"
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "SYSTEM notification delivered",
+      "passed": true,
+      "details": {
+        "id": "f5dd2154-72bd-45e8-9a04-d4e0ddddadac",
+        "type": "system"
+      }
+    },
+    {
+      "group": "premium_consumables",
+      "name": "Admin grants premium to user",
+      "passed": true,
+      "details": {
+        "status": 201
+      }
+    },
+    {
+      "group": "premium_consumables",
+      "name": "Mobile subscription endpoint reflects premium",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "plan": "gold",
+        "subscriptionStatus": "active"
+      }
+    },
+    {
+      "group": "premium_consumables",
+      "name": "Monetization status has premium features",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "plan": "gold",
+        "featuresCount": 18
+      }
+    },
+    {
+      "group": "premium_consumables",
+      "name": "Consumables catalog available with at least one product",
+      "passed": false,
+      "details": {
+        "status": 200,
+        "count": 0,
+        "products": []
+      }
+    },
+    {
+      "group": "premium_consumables",
+      "name": "Consumable purchase verification flow executes",
+      "passed": false,
+      "details": {
+        "skipped": true,
+        "response": null,
+        "note": "No googleProductId consumable available."
+      }
+    },
+    {
+      "group": "matching_filters",
+      "name": "Mutual match appears in matches list",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "total": 1
+      }
+    },
+    {
+      "group": "matching_filters",
+      "name": "Preference update succeeds",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "response": {
+          "success": true,
+          "data": {
+            "userId": "4572e7ac-7a39-4fee-bae3-d1ab93c3476d",
+            "minAge": 21,
+            "maxAge": 38,
+            "preferredGender": "male",
+            "maxDistance": 250,
+            "preferredEthnicities": null,
+            "preferredNationalities": null,
+            "preferredReligiousLevel": null,
+            "preferredMaritalStatus": null,
+            "preferredInterests": null,
+            "id": "5173ec3c-70ed-47fd-8f3e-8d39e16451ac",
+            "createdAt": "2026-04-16T13:52:08.997Z",
+            "updatedAt": "2026-04-16T13:52:08.997Z"
+          },
+          "timestamp": "2026-04-16T15:52:08.541Z"
+        }
+      }
+    },
+    {
+      "group": "matching_filters",
+      "name": "Preference update persisted",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "data": {
+          "id": "5173ec3c-70ed-47fd-8f3e-8d39e16451ac",
+          "userId": "4572e7ac-7a39-4fee-bae3-d1ab93c3476d",
+          "minAge": 21,
+          "maxAge": 38,
+          "preferredGender": "male",
+          "maxDistance": 250,
+          "preferredEthnicities": null,
+          "preferredNationalities": null,
+          "preferredReligiousLevel": null,
+          "preferredMaritalStatus": null,
+          "preferredInterests": null,
+          "createdAt": "2026-04-16T13:52:08.997Z",
+          "updatedAt": "2026-04-16T13:52:08.997Z"
+        }
+      }
+    },
+    {
+      "group": "matching_filters",
+      "name": "Search filter by gender excludes opposite gender",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "resultCount": 9,
+        "containsFemale": false
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "name": "User account update succeeds",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "response": {
+          "success": true,
+          "data": {
+            "id": "4572e7ac-7a39-4fee-bae3-d1ab93c3476d",
+            "username": "rt_b_99578",
+            "email": "runtime.b.1776354646510_2963@methna.test",
+            "firstName": "RuntimeUpdated",
+            "lastName": "Profile",
+            "phone": null,
+            "role": "user",
+            "status": "active",
+            "statusReason": null,
+            "moderationReasonCode": null,
+            "moderationReasonText": null,
+            "actionRequired": null,
+            "supportMessage": null,
+            "isUserVisible": true,
+            "moderationExpiresAt": null,
+            "internalAdminNote": null,
+            "updatedByAdminId": null,
+            "isPremium": true,
+            "premiumStartDate": "2026-04-16T15:52:00.682Z",
+            "premiumExpiryDate": "2026-04-23T15:52:00.682Z",
+            "subscriptionPlanId": "9a63e107-49a7-4d83-b68f-3fbeca82ee99",
+            "isGhostModeEnabled": false,
+            "isPassportActive": false,
+            "realLocation": null,
+            "passportLocation": null,
+            "verification": {
+              "selfie": {
+                "status": "rejected",
+                "url": "https://example.com/runtime-selfie-b.jpg",
+                "rejectionReason": "Runtime verification rejection for notification test.",
+                "submittedAt": "2026-04-16T15:51:57.682Z",
+                "reviewedAt": "2026-04-16T15:51:57.682Z",
+                "reviewedBy": "ee81b732-16c3-4b68-9180-9e83040783c5"
+              },
+              "identity": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "marital_status": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              }
+            },
+            "emailVerified": true,
+            "selfieVerified": false,
+            "selfieUrl": "https://example.com/runtime-selfie-b.jpg",
+            "documentUrl": null,
+            "documentType": null,
+            "documentVerified": false,
+            "documentVerifiedAt": null,
+            "documentRejectionReason": null,
+            "fcmToken": null,
+            "notificationsEnabled": true,
+            "matchNotifications": true,
+            "messageNotifications": true,
+            "likeNotifications": true,
+            "profileVisitorNotifications": false,
+            "eventsNotifications": false,
+            "safetyAlertNotifications": true,
+            "promotionsNotifications": false,
+            "inAppRecommendationNotifications": false,
+            "weeklySummaryNotifications": false,
+            "connectionRequestNotifications": true,
+            "surveyNotifications": false,
+            "readReceipts": true,
+            "typingIndicator": true,
+            "autoDownloadMedia": true,
+            "receiveDMs": true,
+            "locationEnabled": false,
+            "boostedUntil": null,
+            "isShadowBanned": false,
+            "trustScore": 100,
+            "flagCount": 0,
+            "lastKnownIp": "127.0.0.1",
+            "deviceCount": 0,
+            "lastLoginAt": "2026-04-16T15:50:51.225Z",
+            "createdAt": "2026-04-16T13:50:49.234Z",
+            "updatedAt": "2026-04-16T13:52:13.102Z",
+            "deletedAt": null
+          },
+          "timestamp": "2026-04-16T15:52:12.595Z"
+        }
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "name": "Notification settings update succeeds",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "name": "Chat settings update succeeds",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "name": "Admin sees updated user names",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "firstName": "RuntimeUpdated",
+        "lastName": "Profile"
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "name": "User can re-login after updates",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "name": "Preferences persist after re-login",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "data": {
+          "id": "5173ec3c-70ed-47fd-8f3e-8d39e16451ac",
+          "userId": "4572e7ac-7a39-4fee-bae3-d1ab93c3476d",
+          "minAge": 21,
+          "maxAge": 38,
+          "preferredGender": "male",
+          "maxDistance": 250,
+          "preferredEthnicities": null,
+          "preferredNationalities": null,
+          "preferredReligiousLevel": null,
+          "preferredMaritalStatus": null,
+          "preferredInterests": null,
+          "createdAt": "2026-04-16T13:52:08.997Z",
+          "updatedAt": "2026-04-16T13:52:08.997Z"
+        }
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "name": "Notification settings persist after re-login",
+      "passed": false,
+      "details": {
+        "status": 200,
+        "data": {
+          "notificationsEnabled": true,
+          "matchNotifications": true,
+          "messageNotifications": true,
+          "likeNotifications": true,
+          "profileVisitorNotifications": true,
+          "eventsNotifications": true,
+          "safetyAlertNotifications": true,
+          "promotionsNotifications": true,
+          "inAppRecommendationNotifications": true,
+          "weeklySummaryNotifications": true,
+          "connectionRequestNotifications": true,
+          "surveyNotifications": true
+        }
+      }
+    },
+    {
+      "group": "verification_sync",
+      "name": "Verification status endpoint available",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "data": {
+          "emailVerified": true,
+          "selfieVerified": false,
+          "selfieUploaded": true,
+          "selfieStatus": "rejected",
+          "selfieUrl": "https://example.com/runtime-selfie-b.jpg",
+          "selfieRejectionReason": "Runtime verification rejection for notification test.",
+          "idDocumentUploaded": false,
+          "idDocumentStatus": "not_uploaded",
+          "documentUrl": null,
+          "documentType": null,
+          "documentVerified": false,
+          "documentVerifiedAt": null,
+          "documentRejectionReason": null,
+          "marriageCertUploaded": false,
+          "marriageCertStatus": "not_submitted",
+          "marriageCertUrl": null,
+          "marriageCertRejectionReason": null,
+          "selfieVerification": {
+            "status": "rejected",
+            "uploaded": true,
+            "rejectionReason": "Runtime verification rejection for notification test.",
+            "captureRequired": true,
+            "acceptedCaptureSources": [
+              "camera",
+              "live_capture"
+            ]
+          },
+          "identityVerification": {
+            "status": "not_uploaded",
+            "uploaded": false,
+            "rejectionReason": null,
+            "documentType": null
+          },
+          "maritalStatusVerification": {
+            "status": "not_submitted",
+            "uploaded": false,
+            "rejectionReason": null
+          },
+          "trustScore": 100
+        }
+      }
+    },
+    {
+      "group": "verification_sync",
+      "name": "Pending verification reflected to user endpoint",
+      "passed": true,
+      "details": {
+        "updateStatus": 200,
+        "readStatus": 200,
+        "selfieStatus": "pending"
+      }
+    },
+    {
+      "group": "verification_sync",
+      "name": "Rejected verification reflected to user endpoint",
+      "passed": true,
+      "details": {
+        "updateStatus": 200,
+        "readStatus": 200,
+        "selfieStatus": "rejected",
+        "rejectionReason": "Runtime rejection reason"
+      }
+    },
+    {
+      "group": "verification_sync",
+      "name": "Approved verification reflected to user endpoint",
+      "passed": true,
+      "details": {
+        "updateStatus": 200,
+        "readStatus": 200,
+        "selfieStatus": "approved"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "group": "setup",
+      "total": 5,
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "group": "moderation_sync",
+      "total": 17,
+      "passed": 17,
+      "failed": 0
+    },
+    {
+      "group": "support_sync",
+      "total": 4,
+      "passed": 3,
+      "failed": 1
+    },
+    {
+      "group": "notifications_routing",
+      "total": 13,
+      "passed": 13,
+      "failed": 0
+    },
+    {
+      "group": "premium_consumables",
+      "total": 5,
+      "passed": 3,
+      "failed": 2
+    },
+    {
+      "group": "matching_filters",
+      "total": 4,
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "group": "profile_settings_sync",
+      "total": 7,
+      "passed": 6,
+      "failed": 1
+    },
+    {
+      "group": "verification_sync",
+      "total": 4,
+      "passed": 4,
+      "failed": 0
+    }
+  ],
+  "artifacts": {
+    "notificationsSample": "tmp/runtime-notifications-sample-v3.json"
+  },
+  "summary": {
+    "totalChecks": 59,
+    "passedChecks": 55,
+    "failedChecks": 4,
+    "readinessScore": 93
+  },
+  "finishedAt": "2026-04-16T15:52:27.879Z"
+}

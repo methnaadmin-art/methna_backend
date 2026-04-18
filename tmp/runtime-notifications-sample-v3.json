@@ -1,0 +1,218 @@
+[
+  {
+    "id": "f5dd2154-72bd-45e8-9a04-d4e0ddddadac",
+    "userId": "4572e7ac-7a39-4fee-bae3-d1ab93c3476d",
+    "type": "system",
+    "title": "Runtime System Notification",
+    "body": "System route validation",
+    "data": {
+      "body": "System route validation",
+      "type": "system",
+      "title": "Runtime System Notification",
+      "payload": {
+        "body": "System route validation",
+        "type": "system",
+        "title": "Runtime System Notification",
+        "extraData": {
+          "route": "/notifications",
+          "userId": null,
+          "targetScreen": "notifications",
+          "conversationId": null
+        }
+      },
+      "extraData": {
+        "route": "/notifications",
+        "userId": null,
+        "targetScreen": "notifications",
+        "conversationId": null
+      }
+    },
+    "isRead": false,
+    "createdAt": "2026-04-16T13:52:00.431Z"
+  },
+  {
+    "id": "dde24dc3-ed9e-430b-ac28-7e79086e354e",
+    "userId": "4572e7ac-7a39-4fee-bae3-d1ab93c3476d",
+    "type": "verification",
+    "title": "Selfie verification updated",
+    "body": "Runtime verification rejection for notification test.",
+    "data": {
+      "body": "Runtime verification rejection for notification test.",
+      "type": "verification",
+      "title": "Selfie verification updated",
+      "payload": {
+        "body": "Runtime verification rejection for notification test.",
+        "type": "verification",
+        "title": "Selfie verification updated",
+        "extraData": {
+          "route": "/trust-safety/verification-status",
+          "status": "rejected",
+          "userId": null,
+          "targetScreen": "verification_center",
+          "conversationId": null,
+          "rejectionReason": "Runtime verification rejection for notification test.",
+          "verificationType": "selfie"
+        }
+      },
+      "extraData": {
+        "route": "/trust-safety/verification-status",
+        "status": "rejected",
+        "userId": null,
+        "targetScreen": "verification_center",
+        "conversationId": null,
+        "rejectionReason": "Runtime verification rejection for notification test.",
+        "verificationType": "selfie"
+      }
+    },
+    "isRead": false,
+    "createdAt": "2026-04-16T13:51:59.332Z"
+  },
+  {
+    "id": "a2a18eb1-c1b9-49a7-920a-63c5bd0d34fa",
+    "userId": "4572e7ac-7a39-4fee-bae3-d1ab93c3476d",
+    "type": "message",
+    "title": "New message",
+    "body": "Runtime message notification test",
+    "data": {
+      "body": "Runtime message notification test",
+      "type": "message",
+      "title": "New message",
+      "userId": "5b810e6c-3e4e-4b8c-a61c-4eae39bcbcd2",
+      "payload": {
+        "body": "Runtime message notification test",
+        "type": "message",
+        "title": "New message",
+        "userId": "5b810e6c-3e4e-4b8c-a61c-4eae39bcbcd2",
+        "extraData": {
+          "route": "/chat",
+          "userId": "5b810e6c-3e4e-4b8c-a61c-4eae39bcbcd2",
+          "senderId": "5b810e6c-3e4e-4b8c-a61c-4eae39bcbcd2",
+          "targetScreen": "conversation",
+          "conversationId": "aa16d870-785e-4272-a960-ad1fa2b14f09"
+        },
+        "conversationId": "aa16d870-785e-4272-a960-ad1fa2b14f09"
+      },
+      "extraData": {
+        "route": "/chat",
+        "userId": "5b810e6c-3e4e-4b8c-a61c-4eae39bcbcd2",
+        "senderId": "5b810e6c-3e4e-4b8c-a61c-4eae39bcbcd2",
+        "targetScreen": "conversation",
+        "conversationId": "aa16d870-785e-4272-a960-ad1fa2b14f09"
+      },
+      "conversationId": "aa16d870-785e-4272-a960-ad1fa2b14f09"
+    },
+    "isRead": false,
+    "createdAt": "2026-04-16T13:51:56.644Z"
+  },
+  {
+    "id": "b47a9328-147e-49f3-9247-0aa6bd57c81d",
+    "userId": "4572e7ac-7a39-4fee-bae3-d1ab93c3476d",
+    "type": "match",
+    "title": "New Match!",
+    "body": "You have a new match! Start a conversation.",
+    "data": {
+      "body": "You have a new match! Start a conversation.",
+      "type": "match",
+      "title": "New Match!",
+      "userId": "5b810e6c-3e4e-4b8c-a61c-4eae39bcbcd2",
+      "payload": {
+        "body": "You have a new match! Start a conversation.",
+        "type": "match",
+        "title": "New Match!",
+        "userId": "5b810e6c-3e4e-4b8c-a61c-4eae39bcbcd2",
+        "extraData": {
+          "route": "/chat",
+          "userId": "5b810e6c-3e4e-4b8c-a61c-4eae39bcbcd2",
+          "matchId": "0b644d55-c162-4eae-ae4b-ad68a1095e41",
+          "eventKey": "match:0b644d55-c162-4eae-ae4b-ad68a1095e41",
+          "targetScreen": "conversation",
+          "conversationId": "aa16d870-785e-4272-a960-ad1fa2b14f09"
+        },
+        "conversationId": "aa16d870-785e-4272-a960-ad1fa2b14f09"
+      },
+      "extraData": {
+        "route": "/chat",
+        "userId": "5b810e6c-3e4e-4b8c-a61c-4eae39bcbcd2",
+        "matchId": "0b644d55-c162-4eae-ae4b-ad68a1095e41",
+        "eventKey": "match:0b644d55-c162-4eae-ae4b-ad68a1095e41",
+        "targetScreen": "conversation",
+        "conversationId": "aa16d870-785e-4272-a960-ad1fa2b14f09"
+      },
+      "conversationId": "aa16d870-785e-4272-a960-ad1fa2b14f09"
+    },
+    "isRead": false,
+    "createdAt": "2026-04-16T13:51:51.328Z"
+  },
+  {
+    "id": "7bf44fb3-d440-48fc-bd2a-c92843f43fb7",
+    "userId": "4572e7ac-7a39-4fee-bae3-d1ab93c3476d",
+    "type": "like",
+    "title": "Someone liked you",
+    "body": "Upgrade to Premium to see who liked you.",
+    "data": {
+      "body": "Upgrade to Premium to see who liked you.",
+      "type": "like",
+      "title": "Someone liked you",
+      "userId": "",
+      "payload": {
+        "body": "Upgrade to Premium to see who liked you.",
+        "type": "like",
+        "title": "Someone liked you",
+        "userId": "",
+        "extraData": {
+          "route": "/subscriptions",
+          "userId": null,
+          "likeKind": "like",
+          "targetScreen": "subscription_plans",
+          "conversationId": null,
+          "isAnonymousLike": true
+        }
+      },
+      "extraData": {
+        "route": "/subscriptions",
+        "userId": null,
+        "likeKind": "like",
+        "targetScreen": "subscription_plans",
+        "conversationId": null,
+        "isAnonymousLike": true
+      }
+    },
+    "isRead": false,
+    "createdAt": "2026-04-16T13:51:47.000Z"
+  },
+  {
+    "id": "903f726d-6091-4006-811e-3022a938006c",
+    "userId": "4572e7ac-7a39-4fee-bae3-d1ab93c3476d",
+    "type": "ticket",
+    "title": "Support Reply",
+    "body": "Your ticket \"Runtime support ticket 1776354696492\" has been answered.",
+    "data": {
+      "body": "Your ticket \"Runtime support ticket 1776354696492\" has been answered.",
+      "type": "ticket",
+      "title": "Support Reply",
+      "payload": {
+        "body": "Your ticket \"Runtime support ticket 1776354696492\" has been answered.",
+        "type": "ticket",
+        "title": "Support Reply",
+        "extraData": {
+          "route": "/support/tickets",
+          "status": "in_progress",
+          "userId": null,
+          "ticketId": "7049ccef-a1fa-40e3-bf37-5a6dc8b5b984",
+          "targetScreen": "support_tickets",
+          "conversationId": null
+        }
+      },
+      "extraData": {
+        "route": "/support/tickets",
+        "status": "in_progress",
+        "userId": null,
+        "ticketId": "7049ccef-a1fa-40e3-bf37-5a6dc8b5b984",
+        "targetScreen": "support_tickets",
+        "conversationId": null
+      }
+    },
+    "isRead": false,
+    "createdAt": "2026-04-16T13:51:41.131Z"
+  }
+]

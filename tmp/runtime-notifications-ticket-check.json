@@ -1,0 +1,35 @@
+﻿[{
+    "id":  "88844c7d-96b8-4c69-84ed-b88fe242a1f8",
+    "userId":  "340290b0-c41d-4831-98e5-2baaa76e017a",
+    "type":  "ticket",
+    "title":  "Support Reply",
+    "body":  "Your ticket \"Ticket notif runtime 2026-04-16T17:43:08.2964790+02:00\" has been answered.",
+    "data":  {
+                 "body":  "Your ticket \"Ticket notif runtime 2026-04-16T17:43:08.2964790+02:00\" has been answered.",
+                 "type":  "ticket",
+                 "title":  "Support Reply",
+                 "payload":  {
+                                 "body":  "Your ticket \"Ticket notif runtime 2026-04-16T17:43:08.2964790+02:00\" has been answered.",
+                                 "type":  "ticket",
+                                 "title":  "Support Reply",
+                                 "extraData":  {
+                                                   "route":  "/support/tickets",
+                                                   "status":  "in_progress",
+                                                   "userId":  null,
+                                                   "ticketId":  "0afea6e1-8373-4107-8e1d-9a6bd9b43cc4",
+                                                   "targetScreen":  "support_tickets",
+                                                   "conversationId":  null
+                                               }
+                             },
+                 "extraData":  {
+                                   "route":  "/support/tickets",
+                                   "status":  "in_progress",
+                                   "userId":  null,
+                                   "ticketId":  "0afea6e1-8373-4107-8e1d-9a6bd9b43cc4",
+                                   "targetScreen":  "support_tickets",
+                                   "conversationId":  null
+                               }
+             },
+    "isRead":  false,
+    "createdAt":  "2026-04-16T13:43:11.517Z"
+}]

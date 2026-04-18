@@ -1,0 +1,66 @@
+﻿{
+  "group": "profile_settings_sync_recheck",
+  "beforeReference": {
+    "source": "tmp/runtime-validation-report-v3.json",
+    "failingCheck": "Notification settings persist after re-login",
+    "expectedBefore": {
+      "promotionsNotifications": true,
+      "weeklySummaryNotifications": true
+    }
+  },
+  "steps": [
+    {
+      "name": "admin_login",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "name": "runtime_user_ready",
+      "ok": true,
+      "email": "runtime.notif.1776356881622_1034@methna.test",
+      "userId": "75caadf7-3b29-498a-98f7-ebba19341076"
+    },
+    {
+      "name": "initial_settings_read",
+      "ok": true,
+      "status": 200,
+      "promotionsNotifications": false,
+      "weeklySummaryNotifications": false
+    },
+    {
+      "name": "settings_update",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "name": "relogin",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "name": "post_relogin_settings_read",
+      "ok": true,
+      "status": 200,
+      "promotionsNotifications": false,
+      "weeklySummaryNotifications": false
+    }
+  ],
+  "passed": true,
+  "after": {
+    "status": 200,
+    "data": {
+      "notificationsEnabled": true,
+      "matchNotifications": true,
+      "messageNotifications": true,
+      "likeNotifications": true,
+      "profileVisitorNotifications": false,
+      "eventsNotifications": false,
+      "safetyAlertNotifications": true,
+      "promotionsNotifications": false,
+      "inAppRecommendationNotifications": false,
+      "weeklySummaryNotifications": false,
+      "connectionRequestNotifications": true,
+      "surveyNotifications": false
+    }
+  }
+}

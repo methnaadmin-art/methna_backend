@@ -1,0 +1,2259 @@
+{
+  "startedAt": "2026-04-16T15:28:35.486Z",
+  "baseUrl": "http://127.0.0.1:3000/api/v1",
+  "setup": {
+    "adminId": "ee81b732-16c3-4b68-9180-9e83040783c5",
+    "users": {
+      "userA": {
+        "id": "8312fbdd-53c5-4808-bed4-5854e2ea6306",
+        "email": "runtime.a.1776353319327_7891@methna.test"
+      },
+      "userB": {
+        "id": "21ffd9f3-4f7e-4b08-9ca3-080a104b6e18",
+        "email": "runtime.b.1776353324955_7716@methna.test"
+      },
+      "userC": {
+        "id": "895515d8-c072-4435-963f-ef1248ab8ad8",
+        "email": "runtime.c.1776353330842_1522@methna.test"
+      },
+      "userD": {
+        "id": "60d69039-c7cf-4cb1-923e-718a389560a2",
+        "email": "runtime.d.1776353337385_3841@methna.test"
+      }
+    }
+  },
+  "groups": [
+    {
+      "group": "moderation_sync",
+      "passed": 8,
+      "failed": 9,
+      "total": 17
+    },
+    {
+      "group": "support_sync",
+      "passed": 0,
+      "failed": 4,
+      "total": 4
+    },
+    {
+      "group": "notifications_routing",
+      "passed": 3,
+      "failed": 10,
+      "total": 13
+    },
+    {
+      "group": "premium_consumables",
+      "passed": 2,
+      "failed": 4,
+      "total": 6
+    },
+    {
+      "group": "matching_filters",
+      "passed": 0,
+      "failed": 4,
+      "total": 4
+    },
+    {
+      "group": "profile_settings_sync",
+      "passed": 2,
+      "failed": 5,
+      "total": 7
+    },
+    {
+      "group": "verification_sync",
+      "passed": 1,
+      "failed": 3,
+      "total": 4
+    }
+  ],
+  "checks": [
+    {
+      "group": "moderation_sync",
+      "name": "Admin can set status=limited",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "response": {
+          "success": true,
+          "data": {
+            "id": "8312fbdd-53c5-4808-bed4-5854e2ea6306",
+            "username": "rt_a_40874",
+            "email": "runtime.a.1776353319327_7891@methna.test",
+            "firstName": "Runtimea",
+            "lastName": "Tester",
+            "phone": null,
+            "role": "user",
+            "status": "limited",
+            "statusReason": "Limited for runtime test",
+            "moderationReasonCode": "OTHER",
+            "moderationReasonText": "Limited for runtime test",
+            "actionRequired": "CONTACT_SUPPORT",
+            "supportMessage": "Please contact support.",
+            "isUserVisible": false,
+            "moderationExpiresAt": null,
+            "internalAdminNote": "Runtime status transition to limited",
+            "updatedByAdminId": "ee81b732-16c3-4b68-9180-9e83040783c5",
+            "isPremium": false,
+            "premiumStartDate": null,
+            "premiumExpiryDate": null,
+            "subscriptionPlanId": null,
+            "isGhostModeEnabled": false,
+            "isPassportActive": false,
+            "realLocation": null,
+            "passportLocation": null,
+            "verification": {
+              "selfie": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "identity": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "marital_status": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              }
+            },
+            "emailVerified": true,
+            "selfieVerified": false,
+            "selfieUrl": null,
+            "documentUrl": null,
+            "documentType": null,
+            "documentVerified": false,
+            "documentVerifiedAt": null,
+            "documentRejectionReason": null,
+            "fcmToken": null,
+            "notificationsEnabled": true,
+            "matchNotifications": true,
+            "messageNotifications": true,
+            "likeNotifications": true,
+            "profileVisitorNotifications": false,
+            "eventsNotifications": false,
+            "safetyAlertNotifications": true,
+            "promotionsNotifications": false,
+            "inAppRecommendationNotifications": false,
+            "weeklySummaryNotifications": false,
+            "connectionRequestNotifications": true,
+            "surveyNotifications": false,
+            "readReceipts": true,
+            "typingIndicator": true,
+            "autoDownloadMedia": true,
+            "receiveDMs": true,
+            "locationEnabled": false,
+            "boostedUntil": null,
+            "isShadowBanned": false,
+            "trustScore": 100,
+            "flagCount": 0,
+            "lastKnownIp": "127.0.0.1",
+            "deviceCount": 0,
+            "lastLoginAt": "2026-04-16T15:28:42.154Z",
+            "likesBalance": 0,
+            "complimentsBalance": 0,
+            "boostsBalance": 0,
+            "createdAt": "2026-04-16T13:28:41.007Z",
+            "updatedAt": "2026-04-16T13:29:04.730Z",
+            "deletedAt": null
+          },
+          "timestamp": "2026-04-16T15:29:05.236Z"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "User sees updated status=limited",
+      "passed": true,
+      "details": {
+        "statusCode": 200,
+        "returnedStatus": "limited",
+        "moderationReasonCode": "OTHER",
+        "actionRequired": "CONTACT_SUPPORT",
+        "supportMessage": "Please contact support.",
+        "isUserVisible": false
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Feature gate reflects status=limited",
+      "passed": true,
+      "details": {
+        "expectedBlocked": true,
+        "actualStatus": 403,
+        "response": {
+          "success": false,
+          "statusCode": 403,
+          "status": "limited",
+          "message": "Your account has limited access. Some features are restricted.",
+          "errors": null,
+          "code": "MODERATION_BLOCKED",
+          "reason": "Limited for runtime test",
+          "moderationReasonCode": "OTHER",
+          "moderationReasonText": "Limited for runtime test",
+          "actionRequired": "CONTACT_SUPPORT",
+          "supportMessage": "Please contact support.",
+          "isUserVisible": false,
+          "expiresAt": null,
+          "timestamp": "2026-04-16T15:29:06.769Z",
+          "path": "/api/v1/matches/suggestions?limit=5"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Admin can set status=suspended",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "response": {
+          "success": true,
+          "data": {
+            "id": "8312fbdd-53c5-4808-bed4-5854e2ea6306",
+            "username": "rt_a_40874",
+            "email": "runtime.a.1776353319327_7891@methna.test",
+            "firstName": "Runtimea",
+            "lastName": "Tester",
+            "phone": null,
+            "role": "user",
+            "status": "suspended",
+            "statusReason": "Suspended for runtime test",
+            "moderationReasonCode": "POLICY_VIOLATION",
+            "moderationReasonText": "Suspended for runtime test",
+            "actionRequired": "CONTACT_SUPPORT",
+            "supportMessage": "Suspension under review.",
+            "isUserVisible": false,
+            "moderationExpiresAt": null,
+            "internalAdminNote": "Runtime status transition to suspended",
+            "updatedByAdminId": "ee81b732-16c3-4b68-9180-9e83040783c5",
+            "isPremium": false,
+            "premiumStartDate": null,
+            "premiumExpiryDate": null,
+            "subscriptionPlanId": null,
+            "isGhostModeEnabled": false,
+            "isPassportActive": false,
+            "realLocation": null,
+            "passportLocation": null,
+            "verification": {
+              "selfie": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "identity": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "marital_status": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              }
+            },
+            "emailVerified": true,
+            "selfieVerified": false,
+            "selfieUrl": null,
+            "documentUrl": null,
+            "documentType": null,
+            "documentVerified": false,
+            "documentVerifiedAt": null,
+            "documentRejectionReason": null,
+            "fcmToken": null,
+            "notificationsEnabled": true,
+            "matchNotifications": true,
+            "messageNotifications": true,
+            "likeNotifications": true,
+            "profileVisitorNotifications": false,
+            "eventsNotifications": false,
+            "safetyAlertNotifications": true,
+            "promotionsNotifications": false,
+            "inAppRecommendationNotifications": false,
+            "weeklySummaryNotifications": false,
+            "connectionRequestNotifications": true,
+            "surveyNotifications": false,
+            "readReceipts": true,
+            "typingIndicator": true,
+            "autoDownloadMedia": true,
+            "receiveDMs": true,
+            "locationEnabled": false,
+            "boostedUntil": null,
+            "isShadowBanned": false,
+            "trustScore": 100,
+            "flagCount": 0,
+            "lastKnownIp": "127.0.0.1",
+            "deviceCount": 0,
+            "lastLoginAt": "2026-04-16T15:28:42.154Z",
+            "likesBalance": 0,
+            "complimentsBalance": 0,
+            "boostsBalance": 0,
+            "createdAt": "2026-04-16T13:28:41.007Z",
+            "updatedAt": "2026-04-16T13:29:08.147Z",
+            "deletedAt": null
+          },
+          "timestamp": "2026-04-16T15:29:08.530Z"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "User sees updated status=suspended",
+      "passed": false,
+      "details": {
+        "statusCode": 401,
+        "returnedStatus": null
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Feature gate reflects status=suspended",
+      "passed": false,
+      "details": {
+        "expectedBlocked": true,
+        "actualStatus": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Invalid or inactive account",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:10.452Z",
+          "path": "/api/v1/matches/suggestions?limit=5"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Admin can set status=pending_verification",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "response": {
+          "success": true,
+          "data": {
+            "id": "8312fbdd-53c5-4808-bed4-5854e2ea6306",
+            "username": "rt_a_40874",
+            "email": "runtime.a.1776353319327_7891@methna.test",
+            "firstName": "Runtimea",
+            "lastName": "Tester",
+            "phone": null,
+            "role": "user",
+            "status": "pending_verification",
+            "statusReason": "Pending verification runtime test",
+            "moderationReasonCode": "UNDER_REVIEW",
+            "moderationReasonText": "Pending verification runtime test",
+            "actionRequired": "WAIT_FOR_REVIEW",
+            "supportMessage": "Verification pending.",
+            "isUserVisible": true,
+            "moderationExpiresAt": null,
+            "internalAdminNote": "Runtime status transition to pending_verification",
+            "updatedByAdminId": "ee81b732-16c3-4b68-9180-9e83040783c5",
+            "isPremium": false,
+            "premiumStartDate": null,
+            "premiumExpiryDate": null,
+            "subscriptionPlanId": null,
+            "isGhostModeEnabled": false,
+            "isPassportActive": false,
+            "realLocation": null,
+            "passportLocation": null,
+            "verification": {
+              "selfie": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "identity": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "marital_status": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              }
+            },
+            "emailVerified": true,
+            "selfieVerified": false,
+            "selfieUrl": null,
+            "documentUrl": null,
+            "documentType": null,
+            "documentVerified": false,
+            "documentVerifiedAt": null,
+            "documentRejectionReason": null,
+            "fcmToken": null,
+            "notificationsEnabled": true,
+            "matchNotifications": true,
+            "messageNotifications": true,
+            "likeNotifications": true,
+            "profileVisitorNotifications": false,
+            "eventsNotifications": false,
+            "safetyAlertNotifications": true,
+            "promotionsNotifications": false,
+            "inAppRecommendationNotifications": false,
+            "weeklySummaryNotifications": false,
+            "connectionRequestNotifications": true,
+            "surveyNotifications": false,
+            "readReceipts": true,
+            "typingIndicator": true,
+            "autoDownloadMedia": true,
+            "receiveDMs": true,
+            "locationEnabled": false,
+            "boostedUntil": null,
+            "isShadowBanned": false,
+            "trustScore": 100,
+            "flagCount": 0,
+            "lastKnownIp": "127.0.0.1",
+            "deviceCount": 0,
+            "lastLoginAt": "2026-04-16T15:28:42.154Z",
+            "likesBalance": 0,
+            "complimentsBalance": 0,
+            "boostsBalance": 0,
+            "createdAt": "2026-04-16T13:28:41.007Z",
+            "updatedAt": "2026-04-16T13:29:11.971Z",
+            "deletedAt": null
+          },
+          "timestamp": "2026-04-16T15:29:11.907Z"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "User sees updated status=pending_verification",
+      "passed": false,
+      "details": {
+        "statusCode": 401,
+        "returnedStatus": null
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Feature gate reflects status=pending_verification",
+      "passed": false,
+      "details": {
+        "expectedBlocked": true,
+        "actualStatus": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Invalid or inactive account",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:12.848Z",
+          "path": "/api/v1/matches/suggestions?limit=5"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Admin can set status=rejected",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "response": {
+          "success": true,
+          "data": {
+            "id": "8312fbdd-53c5-4808-bed4-5854e2ea6306",
+            "username": "rt_a_40874",
+            "email": "runtime.a.1776353319327_7891@methna.test",
+            "firstName": "Runtimea",
+            "lastName": "Tester",
+            "phone": null,
+            "role": "user",
+            "status": "rejected",
+            "statusReason": "Rejected runtime test",
+            "moderationReasonCode": "IDENTITY_VERIFICATION_FAILED",
+            "moderationReasonText": "Rejected runtime test",
+            "actionRequired": "REUPLOAD_IDENTITY_DOCUMENT",
+            "supportMessage": "Please re-upload identity document.",
+            "isUserVisible": true,
+            "moderationExpiresAt": null,
+            "internalAdminNote": "Runtime status transition to rejected",
+            "updatedByAdminId": "ee81b732-16c3-4b68-9180-9e83040783c5",
+            "isPremium": false,
+            "premiumStartDate": null,
+            "premiumExpiryDate": null,
+            "subscriptionPlanId": null,
+            "isGhostModeEnabled": false,
+            "isPassportActive": false,
+            "realLocation": null,
+            "passportLocation": null,
+            "verification": {
+              "selfie": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "identity": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "marital_status": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              }
+            },
+            "emailVerified": true,
+            "selfieVerified": false,
+            "selfieUrl": null,
+            "documentUrl": null,
+            "documentType": null,
+            "documentVerified": false,
+            "documentVerifiedAt": null,
+            "documentRejectionReason": null,
+            "fcmToken": null,
+            "notificationsEnabled": true,
+            "matchNotifications": true,
+            "messageNotifications": true,
+            "likeNotifications": true,
+            "profileVisitorNotifications": false,
+            "eventsNotifications": false,
+            "safetyAlertNotifications": true,
+            "promotionsNotifications": false,
+            "inAppRecommendationNotifications": false,
+            "weeklySummaryNotifications": false,
+            "connectionRequestNotifications": true,
+            "surveyNotifications": false,
+            "readReceipts": true,
+            "typingIndicator": true,
+            "autoDownloadMedia": true,
+            "receiveDMs": true,
+            "locationEnabled": false,
+            "boostedUntil": null,
+            "isShadowBanned": false,
+            "trustScore": 100,
+            "flagCount": 0,
+            "lastKnownIp": "127.0.0.1",
+            "deviceCount": 0,
+            "lastLoginAt": "2026-04-16T15:28:42.154Z",
+            "likesBalance": 0,
+            "complimentsBalance": 0,
+            "boostsBalance": 0,
+            "createdAt": "2026-04-16T13:28:41.007Z",
+            "updatedAt": "2026-04-16T13:29:14.147Z",
+            "deletedAt": null
+          },
+          "timestamp": "2026-04-16T15:29:14.552Z"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "User sees updated status=rejected",
+      "passed": false,
+      "details": {
+        "statusCode": 401,
+        "returnedStatus": null
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Feature gate reflects status=rejected",
+      "passed": false,
+      "details": {
+        "expectedBlocked": true,
+        "actualStatus": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Invalid or inactive account",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:15.323Z",
+          "path": "/api/v1/matches/suggestions?limit=5"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Admin can set status=banned",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "response": {
+          "success": true,
+          "data": {
+            "id": "8312fbdd-53c5-4808-bed4-5854e2ea6306",
+            "username": "rt_a_40874",
+            "email": "runtime.a.1776353319327_7891@methna.test",
+            "firstName": "Runtimea",
+            "lastName": "Tester",
+            "phone": null,
+            "role": "user",
+            "status": "banned",
+            "statusReason": "Banned runtime test",
+            "moderationReasonCode": "POLICY_VIOLATION",
+            "moderationReasonText": "Banned runtime test",
+            "actionRequired": "CONTACT_SUPPORT",
+            "supportMessage": "Account banned.",
+            "isUserVisible": false,
+            "moderationExpiresAt": null,
+            "internalAdminNote": "Runtime status transition to banned",
+            "updatedByAdminId": "ee81b732-16c3-4b68-9180-9e83040783c5",
+            "isPremium": false,
+            "premiumStartDate": null,
+            "premiumExpiryDate": null,
+            "subscriptionPlanId": null,
+            "isGhostModeEnabled": false,
+            "isPassportActive": false,
+            "realLocation": null,
+            "passportLocation": null,
+            "verification": {
+              "selfie": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "identity": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "marital_status": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              }
+            },
+            "emailVerified": true,
+            "selfieVerified": false,
+            "selfieUrl": null,
+            "documentUrl": null,
+            "documentType": null,
+            "documentVerified": false,
+            "documentVerifiedAt": null,
+            "documentRejectionReason": null,
+            "fcmToken": null,
+            "notificationsEnabled": true,
+            "matchNotifications": true,
+            "messageNotifications": true,
+            "likeNotifications": true,
+            "profileVisitorNotifications": false,
+            "eventsNotifications": false,
+            "safetyAlertNotifications": true,
+            "promotionsNotifications": false,
+            "inAppRecommendationNotifications": false,
+            "weeklySummaryNotifications": false,
+            "connectionRequestNotifications": true,
+            "surveyNotifications": false,
+            "readReceipts": true,
+            "typingIndicator": true,
+            "autoDownloadMedia": true,
+            "receiveDMs": true,
+            "locationEnabled": false,
+            "boostedUntil": null,
+            "isShadowBanned": false,
+            "trustScore": 100,
+            "flagCount": 0,
+            "lastKnownIp": "127.0.0.1",
+            "deviceCount": 0,
+            "lastLoginAt": "2026-04-16T15:28:42.154Z",
+            "likesBalance": 0,
+            "complimentsBalance": 0,
+            "boostsBalance": 0,
+            "createdAt": "2026-04-16T13:28:41.007Z",
+            "updatedAt": "2026-04-16T13:29:17.464Z",
+            "deletedAt": null
+          },
+          "timestamp": "2026-04-16T15:29:19.159Z"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "User sees updated status=banned",
+      "passed": false,
+      "details": {
+        "statusCode": 401,
+        "returnedStatus": null
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Feature gate reflects status=banned",
+      "passed": false,
+      "details": {
+        "expectedBlocked": true,
+        "actualStatus": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:20.195Z",
+          "path": "/api/v1/matches/suggestions?limit=5"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Restore user to active",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "response": {
+          "success": true,
+          "data": {
+            "id": "8312fbdd-53c5-4808-bed4-5854e2ea6306",
+            "username": "rt_a_40874",
+            "email": "runtime.a.1776353319327_7891@methna.test",
+            "firstName": "Runtimea",
+            "lastName": "Tester",
+            "phone": null,
+            "role": "user",
+            "status": "active",
+            "statusReason": null,
+            "moderationReasonCode": null,
+            "moderationReasonText": null,
+            "actionRequired": null,
+            "supportMessage": null,
+            "isUserVisible": true,
+            "moderationExpiresAt": null,
+            "internalAdminNote": null,
+            "updatedByAdminId": "ee81b732-16c3-4b68-9180-9e83040783c5",
+            "isPremium": false,
+            "premiumStartDate": null,
+            "premiumExpiryDate": null,
+            "subscriptionPlanId": null,
+            "isGhostModeEnabled": false,
+            "isPassportActive": false,
+            "realLocation": null,
+            "passportLocation": null,
+            "verification": {
+              "selfie": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "identity": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "marital_status": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              }
+            },
+            "emailVerified": true,
+            "selfieVerified": false,
+            "selfieUrl": null,
+            "documentUrl": null,
+            "documentType": null,
+            "documentVerified": false,
+            "documentVerifiedAt": null,
+            "documentRejectionReason": null,
+            "fcmToken": null,
+            "notificationsEnabled": true,
+            "matchNotifications": true,
+            "messageNotifications": true,
+            "likeNotifications": true,
+            "profileVisitorNotifications": false,
+            "eventsNotifications": false,
+            "safetyAlertNotifications": true,
+            "promotionsNotifications": false,
+            "inAppRecommendationNotifications": false,
+            "weeklySummaryNotifications": false,
+            "connectionRequestNotifications": true,
+            "surveyNotifications": false,
+            "readReceipts": true,
+            "typingIndicator": true,
+            "autoDownloadMedia": true,
+            "receiveDMs": true,
+            "locationEnabled": false,
+            "boostedUntil": null,
+            "isShadowBanned": false,
+            "trustScore": 100,
+            "flagCount": 0,
+            "lastKnownIp": "127.0.0.1",
+            "deviceCount": 0,
+            "lastLoginAt": "2026-04-16T15:28:42.154Z",
+            "likesBalance": 0,
+            "complimentsBalance": 0,
+            "boostsBalance": 0,
+            "createdAt": "2026-04-16T13:28:41.007Z",
+            "updatedAt": "2026-04-16T13:29:21.770Z",
+            "deletedAt": null
+          },
+          "timestamp": "2026-04-16T15:29:21.512Z"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "name": "Active user can access suggestions",
+      "passed": false,
+      "details": {
+        "status": 401
+      }
+    },
+    {
+      "group": "support_sync",
+      "name": "User can create support ticket",
+      "passed": false,
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:22.432Z",
+          "path": "/api/v1/support"
+        }
+      }
+    },
+    {
+      "group": "support_sync",
+      "name": "Admin can see created ticket",
+      "passed": false,
+      "details": {
+        "status": 200,
+        "total": 7
+      }
+    },
+    {
+      "group": "support_sync",
+      "name": "Admin can reply to ticket",
+      "passed": false,
+      "details": {
+        "status": 500,
+        "response": {
+          "success": false,
+          "statusCode": 500,
+          "status": null,
+          "message": "invalid input syntax for type uuid: \"undefined\"",
+          "errors": null,
+          "timestamp": "2026-04-16T15:29:24.444Z",
+          "path": "/api/v1/admin/tickets/undefined/reply"
+        }
+      }
+    },
+    {
+      "group": "support_sync",
+      "name": "User sees admin reply and status update",
+      "passed": false,
+      "details": {
+        "status": 500,
+        "ticketStatus": null
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "Like swipe creates like event",
+      "passed": false,
+      "details": {
+        "status": 403,
+        "response": {
+          "success": false,
+          "statusCode": 403,
+          "status": null,
+          "message": "Complete your profile before liking members.",
+          "errors": null,
+          "code": "PROFILE_INCOMPLETE",
+          "actionRequired": "COMPLETE_PROFILE",
+          "minimumCompletion": 60,
+          "currentCompletion": 28,
+          "timestamp": "2026-04-16T15:29:25.853Z",
+          "path": "/api/v1/swipes"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "Mutual like creates match event",
+      "passed": false,
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:26.139Z",
+          "path": "/api/v1/swipes"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "Conversation can be opened between matched users",
+      "passed": false,
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:26.776Z",
+          "path": "/api/v1/chat/conversations"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "Message send triggers message event",
+      "passed": false,
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:27.045Z",
+          "path": "/api/v1/chat/conversations/undefined/messages"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "Admin can set selfie URL prerequisite",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "response": {
+          "success": true,
+          "data": {
+            "id": "8312fbdd-53c5-4808-bed4-5854e2ea6306",
+            "username": "rt_a_40874",
+            "email": "runtime.a.1776353319327_7891@methna.test",
+            "firstName": "Runtimea",
+            "lastName": "Tester",
+            "phone": null,
+            "role": "user",
+            "status": "active",
+            "statusReason": null,
+            "moderationReasonCode": null,
+            "moderationReasonText": null,
+            "actionRequired": null,
+            "supportMessage": null,
+            "isUserVisible": true,
+            "moderationExpiresAt": null,
+            "internalAdminNote": null,
+            "updatedByAdminId": "ee81b732-16c3-4b68-9180-9e83040783c5",
+            "isPremium": false,
+            "premiumStartDate": null,
+            "premiumExpiryDate": null,
+            "verification": {
+              "selfie": {
+                "status": "pending",
+                "url": "https://example.com/runtime-selfie.jpg",
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "identity": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "marital_status": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              }
+            },
+            "emailVerified": true,
+            "selfieVerified": false,
+            "selfieUrl": "https://example.com/runtime-selfie.jpg",
+            "documentUrl": null,
+            "documentType": null,
+            "documentVerified": false,
+            "documentVerifiedAt": null,
+            "documentRejectionReason": null,
+            "notificationsEnabled": true,
+            "isShadowBanned": false,
+            "trustScore": 100,
+            "flagCount": 0,
+            "lastKnownIp": "127.0.0.1",
+            "deviceCount": 0,
+            "lastLoginAt": "2026-04-16T15:28:42.154Z",
+            "createdAt": "2026-04-16T13:28:41.007Z",
+            "updatedAt": "2026-04-16T13:29:29.022Z",
+            "deletedAt": null
+          },
+          "timestamp": "2026-04-16T15:29:29.748Z"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "Admin verification action emits verification update",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "response": {
+          "success": true,
+          "data": {
+            "id": "8312fbdd-53c5-4808-bed4-5854e2ea6306",
+            "verification": {
+              "selfie": {
+                "status": "approved",
+                "url": "https://example.com/runtime-selfie.jpg",
+                "rejectionReason": null,
+                "submittedAt": "2026-04-16T15:29:30.630Z",
+                "reviewedAt": "2026-04-16T15:29:30.630Z",
+                "reviewedBy": "ee81b732-16c3-4b68-9180-9e83040783c5"
+              },
+              "identity": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              },
+              "marital_status": {
+                "status": "not_submitted",
+                "url": null,
+                "rejectionReason": null,
+                "submittedAt": null,
+                "reviewedAt": null,
+                "reviewedBy": null
+              }
+            },
+            "selfieVerified": true,
+            "selfieUrl": "https://example.com/runtime-selfie.jpg",
+            "username": null,
+            "phone": null,
+            "statusReason": null,
+            "moderationReasonCode": null,
+            "moderationReasonText": null,
+            "actionRequired": null,
+            "supportMessage": null,
+            "moderationExpiresAt": null,
+            "internalAdminNote": null,
+            "updatedByAdminId": null,
+            "premiumStartDate": null,
+            "premiumExpiryDate": null,
+            "subscriptionPlanId": null,
+            "realLocation": null,
+            "passportLocation": null,
+            "refreshToken": null,
+            "otpCode": null,
+            "otpExpiresAt": null,
+            "otpCooldownUntil": null,
+            "resetOtpCode": null,
+            "resetOtpExpiresAt": null,
+            "documentUrl": null,
+            "documentType": null,
+            "documentVerifiedAt": null,
+            "documentRejectionReason": null,
+            "fcmToken": null,
+            "boostedUntil": null,
+            "lastKnownIp": null,
+            "lastLoginAt": null,
+            "stripeCustomerId": null,
+            "updatedAt": "2026-04-16T13:29:31.819Z",
+            "isPremium": false
+          },
+          "timestamp": "2026-04-16T15:29:31.915Z"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "Admin can send system notification",
+      "passed": true,
+      "details": {
+        "status": 201,
+        "response": {
+          "success": true,
+          "data": {
+            "sent": 1,
+            "notification": {
+              "userId": "8312fbdd-53c5-4808-bed4-5854e2ea6306",
+              "type": "system",
+              "title": "Runtime System Notification",
+              "body": "System route validation",
+              "data": {
+                "type": "system",
+                "title": "Runtime System Notification",
+                "body": "System route validation",
+                "extraData": {
+                  "route": "/notifications",
+                  "targetScreen": "notifications",
+                  "conversationId": null,
+                  "userId": null
+                },
+                "payload": {
+                  "type": "system",
+                  "title": "Runtime System Notification",
+                  "body": "System route validation",
+                  "extraData": {
+                    "route": "/notifications",
+                    "targetScreen": "notifications",
+                    "conversationId": null,
+                    "userId": null
+                  }
+                }
+              },
+              "id": "db928fb4-d3f4-40b3-941d-d25771e25d37",
+              "isRead": false,
+              "createdAt": "2026-04-16T13:29:33.549Z"
+            }
+          },
+          "timestamp": "2026-04-16T15:29:33.214Z"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "Notification type LIKE delivered",
+      "passed": false,
+      "details": {
+        "type": null
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "Notification type MATCH delivered",
+      "passed": false,
+      "details": {
+        "type": null
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "Notification type MESSAGE delivered",
+      "passed": false,
+      "details": {
+        "type": null
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "Notification type TICKET delivered",
+      "passed": false,
+      "details": {
+        "type": null
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "Notification type VERIFICATION delivered",
+      "passed": false,
+      "details": {
+        "type": null
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "name": "Notification type SYSTEM delivered",
+      "passed": false,
+      "details": {
+        "type": null
+      }
+    },
+    {
+      "group": "premium_consumables",
+      "name": "Admin can grant premium manually",
+      "passed": true,
+      "details": {
+        "status": 201,
+        "response": {
+          "success": true,
+          "data": {
+            "user": {
+              "id": "8312fbdd-53c5-4808-bed4-5854e2ea6306",
+              "username": "rt_a_40874",
+              "email": "runtime.a.1776353319327_7891@methna.test",
+              "firstName": "Runtimea",
+              "lastName": "Tester",
+              "phone": null,
+              "role": "user",
+              "status": "active",
+              "statusReason": null,
+              "moderationReasonCode": null,
+              "moderationReasonText": null,
+              "actionRequired": null,
+              "supportMessage": null,
+              "isUserVisible": true,
+              "moderationExpiresAt": null,
+              "internalAdminNote": null,
+              "updatedByAdminId": "ee81b732-16c3-4b68-9180-9e83040783c5",
+              "isPremium": true,
+              "premiumStartDate": "2026-04-16T15:29:33.497Z",
+              "premiumExpiryDate": "2026-04-23T15:29:33.497Z",
+              "verification": {
+                "selfie": {
+                  "status": "approved",
+                  "url": "https://example.com/runtime-selfie.jpg",
+                  "rejectionReason": null,
+                  "submittedAt": "2026-04-16T15:29:30.630Z",
+                  "reviewedAt": "2026-04-16T15:29:30.630Z",
+                  "reviewedBy": "ee81b732-16c3-4b68-9180-9e83040783c5"
+                },
+                "identity": {
+                  "status": "not_submitted",
+                  "url": null,
+                  "rejectionReason": null,
+                  "submittedAt": null,
+                  "reviewedAt": null,
+                  "reviewedBy": null
+                },
+                "marital_status": {
+                  "status": "not_submitted",
+                  "url": null,
+                  "rejectionReason": null,
+                  "submittedAt": null,
+                  "reviewedAt": null,
+                  "reviewedBy": null
+                }
+              },
+              "emailVerified": true,
+              "selfieVerified": true,
+              "selfieUrl": "https://example.com/runtime-selfie.jpg",
+              "documentUrl": null,
+              "documentType": null,
+              "documentVerified": false,
+              "documentVerifiedAt": null,
+              "documentRejectionReason": null,
+              "notificationsEnabled": true,
+              "isShadowBanned": false,
+              "trustScore": 100,
+              "flagCount": 0,
+              "lastKnownIp": "127.0.0.1",
+              "deviceCount": 0,
+              "lastLoginAt": "2026-04-16T15:28:42.154Z",
+              "createdAt": "2026-04-16T13:28:41.007Z",
+              "updatedAt": "2026-04-16T13:29:36.162Z",
+              "deletedAt": null
+            },
+            "subscription": {
+              "userId": "8312fbdd-53c5-4808-bed4-5854e2ea6306",
+              "planId": "9a63e107-49a7-4d83-b68f-3fbeca82ee99",
+              "plan": "gold",
+              "status": "active",
+              "startDate": "2026-04-16T15:29:33.497Z",
+              "endDate": "2026-04-23T15:29:33.497Z",
+              "paymentReference": "ADMIN_OVERRIDE",
+              "paymentProvider": "admin",
+              "planEntity": {
+                "id": "9a63e107-49a7-4d83-b68f-3fbeca82ee99",
+                "code": "gold",
+                "name": "Gold",
+                "description": "Gold Plan",
+                "price": "10.00",
+                "currency": "usd",
+                "billingCycle": "weekly",
+                "stripePriceId": "price_1TMSkwHKmHtW9ygmLGrx94jB",
+                "stripeProductId": null,
+                "googleProductId": "",
+                "googleBasePlanId": null,
+                "durationDays": 7,
+                "isActive": true,
+                "isVisible": true,
+                "sortOrder": 0,
+                "entitlements": {
+                  "hideAds": true,
+                  "rematch": true,
+                  "ghostMode": true,
+                  "superLike": true,
+                  "videoChat": false,
+                  "dailyLikes": -1,
+                  "likesLimit": -1,
+                  "whoLikedMe": true,
+                  "boostsLimit": 4,
+                  "passportMode": true,
+                  "premiumBadge": true,
+                  "readReceipts": true,
+                  "weeklyBoosts": 4,
+                  "invisibleMode": true,
+                  "improvedVisits": true,
+                  "monthlyRewinds": -1,
+                  "seeWhoLikesYou": true,
+                  "unlimitedLikes": true,
+                  "advancedFilters": true,
+                  "dailySuperLikes": 20,
+                  "complimentsLimit": 7,
+                  "dailyCompliments": 7,
+                  "priorityMatching": true,
+                  "typingIndicators": true,
+                  "unlimitedRewinds": true,
+                  "profileBoostPriority": true
+                },
+                "featureFlags": {},
+                "limits": {},
+                "features": [
+                  "unlimited_likes",
+                  "advanced_filters",
+                  "see_who_liked",
+                  "who_liked_me",
+                  "super_like",
+                  "profile_boost",
+                  "read_receipts",
+                  "priority_matching",
+                  "rewind",
+                  "invisible_mode",
+                  "ghost_mode",
+                  "compliment_credits",
+                  "rematch",
+                  "premium_badge",
+                  "hide_ads",
+                  "passport_mode",
+                  "improved_visits",
+                  "typing_indicators"
+                ],
+                "dailyLikesLimit": -1,
+                "dailySuperLikesLimit": 20,
+                "dailyComplimentsLimit": 7,
+                "monthlyRewindsLimit": -1,
+                "weeklyBoostsLimit": 4,
+                "createdAt": "2026-04-15T10:41:21.869Z",
+                "updatedAt": "2026-04-15T10:41:21.869Z"
+              },
+              "googleProductId": null,
+              "googlePurchaseToken": null,
+              "googleOrderId": null,
+              "stripeSubscriptionId": null,
+              "stripeCheckoutSessionId": null,
+              "stripeCustomerId": null,
+              "billingCycle": null,
+              "id": "0ec87ab3-5654-4e03-8511-9145f5c92fca",
+              "createdAt": "2026-04-16T13:29:35.490Z",
+              "updatedAt": "2026-04-16T13:29:35.490Z"
+            }
+          },
+          "timestamp": "2026-04-16T15:29:36.534Z"
+        }
+      }
+    },
+    {
+      "group": "premium_consumables",
+      "name": "Mobile subscription endpoint reflects premium",
+      "passed": false,
+      "details": {
+        "status": 401,
+        "subscriptionStatus": null
+      }
+    },
+    {
+      "group": "premium_consumables",
+      "name": "Monetization status returns unlocked feature set",
+      "passed": false,
+      "details": {
+        "status": 401,
+        "featuresCount": null
+      }
+    },
+    {
+      "group": "premium_consumables",
+      "name": "Mobile consumables catalog is available",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "count": 0,
+        "products": []
+      }
+    },
+    {
+      "group": "premium_consumables",
+      "name": "Consumable purchase verification flow executes",
+      "passed": false,
+      "details": {
+        "skipped": true,
+        "response": null,
+        "note": "No mobile consumable with googleProductId was available in catalog."
+      }
+    },
+    {
+      "group": "premium_consumables",
+      "name": "Consumable/credit consumption path executes and decrements balance",
+      "passed": false,
+      "details": {
+        "swipeStatus": 401,
+        "swipeResponse": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:38.142Z",
+          "path": "/api/v1/swipes"
+        },
+        "balancesBefore": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:37.793Z",
+          "path": "/api/v1/mobile/consumables/balances"
+        },
+        "balancesAfter": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:38.390Z",
+          "path": "/api/v1/mobile/consumables/balances"
+        },
+        "balanceDecrementObserved": false
+      }
+    },
+    {
+      "group": "matching_filters",
+      "name": "Mutual likes appear in matches list",
+      "passed": false,
+      "details": {
+        "status": 401
+      }
+    },
+    {
+      "group": "matching_filters",
+      "name": "User can update match preferences",
+      "passed": false,
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:39.228Z",
+          "path": "/api/v1/profiles/preferences"
+        }
+      }
+    },
+    {
+      "group": "matching_filters",
+      "name": "Updated preferences are persisted",
+      "passed": false,
+      "details": {
+        "status": 401,
+        "preferences": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:39.654Z",
+          "path": "/api/v1/profiles/preferences"
+        }
+      }
+    },
+    {
+      "group": "matching_filters",
+      "name": "Search filter by gender returns constrained results",
+      "passed": false,
+      "details": {
+        "status": 401,
+        "resultCount": 0,
+        "containsMale": false
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "name": "User account profile fields can be updated",
+      "passed": false,
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:40.228Z",
+          "path": "/api/v1/users/me"
+        }
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "name": "Notification settings can be updated",
+      "passed": false,
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:40.576Z",
+          "path": "/api/v1/notifications/settings"
+        }
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "name": "Chat settings can be updated",
+      "passed": false,
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:40.871Z",
+          "path": "/api/v1/chat/settings"
+        }
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "name": "Admin view reflects user profile updates",
+      "passed": false,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "name": "User can re-login after updates (restart simulation)",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "name": "Preferences persist after re-login",
+      "passed": false,
+      "details": {
+        "status": 200,
+        "preferences": {
+          "userId": "8312fbdd-53c5-4808-bed4-5854e2ea6306",
+          "preferredGender": null,
+          "preferredEthnicities": null,
+          "preferredNationalities": null,
+          "preferredReligiousLevel": null,
+          "preferredMaritalStatus": null,
+          "preferredInterests": null,
+          "id": "3071d535-29ad-48e8-b601-e31d1e0fd3c8",
+          "minAge": 18,
+          "maxAge": 60,
+          "maxDistance": 100,
+          "createdAt": "2026-04-16T13:29:47.003Z",
+          "updatedAt": "2026-04-16T13:29:47.003Z"
+        }
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "name": "Notification settings persist after re-login",
+      "passed": true,
+      "details": {
+        "status": 200,
+        "settings": {
+          "notificationsEnabled": true,
+          "matchNotifications": true,
+          "messageNotifications": true,
+          "likeNotifications": true,
+          "profileVisitorNotifications": true,
+          "eventsNotifications": true,
+          "safetyAlertNotifications": true,
+          "promotionsNotifications": true,
+          "inAppRecommendationNotifications": true,
+          "weeklySummaryNotifications": true,
+          "connectionRequestNotifications": true,
+          "surveyNotifications": true
+        }
+      }
+    },
+    {
+      "group": "verification_sync",
+      "name": "Pending verification state syncs to user view",
+      "passed": false,
+      "details": {
+        "updateStatus": 200
+      }
+    },
+    {
+      "group": "verification_sync",
+      "name": "Rejected verification state syncs to user view",
+      "passed": false,
+      "details": {
+        "updateStatus": 200
+      }
+    },
+    {
+      "group": "verification_sync",
+      "name": "Approved verification state syncs to user view",
+      "passed": false,
+      "details": {
+        "updateStatus": 200
+      }
+    },
+    {
+      "group": "verification_sync",
+      "name": "Verification status endpoint available",
+      "passed": true,
+      "details": {
+        "status": 200
+      }
+    }
+  ],
+  "notes": [],
+  "artifacts": {
+    "notificationsSample": "tmp/runtime-notifications-sample.json"
+  },
+  "summary": {
+    "totalChecks": 55,
+    "passedChecks": 16,
+    "failedChecks": 39,
+    "readinessScore": 29
+  },
+  "findings": [
+    {
+      "group": "moderation_sync",
+      "check": "User sees updated status=suspended",
+      "owner": "backend",
+      "risk": "high",
+      "details": {
+        "statusCode": 401,
+        "returnedStatus": null
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "check": "Feature gate reflects status=suspended",
+      "owner": "backend",
+      "risk": "high",
+      "details": {
+        "expectedBlocked": true,
+        "actualStatus": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Invalid or inactive account",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:10.452Z",
+          "path": "/api/v1/matches/suggestions?limit=5"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "check": "User sees updated status=pending_verification",
+      "owner": "backend",
+      "risk": "high",
+      "details": {
+        "statusCode": 401,
+        "returnedStatus": null
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "check": "Feature gate reflects status=pending_verification",
+      "owner": "backend",
+      "risk": "high",
+      "details": {
+        "expectedBlocked": true,
+        "actualStatus": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Invalid or inactive account",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:12.848Z",
+          "path": "/api/v1/matches/suggestions?limit=5"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "check": "User sees updated status=rejected",
+      "owner": "backend",
+      "risk": "high",
+      "details": {
+        "statusCode": 401,
+        "returnedStatus": null
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "check": "Feature gate reflects status=rejected",
+      "owner": "backend",
+      "risk": "high",
+      "details": {
+        "expectedBlocked": true,
+        "actualStatus": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Invalid or inactive account",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:15.323Z",
+          "path": "/api/v1/matches/suggestions?limit=5"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "check": "User sees updated status=banned",
+      "owner": "backend",
+      "risk": "high",
+      "details": {
+        "statusCode": 401,
+        "returnedStatus": null
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "check": "Feature gate reflects status=banned",
+      "owner": "backend",
+      "risk": "high",
+      "details": {
+        "expectedBlocked": true,
+        "actualStatus": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:20.195Z",
+          "path": "/api/v1/matches/suggestions?limit=5"
+        }
+      }
+    },
+    {
+      "group": "moderation_sync",
+      "check": "Active user can access suggestions",
+      "owner": "backend",
+      "risk": "high",
+      "details": {
+        "status": 401
+      }
+    },
+    {
+      "group": "support_sync",
+      "check": "User can create support ticket",
+      "owner": "integration",
+      "risk": "medium",
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:22.432Z",
+          "path": "/api/v1/support"
+        }
+      }
+    },
+    {
+      "group": "support_sync",
+      "check": "Admin can see created ticket",
+      "owner": "integration",
+      "risk": "medium",
+      "details": {
+        "status": 200,
+        "total": 7
+      }
+    },
+    {
+      "group": "support_sync",
+      "check": "Admin can reply to ticket",
+      "owner": "integration",
+      "risk": "medium",
+      "details": {
+        "status": 500,
+        "response": {
+          "success": false,
+          "statusCode": 500,
+          "status": null,
+          "message": "invalid input syntax for type uuid: \"undefined\"",
+          "errors": null,
+          "timestamp": "2026-04-16T15:29:24.444Z",
+          "path": "/api/v1/admin/tickets/undefined/reply"
+        }
+      }
+    },
+    {
+      "group": "support_sync",
+      "check": "User sees admin reply and status update",
+      "owner": "integration",
+      "risk": "medium",
+      "details": {
+        "status": 500,
+        "ticketStatus": null
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "check": "Like swipe creates like event",
+      "owner": "backend_or_mobile",
+      "risk": "high",
+      "details": {
+        "status": 403,
+        "response": {
+          "success": false,
+          "statusCode": 403,
+          "status": null,
+          "message": "Complete your profile before liking members.",
+          "errors": null,
+          "code": "PROFILE_INCOMPLETE",
+          "actionRequired": "COMPLETE_PROFILE",
+          "minimumCompletion": 60,
+          "currentCompletion": 28,
+          "timestamp": "2026-04-16T15:29:25.853Z",
+          "path": "/api/v1/swipes"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "check": "Mutual like creates match event",
+      "owner": "backend_or_mobile",
+      "risk": "high",
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:26.139Z",
+          "path": "/api/v1/swipes"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "check": "Conversation can be opened between matched users",
+      "owner": "backend_or_mobile",
+      "risk": "high",
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:26.776Z",
+          "path": "/api/v1/chat/conversations"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "check": "Message send triggers message event",
+      "owner": "backend_or_mobile",
+      "risk": "high",
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:27.045Z",
+          "path": "/api/v1/chat/conversations/undefined/messages"
+        }
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "check": "Notification type LIKE delivered",
+      "owner": "backend_or_mobile",
+      "risk": "high",
+      "details": {
+        "type": null
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "check": "Notification type MATCH delivered",
+      "owner": "backend_or_mobile",
+      "risk": "high",
+      "details": {
+        "type": null
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "check": "Notification type MESSAGE delivered",
+      "owner": "backend_or_mobile",
+      "risk": "high",
+      "details": {
+        "type": null
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "check": "Notification type TICKET delivered",
+      "owner": "backend_or_mobile",
+      "risk": "high",
+      "details": {
+        "type": null
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "check": "Notification type VERIFICATION delivered",
+      "owner": "backend_or_mobile",
+      "risk": "high",
+      "details": {
+        "type": null
+      }
+    },
+    {
+      "group": "notifications_routing",
+      "check": "Notification type SYSTEM delivered",
+      "owner": "backend_or_mobile",
+      "risk": "high",
+      "details": {
+        "type": null
+      }
+    },
+    {
+      "group": "premium_consumables",
+      "check": "Mobile subscription endpoint reflects premium",
+      "owner": "integration",
+      "risk": "medium",
+      "details": {
+        "status": 401,
+        "subscriptionStatus": null
+      }
+    },
+    {
+      "group": "premium_consumables",
+      "check": "Monetization status returns unlocked feature set",
+      "owner": "integration",
+      "risk": "medium",
+      "details": {
+        "status": 401,
+        "featuresCount": null
+      }
+    },
+    {
+      "group": "premium_consumables",
+      "check": "Consumable purchase verification flow executes",
+      "owner": "integration/payments",
+      "risk": "high",
+      "details": {
+        "skipped": true,
+        "response": null,
+        "note": "No mobile consumable with googleProductId was available in catalog."
+      }
+    },
+    {
+      "group": "premium_consumables",
+      "check": "Consumable/credit consumption path executes and decrements balance",
+      "owner": "integration",
+      "risk": "medium",
+      "details": {
+        "swipeStatus": 401,
+        "swipeResponse": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:38.142Z",
+          "path": "/api/v1/swipes"
+        },
+        "balancesBefore": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:37.793Z",
+          "path": "/api/v1/mobile/consumables/balances"
+        },
+        "balancesAfter": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:38.390Z",
+          "path": "/api/v1/mobile/consumables/balances"
+        },
+        "balanceDecrementObserved": false
+      }
+    },
+    {
+      "group": "matching_filters",
+      "check": "Mutual likes appear in matches list",
+      "owner": "backend_matching",
+      "risk": "high",
+      "details": {
+        "status": 401
+      }
+    },
+    {
+      "group": "matching_filters",
+      "check": "User can update match preferences",
+      "owner": "backend_matching",
+      "risk": "high",
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:39.228Z",
+          "path": "/api/v1/profiles/preferences"
+        }
+      }
+    },
+    {
+      "group": "matching_filters",
+      "check": "Updated preferences are persisted",
+      "owner": "backend_matching",
+      "risk": "high",
+      "details": {
+        "status": 401,
+        "preferences": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:39.654Z",
+          "path": "/api/v1/profiles/preferences"
+        }
+      }
+    },
+    {
+      "group": "matching_filters",
+      "check": "Search filter by gender returns constrained results",
+      "owner": "backend_matching",
+      "risk": "high",
+      "details": {
+        "status": 401,
+        "resultCount": 0,
+        "containsMale": false
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "check": "User account profile fields can be updated",
+      "owner": "backend_or_mobile",
+      "risk": "medium",
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:40.228Z",
+          "path": "/api/v1/users/me"
+        }
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "check": "Notification settings can be updated",
+      "owner": "backend_or_mobile",
+      "risk": "medium",
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:40.576Z",
+          "path": "/api/v1/notifications/settings"
+        }
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "check": "Chat settings can be updated",
+      "owner": "backend_or_mobile",
+      "risk": "medium",
+      "details": {
+        "status": 401,
+        "response": {
+          "success": false,
+          "statusCode": 401,
+          "status": null,
+          "message": "Session has been revoked. Please re-login.",
+          "errors": null,
+          "error": "Unauthorized",
+          "timestamp": "2026-04-16T15:29:40.871Z",
+          "path": "/api/v1/chat/settings"
+        }
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "check": "Admin view reflects user profile updates",
+      "owner": "backend_or_mobile",
+      "risk": "medium",
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "group": "profile_settings_sync",
+      "check": "Preferences persist after re-login",
+      "owner": "backend_or_mobile",
+      "risk": "medium",
+      "details": {
+        "status": 200,
+        "preferences": {
+          "userId": "8312fbdd-53c5-4808-bed4-5854e2ea6306",
+          "preferredGender": null,
+          "preferredEthnicities": null,
+          "preferredNationalities": null,
+          "preferredReligiousLevel": null,
+          "preferredMaritalStatus": null,
+          "preferredInterests": null,
+          "id": "3071d535-29ad-48e8-b601-e31d1e0fd3c8",
+          "minAge": 18,
+          "maxAge": 60,
+          "maxDistance": 100,
+          "createdAt": "2026-04-16T13:29:47.003Z",
+          "updatedAt": "2026-04-16T13:29:47.003Z"
+        }
+      }
+    },
+    {
+      "group": "verification_sync",
+      "check": "Pending verification state syncs to user view",
+      "owner": "integration",
+      "risk": "medium",
+      "details": {
+        "updateStatus": 200
+      }
+    },
+    {
+      "group": "verification_sync",
+      "check": "Rejected verification state syncs to user view",
+      "owner": "integration",
+      "risk": "medium",
+      "details": {
+        "updateStatus": 200
+      }
+    },
+    {
+      "group": "verification_sync",
+      "check": "Approved verification state syncs to user view",
+      "owner": "integration",
+      "risk": "medium",
+      "details": {
+        "updateStatus": 200
+      }
+    }
+  ],
+  "finishedAt": "2026-04-16T15:29:57.360Z"
+}

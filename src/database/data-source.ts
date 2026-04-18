@@ -15,6 +15,15 @@ function sanitizeDatabaseUrl(url?: string): string | undefined {
 }
 
 const databaseUrl = sanitizeDatabaseUrl(process.env.DATABASE_URL);
+const isTsRuntime = __filename.endsWith('.ts');
+
+const entities = isTsRuntime
+    ? ['src/**/*.entity.ts']
+    : ['dist/src/**/*.entity.js'];
+
+const migrations = isTsRuntime
+    ? ['src/database/migrations/*{.ts,.js}']
+    : ['dist/src/database/migrations/*.js'];
 
 const dataSource = new DataSource({
     type: 'postgres',
@@ -28,8 +37,8 @@ const dataSource = new DataSource({
             database: process.env.DB_NAME || 'postgres',
         }),
     ssl: { rejectUnauthorized: false },
-    entities: ['src/**/*.entity.ts', 'dist/**/*.entity.js'],
-    migrations: ['src/database/migrations/*{.ts,.js}', 'dist/database/migrations/*{.ts,.js}'],
+    entities,
+    migrations,
     synchronize: false,
     logging: false,
 });

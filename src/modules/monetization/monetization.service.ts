@@ -569,6 +569,9 @@ export class MonetizationService {
         });
 
         const planFeatures = {
+            advancedFilters:
+                this.entitlementEnablesFeature(entitlements, FeatureFlag.ADVANCED_FILTERS) ||
+                features.includes(FeatureFlag.ADVANCED_FILTERS),
             boost:
                 this.entitlementEnablesFeature(entitlements, FeatureFlag.PROFILE_BOOST) ||
                 features.includes(FeatureFlag.PROFILE_BOOST),

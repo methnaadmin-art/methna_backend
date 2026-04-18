@@ -1635,12 +1635,45 @@ export class AdminService implements OnModuleInit {
             .select([...AdminService.ADMIN_USER_QUERY_SELECT_COLUMNS])
             .distinct(true);
 
-        const selfieUrlExpr = `NULLIF(COALESCE(user.verification->'selfie'->>'url', user."selfieUrl"), '')`;
-        const identityUrlExpr = `NULLIF(COALESCE(user.verification->'identity'->>'url', CASE WHEN user.verification->'marital_status'->>'url' IS NOT NULL AND user."documentUrl" = user.verification->'marital_status'->>'url' THEN NULL ELSE user."documentUrl" END), '')`;
-        const maritalUrlExpr = `NULLIF(user.verification->'marital_status'->>'url', '')`;
-        const selfieStatusExpr = `COALESCE(user.verification->'selfie'->>'status', CASE WHEN ${selfieUrlExpr} IS NOT NULL AND user."selfieVerified" = true THEN :approvedStatus WHEN ${selfieUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END)`;
-        const identityStatusExpr = `COALESCE(user.verification->'identity'->>'status', CASE WHEN ${identityUrlExpr} IS NOT NULL AND user."documentVerified" = true THEN :approvedStatus WHEN user."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN ${identityUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END)`;
-        const maritalStatusExpr = `COALESCE(user.verification->'marital_status'->>'status', CASE WHEN ${maritalUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END)`;
+        const verificationType = filters.type || 'all';
+        const verificationStatus = filters.status || 'all';
+
+        // Build safe WHERE conditions for each verification type
+        if (verificationType === 'selfie') {
+            qb.andWhere(
+                `COALESCE(user.verification->'selfie'->>'status', CASE WHEN user."selfieUrl" IS NOT NULL AND user."selfieVerified" = true THEN :approvedStatus WHEN user."selfieUrl" IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END) ${
+                  verificationStatus === 'pending' ? '= :pendingStatus' : 
+                  verificationStatus === 'approved' ? '= :approvedStatus' : 
+                  verificationStatus === 'rejected' ? '= :rejectedStatus' : 
+                  '!= :fallbackStatus'
+                }`
+            );
+        } else if (verificationType === 'identity') {
+            qb.andWhere(
+                `COALESCE(user.verification->'identity'->>'status', CASE WHEN user."documentUrl" IS NOT NULL AND user."documentVerified" = true THEN :approvedStatus WHEN user."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN user."documentUrl" IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END) ${
+                  verificationStatus === 'pending' ? '= :pendingStatus' : 
+                  verificationStatus === 'approved' ? '= :approvedStatus' : 
+                  verificationStatus === 'rejected' ? '= :rejectedStatus' : 
+                  '!= :fallbackStatus'
+                }`
+            );
+        } else if (verificationType === 'marital_status') {
+            qb.andWhere(
+                `COALESCE(user.verification->'marital_status'->>'status', CASE WHEN user.verification->'marital_status'->>'url' IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END) ${
+                  verificationStatus === 'pending' ? '= :pendingStatus' : 
+                  verificationStatus === 'approved' ? '= :approvedStatus' : 
+                  verificationStatus === 'rejected' ? '= :rejectedStatus' : 
+                  '!= :fallbackStatus'
+                }`
+            );
+        } else {
+            // 'all' type - check if any verification is pending
+            if (verificationStatus === 'pending') {
+                qb.andWhere(
+                    `(user."selfieUrl" IS NOT NULL OR user."documentUrl" IS NOT NULL OR user.verification->'marital_status'->>'url' IS NOT NULL)`
+                );
+            }
+        }
 
         qb.setParameters({
             pendingStatus: VerificationStatus.PENDING,
@@ -1648,51 +1681,6 @@ export class AdminService implements OnModuleInit {
             rejectedStatus: VerificationStatus.REJECTED,
             fallbackStatus: VerificationStatus.NOT_SUBMITTED,
         });
-
-        const verificationType = filters.type || 'all';
-        const verificationStatus = filters.status || 'all';
-
-        if (verificationType === 'selfie') {
-            if (verificationStatus === 'pending') {
-                qb.andWhere(`${selfieStatusExpr} = :pendingStatus`);
-            } else if (verificationStatus === 'approved') {
-                qb.andWhere(`${selfieStatusExpr} = :approvedStatus`);
-            } else if (verificationStatus === 'rejected') {
-                qb.andWhere(`${selfieStatusExpr} = :rejectedStatus`);
-            } else {
-                qb.andWhere(`${selfieStatusExpr} != :fallbackStatus`);
-            }
-        } else if (verificationType === 'identity') {
-            if (verificationStatus === 'pending') {
-                qb.andWhere(`${identityStatusExpr} = :pendingStatus`);
-            } else if (verificationStatus === 'approved') {
-                qb.andWhere(`${identityStatusExpr} = :approvedStatus`);
-            } else if (verificationStatus === 'rejected') {
-                qb.andWhere(`${identityStatusExpr} = :rejectedStatus`);
-            } else {
-                qb.andWhere(`${identityStatusExpr} != :fallbackStatus`);
-            }
-        } else if (verificationType === 'marital_status') {
-            if (verificationStatus === 'pending') {
-                qb.andWhere(`${maritalStatusExpr} = :pendingStatus`);
-            } else if (verificationStatus === 'approved') {
-                qb.andWhere(`${maritalStatusExpr} = :approvedStatus`);
-            } else if (verificationStatus === 'rejected') {
-                qb.andWhere(`${maritalStatusExpr} = :rejectedStatus`);
-            } else {
-                qb.andWhere(`${maritalStatusExpr} != :fallbackStatus`);
-            }
-        } else {
-            if (verificationStatus === 'pending') {
-                qb.andWhere(`(${selfieStatusExpr} = :pendingStatus OR ${identityStatusExpr} = :pendingStatus OR ${maritalStatusExpr} = :pendingStatus)`);
-            } else if (verificationStatus === 'approved') {
-                qb.andWhere(`(${selfieStatusExpr} = :approvedStatus OR ${identityStatusExpr} = :approvedStatus OR ${maritalStatusExpr} = :approvedStatus)`);
-            } else if (verificationStatus === 'rejected') {
-                qb.andWhere(`(${selfieStatusExpr} = :rejectedStatus OR ${identityStatusExpr} = :rejectedStatus OR ${maritalStatusExpr} = :rejectedStatus)`);
-            } else {
-                qb.andWhere(`(${selfieStatusExpr} != :fallbackStatus OR ${identityStatusExpr} != :fallbackStatus OR ${maritalStatusExpr} != :fallbackStatus)`);
-            }
-        }
 
         if (filters.userStatus) {
             qb.andWhere('user.status = :userStatus', { userStatus: filters.userStatus });

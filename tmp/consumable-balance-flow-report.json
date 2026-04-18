@@ -1,0 +1,344 @@
+{
+  "startedAt": "2026-04-18T12:05:39.121Z",
+  "baseUrl": "http://127.0.0.1:3000/api/v1",
+  "user": {
+    "id": "6128c7e1-88d2-4f54-b7c1-440b7e07cf1c",
+    "email": "runtime.consumable.consumer.1776513943300_9556@methna.test"
+  },
+  "products": {
+    "likes": {
+      "id": "105af8f9-127e-453a-8dce-0ac8c4db25be",
+      "code": "likes_25_pack",
+      "title": "25 Likes Pack",
+      "description": "Adds 25 likes to your balance.",
+      "type": "likes_pack",
+      "quantity": 25,
+      "price": 4.99,
+      "currency": "usd",
+      "googleProductId": "methna_likes_50",
+      "sortOrder": 10
+    },
+    "compliments": {
+      "id": "0f67459c-b64f-47d5-9cff-77a546d40e11",
+      "code": "compliments_10_pack",
+      "title": "10 Compliments Pack",
+      "description": "Adds 10 compliments to your balance.",
+      "type": "compliments_pack",
+      "quantity": 10,
+      "price": 3.99,
+      "currency": "usd",
+      "googleProductId": "com.methna.consumable.compliments_10",
+      "sortOrder": 20
+    },
+    "boosts": {
+      "id": "5347a0a6-db44-4ab6-a9f5-d62bcbbe2dfe",
+      "code": "boosts_3_pack",
+      "title": "3 Boosts Pack",
+      "description": "Adds 3 profile boosts to your balance.",
+      "type": "boosts_pack",
+      "quantity": 3,
+      "price": 6.99,
+      "currency": "usd",
+      "googleProductId": "com.methna.consumable.boosts_3",
+      "sortOrder": 30
+    }
+  },
+  "results": {
+    "likes": {
+      "worksNormallyInAccount": false,
+      "rebuyAfterRunoutWorks": false,
+      "checks": {
+        "predrainDailyLikes": {
+          "success": true,
+          "details": {
+            "consumed": 10
+          }
+        },
+        "purchaseIncreaseImmediate": {
+          "success": false,
+          "details": {
+            "status": 400,
+            "beforeLikes": 0,
+            "afterLikes": 0,
+            "expectedIncrease": 25,
+            "raw": {
+              "success": false,
+              "statusCode": 400,
+              "status": "verification_failed",
+              "message": "Google Play rejected this purchase token. Fake, stale, or non-Play test tokens are expected to fail.",
+              "errors": null,
+              "error": "Invalid or unverified purchase",
+              "googleStatus": 400,
+              "reason": "invalid_purchase_token",
+              "retryable": false,
+              "externalConfigurationRequired": false,
+              "timestamp": "2026-04-18T12:08:20.030Z",
+              "path": "/api/v1/mobile/consumables/google-play/verify"
+            }
+          }
+        },
+        "consumeDecreasesBalance": {
+          "success": false,
+          "details": {
+            "consumePack": {
+              "success": false,
+              "details": {
+                "step": "consume_likes",
+                "index": 0,
+                "targetUserId": "8ac3fd60-1488-46ff-a9b8-98c53ecf3ce4",
+                "status": 403,
+                "raw": {
+                  "success": false,
+                  "statusCode": 403,
+                  "status": null,
+                  "message": "Daily like limit reached. Upgrade your plan for more likes.",
+                  "errors": null,
+                  "error": "Forbidden",
+                  "timestamp": "2026-04-18T12:08:22.386Z",
+                  "path": "/api/v1/swipes"
+                }
+              }
+            },
+            "afterConsumeLikes": 0
+          }
+        },
+        "blockedAtZero": {
+          "success": true,
+          "details": {
+            "status": 403,
+            "raw": {
+              "success": false,
+              "statusCode": 403,
+              "status": null,
+              "message": "Daily like limit reached. Upgrade your plan for more likes.",
+              "errors": null,
+              "error": "Forbidden",
+              "timestamp": "2026-04-18T12:08:24.946Z",
+              "path": "/api/v1/swipes"
+            }
+          }
+        },
+        "rebuyIncrease": {
+          "success": false,
+          "details": {
+            "status": 400,
+            "afterRebuyLikes": 0,
+            "expectedAfterRebuy": 25,
+            "raw": {
+              "success": false,
+              "statusCode": 400,
+              "status": "verification_failed",
+              "message": "Google Play rejected this purchase token. Fake, stale, or non-Play test tokens are expected to fail.",
+              "errors": null,
+              "error": "Invalid or unverified purchase",
+              "googleStatus": 400,
+              "reason": "invalid_purchase_token",
+              "retryable": false,
+              "externalConfigurationRequired": false,
+              "timestamp": "2026-04-18T12:08:27.813Z",
+              "path": "/api/v1/mobile/consumables/google-play/verify"
+            }
+          }
+        }
+      }
+    },
+    "compliments": {
+      "worksNormallyInAccount": false,
+      "rebuyAfterRunoutWorks": false,
+      "checks": {
+        "purchaseIncreaseImmediate": {
+          "success": false,
+          "details": {
+            "status": 400,
+            "beforeCompliments": 0,
+            "afterCompliments": 0,
+            "expectedIncrease": 10,
+            "raw": {
+              "success": false,
+              "statusCode": 400,
+              "status": "verification_failed",
+              "message": "Google Play rejected this purchase token. Fake, stale, or non-Play test tokens are expected to fail.",
+              "errors": null,
+              "error": "Invalid or unverified purchase",
+              "googleStatus": 400,
+              "reason": "invalid_purchase_token",
+              "retryable": false,
+              "externalConfigurationRequired": false,
+              "timestamp": "2026-04-18T12:08:31.499Z",
+              "path": "/api/v1/mobile/consumables/google-play/verify"
+            }
+          }
+        },
+        "consumeDecreasesBalance": {
+          "success": false,
+          "details": {
+            "consumePack": {
+              "success": false,
+              "details": {
+                "step": "consume_compliments",
+                "index": 0,
+                "targetUserId": "d1a0ba40-6795-4ec9-a799-8ff67aa0ab88",
+                "status": 403,
+                "raw": {
+                  "success": false,
+                  "statusCode": 403,
+                  "status": null,
+                  "message": "No compliment credits remaining today.",
+                  "errors": null,
+                  "error": "Forbidden",
+                  "timestamp": "2026-04-18T12:08:33.576Z",
+                  "path": "/api/v1/swipes"
+                }
+              }
+            },
+            "afterConsumeCompliments": 0
+          }
+        },
+        "blockedAtZero": {
+          "success": true,
+          "details": {
+            "status": 403,
+            "raw": {
+              "success": false,
+              "statusCode": 403,
+              "status": null,
+              "message": "No compliment credits remaining today.",
+              "errors": null,
+              "error": "Forbidden",
+              "timestamp": "2026-04-18T12:08:35.699Z",
+              "path": "/api/v1/swipes"
+            }
+          }
+        },
+        "rebuyIncrease": {
+          "success": false,
+          "details": {
+            "status": 400,
+            "afterRebuyCompliments": 0,
+            "expectedAfterRebuy": 10,
+            "raw": {
+              "success": false,
+              "statusCode": 400,
+              "status": "verification_failed",
+              "message": "Google Play rejected this purchase token. Fake, stale, or non-Play test tokens are expected to fail.",
+              "errors": null,
+              "error": "Invalid or unverified purchase",
+              "googleStatus": 400,
+              "reason": "invalid_purchase_token",
+              "retryable": false,
+              "externalConfigurationRequired": false,
+              "timestamp": "2026-04-18T12:08:38.602Z",
+              "path": "/api/v1/mobile/consumables/google-play/verify"
+            }
+          }
+        }
+      }
+    },
+    "boosts": {
+      "worksNormallyInAccount": false,
+      "rebuyAfterRunoutWorks": false,
+      "checks": {
+        "purchaseIncreaseImmediate": {
+          "success": false,
+          "details": {
+            "status": 400,
+            "beforeBoosts": 0,
+            "afterBoosts": 0,
+            "expectedIncrease": 3,
+            "raw": {
+              "success": false,
+              "statusCode": 400,
+              "status": "verification_failed",
+              "message": "Google Play rejected this purchase token. Fake, stale, or non-Play test tokens are expected to fail.",
+              "errors": null,
+              "error": "Invalid or unverified purchase",
+              "googleStatus": 400,
+              "reason": "invalid_purchase_token",
+              "retryable": false,
+              "externalConfigurationRequired": false,
+              "timestamp": "2026-04-18T12:08:42.063Z",
+              "path": "/api/v1/mobile/consumables/google-play/verify"
+            }
+          }
+        },
+        "consumeDecreasesBalance": {
+          "success": false,
+          "details": {
+            "consumePack": {
+              "success": false,
+              "details": {
+                "step": "consume_boosts",
+                "index": 0,
+                "status": 403,
+                "raw": {
+                  "success": false,
+                  "statusCode": 403,
+                  "status": null,
+                  "message": "No boosts remaining this week on your current plan.",
+                  "errors": null,
+                  "error": "Forbidden",
+                  "timestamp": "2026-04-18T12:08:43.491Z",
+                  "path": "/api/v1/monetization/boost"
+                }
+              }
+            },
+            "afterConsumeBoosts": 0
+          }
+        },
+        "blockedAtZero": {
+          "success": true,
+          "details": {
+            "status": 403,
+            "raw": {
+              "success": false,
+              "statusCode": 403,
+              "status": null,
+              "message": "No boosts remaining this week on your current plan.",
+              "errors": null,
+              "error": "Forbidden",
+              "timestamp": "2026-04-18T12:08:46.502Z",
+              "path": "/api/v1/monetization/boost"
+            }
+          }
+        },
+        "rebuyIncrease": {
+          "success": false,
+          "details": {
+            "status": 400,
+            "afterRebuyBoosts": 0,
+            "expectedAfterRebuy": 3,
+            "raw": {
+              "success": false,
+              "statusCode": 400,
+              "status": "verification_failed",
+              "message": "Google Play rejected this purchase token. Fake, stale, or non-Play test tokens are expected to fail.",
+              "errors": null,
+              "error": "Invalid or unverified purchase",
+              "googleStatus": 400,
+              "reason": "invalid_purchase_token",
+              "retryable": false,
+              "externalConfigurationRequired": false,
+              "timestamp": "2026-04-18T12:08:49.114Z",
+              "path": "/api/v1/mobile/consumables/google-play/verify"
+            }
+          }
+        }
+      }
+    }
+  },
+  "blockers": [],
+  "summary": {
+    "consumablesWorkNormally": {
+      "likes": false,
+      "compliments": false,
+      "boosts": false
+    },
+    "rebuyAfterRunout": {
+      "likes": false,
+      "compliments": false,
+      "boosts": false
+    },
+    "blockers": []
+  },
+  "finishedAt": "2026-04-18T12:08:49.573Z"
+}

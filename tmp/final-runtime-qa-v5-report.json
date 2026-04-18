@@ -1,0 +1,1063 @@
+{
+  "startedAt": "2026-04-16T17:21:20.913Z",
+  "baseUrl": "http://127.0.0.1:3000/api/v1",
+  "setup": {
+    "adminId": "ee81b732-16c3-4b68-9180-9e83040783c5",
+    "qaCountry": "QACOUNTRY_1776360080928",
+    "qaCity": "QACITY_1776360080928",
+    "viewer": {
+      "id": "337af2c1-64d7-4d98-95b2-9577f3ab82b9",
+      "email": "runtime.final.viewer.1776360084859_77117@methna.test",
+      "completion": 76
+    },
+    "users": {
+      "maleNear": "814d42c3-8ef0-4fe7-8415-df868921fa6d",
+      "maleMidVerified": "806e498c-8e8f-4ef5-9e9a-aca56a7df171",
+      "maleFar": "ff77d7d5-5c05-4519-95d2-67a1946060f8",
+      "maleVeryFar": "db3e1280-df44-4baf-9d9e-b2c687a61b5f",
+      "femaleControl": "88995932-b3bc-4fe7-b533-185530f6b287",
+      "moderationUser": "109a289b-dd2c-47d1-b1cc-96ac05834fc7"
+    }
+  },
+  "checks": [
+    {
+      "group": "setup",
+      "name": "All QA users have complete profiles",
+      "passed": true,
+      "details": {
+        "completions": {
+          "viewer": 76,
+          "maleNear": 76,
+          "maleMidVerified": 76,
+          "maleFar": 76,
+          "maleVeryFar": 76,
+          "femaleControl": 76,
+          "moderationUser": 76
+        }
+      },
+      "severity": "critical",
+      "repro": [
+        "Login with a fresh runtime user.",
+        "Open profile completion state.",
+        "Attempt like swipe on Home.",
+        "Observe PROFILE_INCOMPLETE block if completion is below threshold."
+      ]
+    },
+    {
+      "group": "swipe",
+      "name": "Home users load quickly",
+      "passed": false,
+      "details": {
+        "firstLoadMs": 1855,
+        "medianMs": 1880,
+        "p95Ms": 2980
+      },
+      "severity": "critical",
+      "repro": [
+        "Login with a complete-profile user.",
+        "Open Home/Discovery screen.",
+        "Measure first card payload fetch latency.",
+        "Expected: first load under ~1.4s in this QA environment."
+      ]
+    },
+    {
+      "group": "swipe",
+      "name": "Deterministic QA deck available for swipe tests",
+      "passed": false,
+      "details": {
+        "expectedMaleIds": [
+          "814d42c3-8ef0-4fe7-8415-df868921fa6d",
+          "806e498c-8e8f-4ef5-9e9a-aca56a7df171",
+          "ff77d7d5-5c05-4519-95d2-67a1946060f8",
+          "db3e1280-df44-4baf-9d9e-b2c687a61b5f"
+        ],
+        "presentMaleIds": [],
+        "returnedCount": 0
+      },
+      "severity": "critical",
+      "repro": [
+        "Create a controlled QA cohort with unique country/city.",
+        "Call /search with country + male filter.",
+        "Expected: deterministic cohort appears for stable swipe QA."
+      ]
+    },
+    {
+      "group": "swipe",
+      "name": "Distance values are shown correctly",
+      "passed": false,
+      "details": {
+        "distanceChecks": []
+      },
+      "severity": "critical",
+      "repro": [
+        "Set known coordinates for viewer and candidates.",
+        "Call /search sortBy=distance.",
+        "Compare response distanceKm with haversine baseline."
+      ]
+    },
+    {
+      "group": "swipe",
+      "name": "Distance-first ordering works when requested",
+      "passed": false,
+      "details": {
+        "returnedDistances": []
+      },
+      "severity": "normal",
+      "repro": [
+        "Call /search with sortBy=distance.",
+        "Observe returned distance sequence.",
+        "Expected: ascending order from nearest to farthest."
+      ]
+    },
+    {
+      "group": "swipe",
+      "name": "Gender filter changes discovery results",
+      "passed": false,
+      "details": {
+        "count": 0,
+        "ids": []
+      },
+      "severity": "critical",
+      "repro": [
+        "Open filters and set gender=female.",
+        "Refresh discovery.",
+        "Expected: male cards disappear and female cohort remains."
+      ]
+    },
+    {
+      "group": "swipe",
+      "name": "Age filter changes discovery results",
+      "passed": false,
+      "details": {
+        "ids": [],
+        "expectedIncluded": [
+          "814d42c3-8ef0-4fe7-8415-df868921fa6d",
+          "db3e1280-df44-4baf-9d9e-b2c687a61b5f"
+        ],
+        "expectedExcluded": [
+          "806e498c-8e8f-4ef5-9e9a-aca56a7df171",
+          "ff77d7d5-5c05-4519-95d2-67a1946060f8"
+        ]
+      },
+      "severity": "critical",
+      "repro": [
+        "Set age range in filters.",
+        "Refresh discovery.",
+        "Expected: out-of-range profiles are excluded."
+      ]
+    },
+    {
+      "group": "swipe",
+      "name": "Verified filter changes discovery results",
+      "passed": false,
+      "details": {
+        "ids": []
+      },
+      "severity": "critical",
+      "repro": [
+        "Enable verified-only filter.",
+        "Refresh discovery.",
+        "Expected: only verified profiles remain."
+      ]
+    },
+    {
+      "group": "swipe",
+      "name": "Filters keep discovery responsive",
+      "passed": true,
+      "details": {
+        "baselineMedian": 1880,
+        "filteredMedian": 1059,
+        "ratio": 0.56
+      },
+      "severity": "normal",
+      "repro": [
+        "Apply multiple filters (country, age, verified).",
+        "Refresh discovery repeatedly.",
+        "Expected: response time stays in the same practical range as baseline."
+      ]
+    },
+    {
+      "group": "swipe",
+      "name": "Swipe round-trips are smooth (no post-swipe lag spikes)",
+      "passed": true,
+      "details": {
+        "swipeDurations": [],
+        "nextCardDurations": [],
+        "swipeMedian": 0,
+        "nextMedian": 0
+      },
+      "severity": "critical",
+      "repro": [
+        "Swipe through several cards quickly.",
+        "Observe server round-trip for swipe + next-card fetch.",
+        "Expected: no recurring lag spikes that feel like loading per swipe."
+      ]
+    },
+    {
+      "group": "swipe",
+      "name": "Seen users do not reappear after refresh/reopen/filter change",
+      "passed": true,
+      "details": {
+        "seenIds": [],
+        "refreshIds": [],
+        "reopenIds": [],
+        "filterChangeIds": []
+      },
+      "severity": "critical",
+      "repro": [
+        "Swipe a set of cards and mark them seen.",
+        "Trigger pull-to-refresh, app reopen, and filter changes.",
+        "Expected: seen cards stay excluded."
+      ]
+    },
+    {
+      "group": "swipe",
+      "name": "Queue remains stable across refresh and reopen",
+      "passed": true,
+      "details": {
+        "firstTwoRefresh": [],
+        "firstTwoReopen": []
+      },
+      "severity": "critical",
+      "repro": [
+        "Load deck and note top cards.",
+        "Refresh and reopen Home.",
+        "Expected: queue continuity with no random jumps."
+      ]
+    },
+    {
+      "group": "swipe",
+      "name": "Premium rewind flow works end-to-end (restore, reverse, re-swipe, continuity)",
+      "passed": false,
+      "details": {
+        "restoreIntendedLastCard": false,
+        "interactionReversed": false,
+        "canReswipe": false,
+        "nextCardCorrect": false,
+        "noRandomReinsert": false,
+        "rewoundTarget": null,
+        "expectedNextAfterTarget": null,
+        "actualNextAfterReswipe": null
+      },
+      "severity": "critical",
+      "repro": [
+        "Swipe one card, then call rewind.",
+        "Verify undoneSwipe target matches last swiped card.",
+        "Verify previous interaction is removed from interactions list.",
+        "Re-swipe same card and confirm success without duplicate block.",
+        "Confirm next card sequence continues without random old-card insertion."
+      ]
+    },
+    {
+      "group": "purchase",
+      "name": "Likes/compliments/boost packs display correctly in app and web payloads",
+      "passed": true,
+      "details": {
+        "mobileCount": 3,
+        "webCount": 3,
+        "mobileTypes": [
+          "likes_pack",
+          "compliments_pack",
+          "boosts_pack"
+        ],
+        "webTypes": [
+          "likes_pack",
+          "compliments_pack",
+          "boosts_pack"
+        ]
+      },
+      "severity": "critical",
+      "repro": [
+        "Open Shop in mobile app and web storefront.",
+        "Check likes, compliments, and boosts packs are all present.",
+        "Validate title, quantity, and price metadata are populated."
+      ]
+    },
+    {
+      "group": "purchase",
+      "name": "Purchase card payload is clean and understandable for UI rendering",
+      "passed": true,
+      "details": {
+        "sample": [
+          {
+            "code": "likes_25_pack",
+            "title": "25 Likes Pack",
+            "descriptionLength": 30,
+            "price": 4.99,
+            "currency": "usd",
+            "quantity": 25,
+            "googleProductId": "com.methna.consumable.likes_25"
+          },
+          {
+            "code": "compliments_10_pack",
+            "title": "10 Compliments Pack",
+            "descriptionLength": 36,
+            "price": 3.99,
+            "currency": "usd",
+            "quantity": 10,
+            "googleProductId": "com.methna.consumable.compliments_10"
+          },
+          {
+            "code": "boosts_3_pack",
+            "title": "3 Boosts Pack",
+            "descriptionLength": 38,
+            "price": 6.99,
+            "currency": "usd",
+            "quantity": 3,
+            "googleProductId": "com.methna.consumable.boosts_3"
+          }
+        ]
+      },
+      "severity": "normal",
+      "repro": [
+        "Inspect pack cards in mobile/web shop.",
+        "Expected: each pack has clear title, description, quantity, and pricing."
+      ]
+    },
+    {
+      "group": "purchase",
+      "name": "Balances update after successful purchase",
+      "passed": false,
+      "details": {
+        "verifyAttempts": [
+          {
+            "type": "likes_pack",
+            "productId": "com.methna.consumable.likes_25",
+            "purchaseToken": "final-qa-likes_pack-1776360148727-9865",
+            "status": 400,
+            "ok": false,
+            "response": {
+              "success": false,
+              "statusCode": 400,
+              "status": "verification_failed",
+              "message": "Invalid or unverified purchase",
+              "errors": null,
+              "error": "Invalid or unverified purchase",
+              "timestamp": "2026-04-16T17:22:30.805Z",
+              "path": "/api/v1/mobile/consumables/google-play/verify"
+            }
+          },
+          {
+            "type": "compliments_pack",
+            "productId": "com.methna.consumable.compliments_10",
+            "purchaseToken": "final-qa-compliments_pack-1776360150806-5819",
+            "status": 400,
+            "ok": false,
+            "response": {
+              "success": false,
+              "statusCode": 400,
+              "status": "verification_failed",
+              "message": "Invalid or unverified purchase",
+              "errors": null,
+              "error": "Invalid or unverified purchase",
+              "timestamp": "2026-04-16T17:22:32.097Z",
+              "path": "/api/v1/mobile/consumables/google-play/verify"
+            }
+          },
+          {
+            "type": "boosts_pack",
+            "productId": "com.methna.consumable.boosts_3",
+            "purchaseToken": "final-qa-boosts_pack-1776360152098-9219",
+            "status": 400,
+            "ok": false,
+            "response": {
+              "success": false,
+              "statusCode": 400,
+              "status": "verification_failed",
+              "message": "Invalid or unverified purchase",
+              "errors": null,
+              "error": "Invalid or unverified purchase",
+              "timestamp": "2026-04-16T17:22:33.449Z",
+              "path": "/api/v1/mobile/consumables/google-play/verify"
+            }
+          }
+        ],
+        "balancesBefore": {
+          "likes": 0,
+          "compliments": 0,
+          "boosts": 0
+        },
+        "balancesAfterPurchase": {
+          "likes": 0,
+          "compliments": 0,
+          "boosts": 0
+        }
+      },
+      "severity": "critical",
+      "repro": [
+        "Attempt a real consumable purchase in app.",
+        "Open balances immediately after success.",
+        "Expected: relevant balance increases by pack quantity."
+      ]
+    },
+    {
+      "group": "purchase",
+      "name": "Duplicate purchase tokens do not grant duplicate balances",
+      "passed": false,
+      "details": {
+        "reason": "No successful purchase available to execute duplicate-grant test."
+      },
+      "severity": "critical",
+      "repro": [
+        "Complete one successful purchase first.",
+        "Replay same purchase token once.",
+        "Verify balances do not increment a second time."
+      ]
+    },
+    {
+      "group": "purchase",
+      "name": "Balances decrement correctly when likes/compliments/boosts are consumed",
+      "passed": false,
+      "details": {
+        "reason": "No successful consumable purchase was available; consumption validation blocked."
+      },
+      "severity": "critical",
+      "repro": [
+        "Complete one successful consumable purchase first.",
+        "Use balance in swipe/boost actions.",
+        "Verify decrements in balances endpoint."
+      ]
+    },
+    {
+      "group": "purchase",
+      "name": "User can buy again after quantity runs out",
+      "passed": false,
+      "details": {
+        "reason": "No successful purchase path in this runtime; cannot reach buy-again scenario."
+      },
+      "severity": "critical",
+      "repro": [
+        "Complete at least one successful consumable purchase.",
+        "Consume full balance.",
+        "Re-purchase same pack and verify top-up."
+      ]
+    },
+    {
+      "group": "polish",
+      "name": "Profile/settings changes reflect correctly",
+      "passed": true,
+      "details": {
+        "patchStatus": 200,
+        "firstName": "FinalRuntime",
+        "lastName": "Verified"
+      },
+      "severity": "critical",
+      "repro": [
+        "Update profile names in settings.",
+        "Reload account/profile page.",
+        "Expected: updated fields persist and render immediately."
+      ]
+    },
+    {
+      "group": "polish",
+      "name": "Notification settings persist after relogin",
+      "passed": true,
+      "details": {
+        "promotionsNotifications": false,
+        "weeklySummaryNotifications": false
+      },
+      "severity": "critical",
+      "repro": [
+        "Change notification toggles in settings.",
+        "Logout and login again.",
+        "Expected: toggles keep saved state."
+      ]
+    },
+    {
+      "group": "polish",
+      "name": "Premium badge/gating behaves correctly (blurred free vs unblurred premium)",
+      "passed": true,
+      "details": {
+        "freeWhoLikedCount": 1,
+        "freeIsBlurred": true,
+        "premiumGrantStatus": 201,
+        "premiumWhoLikedCount": 1,
+        "premiumUnblurred": true
+      },
+      "severity": "critical",
+      "repro": [
+        "Trigger inbound likes to target user.",
+        "Open who-liked-me as free user (expect blurred teaser).",
+        "Grant premium and reopen (expect full identities)."
+      ]
+    },
+    {
+      "group": "polish",
+      "name": "Notification routing still works after latest fixes",
+      "passed": true,
+      "details": {
+        "notificationTypes": [
+          "system",
+          "verification",
+          "ticket",
+          "message",
+          "match",
+          "subscription",
+          "like"
+        ],
+        "count": 7
+      },
+      "severity": "critical",
+      "repro": [
+        "Trigger like, match, message, ticket reply, verification update, and system notification events.",
+        "Open notifications feed.",
+        "Expected: all corresponding notification types are delivered."
+      ]
+    },
+    {
+      "group": "polish",
+      "name": "Support ticket flow works fully in app",
+      "passed": true,
+      "details": {
+        "createStatus": 201,
+        "detailStatus": 200,
+        "listStatus": 200,
+        "hasReplyInDetail": true,
+        "hasReplyInList": true
+      },
+      "severity": "critical",
+      "repro": [
+        "Create support ticket from user app.",
+        "Reply as admin.",
+        "Open ticket detail and ticket list in app.",
+        "Expected: reply and status visible in both views."
+      ]
+    },
+    {
+      "group": "polish",
+      "name": "Moderation/account-state messaging has no obvious regression",
+      "passed": false,
+      "details": {
+        "limitedUpdateStatus": 400,
+        "limitedStatusCode": 200,
+        "limitedStatusPayload": {
+          "status": "active",
+          "reason": null,
+          "isLimited": false,
+          "isSuspended": false,
+          "isBanned": false,
+          "isShadowSuspended": false,
+          "moderationReasonCode": null,
+          "moderationReasonText": null,
+          "actionRequired": null,
+          "supportMessage": null,
+          "isUserVisible": true,
+          "expiresAt": null
+        },
+        "limitedGateStatus": 200,
+        "suspendedUpdateStatus": 400,
+        "suspendedLoginStatus": 200
+      },
+      "severity": "critical",
+      "repro": [
+        "Set user to LIMITED and check /users/me/status payload + restricted route response.",
+        "Set same user to SUSPENDED and attempt login.",
+        "Expected: clear moderation messaging and blocked access behavior."
+      ]
+    }
+  ],
+  "metrics": {
+    "swipe": {
+      "homeLoad": {
+        "baselineTimes": [
+          1855,
+          1880,
+          2980
+        ],
+        "baselineMedian": 1880,
+        "baselineP95": 2980
+      },
+      "filterPerformance": {
+        "filteredTimes": [
+          1059,
+          1107,
+          1023
+        ],
+        "filteredMedian": 1059,
+        "baselineMedian": 1880
+      },
+      "swipeRoundTrip": {
+        "swipeDurations": [],
+        "nextCardDurations": [],
+        "swipeMedian": 0,
+        "nextMedian": 0
+      }
+    },
+    "purchase": {},
+    "polish": {}
+  },
+  "scores": {
+    "swipeExperience": 50,
+    "purchaseUsability": 30
+  },
+  "criticalIssues": [
+    {
+      "group": "swipe",
+      "name": "Home users load quickly",
+      "details": {
+        "firstLoadMs": 1855,
+        "medianMs": 1880,
+        "p95Ms": 2980
+      }
+    },
+    {
+      "group": "swipe",
+      "name": "Deterministic QA deck available for swipe tests",
+      "details": {
+        "expectedMaleIds": [
+          "814d42c3-8ef0-4fe7-8415-df868921fa6d",
+          "806e498c-8e8f-4ef5-9e9a-aca56a7df171",
+          "ff77d7d5-5c05-4519-95d2-67a1946060f8",
+          "db3e1280-df44-4baf-9d9e-b2c687a61b5f"
+        ],
+        "presentMaleIds": [],
+        "returnedCount": 0
+      }
+    },
+    {
+      "group": "swipe",
+      "name": "Distance values are shown correctly",
+      "details": {
+        "distanceChecks": []
+      }
+    },
+    {
+      "group": "swipe",
+      "name": "Gender filter changes discovery results",
+      "details": {
+        "count": 0,
+        "ids": []
+      }
+    },
+    {
+      "group": "swipe",
+      "name": "Age filter changes discovery results",
+      "details": {
+        "ids": [],
+        "expectedIncluded": [
+          "814d42c3-8ef0-4fe7-8415-df868921fa6d",
+          "db3e1280-df44-4baf-9d9e-b2c687a61b5f"
+        ],
+        "expectedExcluded": [
+          "806e498c-8e8f-4ef5-9e9a-aca56a7df171",
+          "ff77d7d5-5c05-4519-95d2-67a1946060f8"
+        ]
+      }
+    },
+    {
+      "group": "swipe",
+      "name": "Verified filter changes discovery results",
+      "details": {
+        "ids": []
+      }
+    },
+    {
+      "group": "swipe",
+      "name": "Premium rewind flow works end-to-end (restore, reverse, re-swipe, continuity)",
+      "details": {
+        "restoreIntendedLastCard": false,
+        "interactionReversed": false,
+        "canReswipe": false,
+        "nextCardCorrect": false,
+        "noRandomReinsert": false,
+        "rewoundTarget": null,
+        "expectedNextAfterTarget": null,
+        "actualNextAfterReswipe": null
+      }
+    },
+    {
+      "group": "purchase",
+      "name": "Balances update after successful purchase",
+      "details": {
+        "verifyAttempts": [
+          {
+            "type": "likes_pack",
+            "productId": "com.methna.consumable.likes_25",
+            "purchaseToken": "final-qa-likes_pack-1776360148727-9865",
+            "status": 400,
+            "ok": false,
+            "response": {
+              "success": false,
+              "statusCode": 400,
+              "status": "verification_failed",
+              "message": "Invalid or unverified purchase",
+              "errors": null,
+              "error": "Invalid or unverified purchase",
+              "timestamp": "2026-04-16T17:22:30.805Z",
+              "path": "/api/v1/mobile/consumables/google-play/verify"
+            }
+          },
+          {
+            "type": "compliments_pack",
+            "productId": "com.methna.consumable.compliments_10",
+            "purchaseToken": "final-qa-compliments_pack-1776360150806-5819",
+            "status": 400,
+            "ok": false,
+            "response": {
+              "success": false,
+              "statusCode": 400,
+              "status": "verification_failed",
+              "message": "Invalid or unverified purchase",
+              "errors": null,
+              "error": "Invalid or unverified purchase",
+              "timestamp": "2026-04-16T17:22:32.097Z",
+              "path": "/api/v1/mobile/consumables/google-play/verify"
+            }
+          },
+          {
+            "type": "boosts_pack",
+            "productId": "com.methna.consumable.boosts_3",
+            "purchaseToken": "final-qa-boosts_pack-1776360152098-9219",
+            "status": 400,
+            "ok": false,
+            "response": {
+              "success": false,
+              "statusCode": 400,
+              "status": "verification_failed",
+              "message": "Invalid or unverified purchase",
+              "errors": null,
+              "error": "Invalid or unverified purchase",
+              "timestamp": "2026-04-16T17:22:33.449Z",
+              "path": "/api/v1/mobile/consumables/google-play/verify"
+            }
+          }
+        ],
+        "balancesBefore": {
+          "likes": 0,
+          "compliments": 0,
+          "boosts": 0
+        },
+        "balancesAfterPurchase": {
+          "likes": 0,
+          "compliments": 0,
+          "boosts": 0
+        }
+      }
+    },
+    {
+      "group": "purchase",
+      "name": "Duplicate purchase tokens do not grant duplicate balances",
+      "details": {
+        "reason": "No successful purchase available to execute duplicate-grant test."
+      }
+    },
+    {
+      "group": "purchase",
+      "name": "Balances decrement correctly when likes/compliments/boosts are consumed",
+      "details": {
+        "reason": "No successful consumable purchase was available; consumption validation blocked."
+      }
+    },
+    {
+      "group": "purchase",
+      "name": "User can buy again after quantity runs out",
+      "details": {
+        "reason": "No successful purchase path in this runtime; cannot reach buy-again scenario."
+      }
+    },
+    {
+      "group": "polish",
+      "name": "Moderation/account-state messaging has no obvious regression",
+      "details": {
+        "limitedUpdateStatus": 400,
+        "limitedStatusCode": 200,
+        "limitedStatusPayload": {
+          "status": "active",
+          "reason": null,
+          "isLimited": false,
+          "isSuspended": false,
+          "isBanned": false,
+          "isShadowSuspended": false,
+          "moderationReasonCode": null,
+          "moderationReasonText": null,
+          "actionRequired": null,
+          "supportMessage": null,
+          "isUserVisible": true,
+          "expiresAt": null
+        },
+        "limitedGateStatus": 200,
+        "suspendedUpdateStatus": 400,
+        "suspendedLoginStatus": 200
+      }
+    }
+  ],
+  "failingScenarios": [
+    {
+      "group": "swipe",
+      "name": "Home users load quickly",
+      "steps": [
+        "Login with a complete-profile user.",
+        "Open Home/Discovery screen.",
+        "Measure first card payload fetch latency.",
+        "Expected: first load under ~1.4s in this QA environment."
+      ],
+      "details": {
+        "firstLoadMs": 1855,
+        "medianMs": 1880,
+        "p95Ms": 2980
+      }
+    },
+    {
+      "group": "swipe",
+      "name": "Deterministic QA deck available for swipe tests",
+      "steps": [
+        "Create a controlled QA cohort with unique country/city.",
+        "Call /search with country + male filter.",
+        "Expected: deterministic cohort appears for stable swipe QA."
+      ],
+      "details": {
+        "expectedMaleIds": [
+          "814d42c3-8ef0-4fe7-8415-df868921fa6d",
+          "806e498c-8e8f-4ef5-9e9a-aca56a7df171",
+          "ff77d7d5-5c05-4519-95d2-67a1946060f8",
+          "db3e1280-df44-4baf-9d9e-b2c687a61b5f"
+        ],
+        "presentMaleIds": [],
+        "returnedCount": 0
+      }
+    },
+    {
+      "group": "swipe",
+      "name": "Distance values are shown correctly",
+      "steps": [
+        "Set known coordinates for viewer and candidates.",
+        "Call /search sortBy=distance.",
+        "Compare response distanceKm with haversine baseline."
+      ],
+      "details": {
+        "distanceChecks": []
+      }
+    },
+    {
+      "group": "swipe",
+      "name": "Distance-first ordering works when requested",
+      "steps": [
+        "Call /search with sortBy=distance.",
+        "Observe returned distance sequence.",
+        "Expected: ascending order from nearest to farthest."
+      ],
+      "details": {
+        "returnedDistances": []
+      }
+    },
+    {
+      "group": "swipe",
+      "name": "Gender filter changes discovery results",
+      "steps": [
+        "Open filters and set gender=female.",
+        "Refresh discovery.",
+        "Expected: male cards disappear and female cohort remains."
+      ],
+      "details": {
+        "count": 0,
+        "ids": []
+      }
+    },
+    {
+      "group": "swipe",
+      "name": "Age filter changes discovery results",
+      "steps": [
+        "Set age range in filters.",
+        "Refresh discovery.",
+        "Expected: out-of-range profiles are excluded."
+      ],
+      "details": {
+        "ids": [],
+        "expectedIncluded": [
+          "814d42c3-8ef0-4fe7-8415-df868921fa6d",
+          "db3e1280-df44-4baf-9d9e-b2c687a61b5f"
+        ],
+        "expectedExcluded": [
+          "806e498c-8e8f-4ef5-9e9a-aca56a7df171",
+          "ff77d7d5-5c05-4519-95d2-67a1946060f8"
+        ]
+      }
+    },
+    {
+      "group": "swipe",
+      "name": "Verified filter changes discovery results",
+      "steps": [
+        "Enable verified-only filter.",
+        "Refresh discovery.",
+        "Expected: only verified profiles remain."
+      ],
+      "details": {
+        "ids": []
+      }
+    },
+    {
+      "group": "swipe",
+      "name": "Premium rewind flow works end-to-end (restore, reverse, re-swipe, continuity)",
+      "steps": [
+        "Swipe one card, then call rewind.",
+        "Verify undoneSwipe target matches last swiped card.",
+        "Verify previous interaction is removed from interactions list.",
+        "Re-swipe same card and confirm success without duplicate block.",
+        "Confirm next card sequence continues without random old-card insertion."
+      ],
+      "details": {
+        "restoreIntendedLastCard": false,
+        "interactionReversed": false,
+        "canReswipe": false,
+        "nextCardCorrect": false,
+        "noRandomReinsert": false,
+        "rewoundTarget": null,
+        "expectedNextAfterTarget": null,
+        "actualNextAfterReswipe": null
+      }
+    },
+    {
+      "group": "purchase",
+      "name": "Balances update after successful purchase",
+      "steps": [
+        "Attempt a real consumable purchase in app.",
+        "Open balances immediately after success.",
+        "Expected: relevant balance increases by pack quantity."
+      ],
+      "details": {
+        "verifyAttempts": [
+          {
+            "type": "likes_pack",
+            "productId": "com.methna.consumable.likes_25",
+            "purchaseToken": "final-qa-likes_pack-1776360148727-9865",
+            "status": 400,
+            "ok": false,
+            "response": {
+              "success": false,
+              "statusCode": 400,
+              "status": "verification_failed",
+              "message": "Invalid or unverified purchase",
+              "errors": null,
+              "error": "Invalid or unverified purchase",
+              "timestamp": "2026-04-16T17:22:30.805Z",
+              "path": "/api/v1/mobile/consumables/google-play/verify"
+            }
+          },
+          {
+            "type": "compliments_pack",
+            "productId": "com.methna.consumable.compliments_10",
+            "purchaseToken": "final-qa-compliments_pack-1776360150806-5819",
+            "status": 400,
+            "ok": false,
+            "response": {
+              "success": false,
+              "statusCode": 400,
+              "status": "verification_failed",
+              "message": "Invalid or unverified purchase",
+              "errors": null,
+              "error": "Invalid or unverified purchase",
+              "timestamp": "2026-04-16T17:22:32.097Z",
+              "path": "/api/v1/mobile/consumables/google-play/verify"
+            }
+          },
+          {
+            "type": "boosts_pack",
+            "productId": "com.methna.consumable.boosts_3",
+            "purchaseToken": "final-qa-boosts_pack-1776360152098-9219",
+            "status": 400,
+            "ok": false,
+            "response": {
+              "success": false,
+              "statusCode": 400,
+              "status": "verification_failed",
+              "message": "Invalid or unverified purchase",
+              "errors": null,
+              "error": "Invalid or unverified purchase",
+              "timestamp": "2026-04-16T17:22:33.449Z",
+              "path": "/api/v1/mobile/consumables/google-play/verify"
+            }
+          }
+        ],
+        "balancesBefore": {
+          "likes": 0,
+          "compliments": 0,
+          "boosts": 0
+        },
+        "balancesAfterPurchase": {
+          "likes": 0,
+          "compliments": 0,
+          "boosts": 0
+        }
+      }
+    },
+    {
+      "group": "purchase",
+      "name": "Duplicate purchase tokens do not grant duplicate balances",
+      "steps": [
+        "Complete one successful purchase first.",
+        "Replay same purchase token once.",
+        "Verify balances do not increment a second time."
+      ],
+      "details": {
+        "reason": "No successful purchase available to execute duplicate-grant test."
+      }
+    },
+    {
+      "group": "purchase",
+      "name": "Balances decrement correctly when likes/compliments/boosts are consumed",
+      "steps": [
+        "Complete one successful consumable purchase first.",
+        "Use balance in swipe/boost actions.",
+        "Verify decrements in balances endpoint."
+      ],
+      "details": {
+        "reason": "No successful consumable purchase was available; consumption validation blocked."
+      }
+    },
+    {
+      "group": "purchase",
+      "name": "User can buy again after quantity runs out",
+      "steps": [
+        "Complete at least one successful consumable purchase.",
+        "Consume full balance.",
+        "Re-purchase same pack and verify top-up."
+      ],
+      "details": {
+        "reason": "No successful purchase path in this runtime; cannot reach buy-again scenario."
+      }
+    },
+    {
+      "group": "polish",
+      "name": "Moderation/account-state messaging has no obvious regression",
+      "steps": [
+        "Set user to LIMITED and check /users/me/status payload + restricted route response.",
+        "Set same user to SUSPENDED and attempt login.",
+        "Expected: clear moderation messaging and blocked access behavior."
+      ],
+      "details": {
+        "limitedUpdateStatus": 400,
+        "limitedStatusCode": 200,
+        "limitedStatusPayload": {
+          "status": "active",
+          "reason": null,
+          "isLimited": false,
+          "isSuspended": false,
+          "isBanned": false,
+          "isShadowSuspended": false,
+          "moderationReasonCode": null,
+          "moderationReasonText": null,
+          "actionRequired": null,
+          "supportMessage": null,
+          "isUserVisible": true,
+          "expiresAt": null
+        },
+        "limitedGateStatus": 200,
+        "suspendedUpdateStatus": 400,
+        "suspendedLoginStatus": 200
+      }
+    }
+  ],
+  "verdict": "not ready",
+  "professionalFeel": "No - runtime results still show blockers or performance/flow gaps that prevent true Tinder-grade feel.",
+  "summary": {
+    "totalChecks": 25,
+    "passedChecks": 12,
+    "failedChecks": 13,
+    "criticalFailures": 12,
+    "swipeScore": 50,
+    "purchaseScore": 30,
+    "verdict": "not ready",
+    "professionalFeel": "No - runtime results still show blockers or performance/flow gaps that prevent true Tinder-grade feel."
+  },
+  "finishedAt": "2026-04-16T17:23:05.212Z"
+}
