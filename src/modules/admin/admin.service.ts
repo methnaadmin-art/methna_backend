@@ -1630,108 +1630,119 @@ export class AdminService implements OnModuleInit {
     }
 
     async getVerifications(pagination: PaginationDto, filters: AdminVerificationFilters = {}) {
-        const qb = this.userRepository
-            .createQueryBuilder('user')
-            .select([...AdminService.ADMIN_USER_QUERY_SELECT_COLUMNS])
-            .distinct(true);
+        try {
+            const qb = this.userRepository
+                .createQueryBuilder('user')
+                .select([...AdminService.ADMIN_USER_QUERY_SELECT_COLUMNS])
+                .distinct(true);
 
-        const verificationType = filters.type || 'all';
-        const verificationStatus = filters.status || 'all';
+            const verificationType = filters.type || 'all';
+            const verificationStatus = filters.status || 'all';
 
-        // Build safe WHERE conditions for each verification type
-        if (verificationType === 'selfie') {
-            qb.andWhere(
-                `COALESCE(user.verification->'selfie'->>'status', CASE WHEN user."selfieUrl" IS NOT NULL AND user."selfieVerified" = true THEN :approvedStatus WHEN user."selfieUrl" IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END) ${
-                  verificationStatus === 'pending' ? '= :pendingStatus' : 
-                  verificationStatus === 'approved' ? '= :approvedStatus' : 
-                  verificationStatus === 'rejected' ? '= :rejectedStatus' : 
-                  '!= :fallbackStatus'
-                }`
-            );
-        } else if (verificationType === 'identity') {
-            qb.andWhere(
-                `COALESCE(user.verification->'identity'->>'status', CASE WHEN user."documentUrl" IS NOT NULL AND user."documentVerified" = true THEN :approvedStatus WHEN user."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN user."documentUrl" IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END) ${
-                  verificationStatus === 'pending' ? '= :pendingStatus' : 
-                  verificationStatus === 'approved' ? '= :approvedStatus' : 
-                  verificationStatus === 'rejected' ? '= :rejectedStatus' : 
-                  '!= :fallbackStatus'
-                }`
-            );
-        } else if (verificationType === 'marital_status') {
-            qb.andWhere(
-                `COALESCE(user.verification->'marital_status'->>'status', CASE WHEN user.verification->'marital_status'->>'url' IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END) ${
-                  verificationStatus === 'pending' ? '= :pendingStatus' : 
-                  verificationStatus === 'approved' ? '= :approvedStatus' : 
-                  verificationStatus === 'rejected' ? '= :rejectedStatus' : 
-                  '!= :fallbackStatus'
-                }`
-            );
-        } else {
-            // 'all' type - check if any verification is pending
-            if (verificationStatus === 'pending') {
+            // Use COALESCE(user.verification, '{}'::jsonb) to guard against NULL verification column
+            const v = `COALESCE(user.verification, '{}'::jsonb)`;
+
+            // Build safe WHERE conditions for each verification type
+            if (verificationType === 'selfie') {
                 qb.andWhere(
-                    `(user."selfieUrl" IS NOT NULL OR user."documentUrl" IS NOT NULL OR user.verification->'marital_status'->>'url' IS NOT NULL)`
+                    `COALESCE(${v}->'selfie'->>'status', CASE WHEN user."selfieUrl" IS NOT NULL AND user."selfieVerified" = true THEN :approvedStatus WHEN user."selfieUrl" IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END) ${
+                      verificationStatus === 'pending' ? '= :pendingStatus' : 
+                      verificationStatus === 'approved' ? '= :approvedStatus' : 
+                      verificationStatus === 'rejected' ? '= :rejectedStatus' : 
+                      '!= :fallbackStatus'
+                    }`
+                );
+            } else if (verificationType === 'identity') {
+                qb.andWhere(
+                    `COALESCE(${v}->'identity'->>'status', CASE WHEN user."documentUrl" IS NOT NULL AND user."documentVerified" = true THEN :approvedStatus WHEN user."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN user."documentUrl" IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END) ${
+                      verificationStatus === 'pending' ? '= :pendingStatus' : 
+                      verificationStatus === 'approved' ? '= :approvedStatus' : 
+                      verificationStatus === 'rejected' ? '= :rejectedStatus' : 
+                      '!= :fallbackStatus'
+                    }`
+                );
+            } else if (verificationType === 'marital_status') {
+                qb.andWhere(
+                    `COALESCE(${v}->'marital_status'->>'status', CASE WHEN ${v}->'marital_status'->>'url' IS NOT NULL THEN :pendingStatus ELSE :fallbackStatus END) ${
+                      verificationStatus === 'pending' ? '= :pendingStatus' : 
+                      verificationStatus === 'approved' ? '= :approvedStatus' : 
+                      verificationStatus === 'rejected' ? '= :rejectedStatus' : 
+                      '!= :fallbackStatus'
+                    }`
+                );
+            } else {
+                // 'all' type - check if any verification is pending
+                if (verificationStatus === 'pending') {
+                    qb.andWhere(
+                        `(user."selfieUrl" IS NOT NULL OR user."documentUrl" IS NOT NULL OR ${v}->'marital_status'->>'url' IS NOT NULL)`
+                    );
+                }
+            }
+
+            qb.setParameters({
+                pendingStatus: VerificationStatus.PENDING,
+                approvedStatus: VerificationStatus.APPROVED,
+                rejectedStatus: VerificationStatus.REJECTED,
+                fallbackStatus: VerificationStatus.NOT_SUBMITTED,
+            });
+
+            if (filters.userStatus) {
+                qb.andWhere('user.status = :userStatus', { userStatus: filters.userStatus });
+            }
+
+            const normalizedSearch = filters.search?.trim();
+            if (normalizedSearch) {
+                const likeSearch = `%${normalizedSearch}%`;
+                qb.andWhere(
+                    new Brackets((searchQb) => {
+                        searchQb
+                            .where('user.id::text = :exactSearch', { exactSearch: normalizedSearch })
+                            .orWhere('user.firstName ILIKE :likeSearch', { likeSearch })
+                            .orWhere('user.lastName ILIKE :likeSearch', { likeSearch })
+                            .orWhere("CONCAT(user.firstName, ' ', user.lastName) ILIKE :likeSearch", {
+                                likeSearch,
+                            })
+                            .orWhere('user.email ILIKE :likeSearch', { likeSearch })
+                            .orWhere('user.username ILIKE :likeSearch', { likeSearch });
+                    }),
                 );
             }
-        }
 
-        qb.setParameters({
-            pendingStatus: VerificationStatus.PENDING,
-            approvedStatus: VerificationStatus.APPROVED,
-            rejectedStatus: VerificationStatus.REJECTED,
-            fallbackStatus: VerificationStatus.NOT_SUBMITTED,
-        });
+            if (filters.dateFrom) {
+                qb.andWhere('user.updatedAt >= :dateFrom', { dateFrom: filters.dateFrom });
+            }
+            if (filters.dateTo) {
+                qb.andWhere('user.updatedAt <= :dateTo', { dateTo: this.endOfDay(filters.dateTo) });
+            }
 
-        if (filters.userStatus) {
-            qb.andWhere('user.status = :userStatus', { userStatus: filters.userStatus });
-        }
-
-        const normalizedSearch = filters.search?.trim();
-        if (normalizedSearch) {
-            const likeSearch = `%${normalizedSearch}%`;
-            qb.andWhere(
-                new Brackets((searchQb) => {
-                    searchQb
-                        .where('user.id::text = :exactSearch', { exactSearch: normalizedSearch })
-                        .orWhere('user.firstName ILIKE :likeSearch', { likeSearch })
-                        .orWhere('user.lastName ILIKE :likeSearch', { likeSearch })
-                        .orWhere("CONCAT(user.firstName, ' ', user.lastName) ILIKE :likeSearch", {
-                            likeSearch,
-                        })
-                        .orWhere('user.email ILIKE :likeSearch', { likeSearch })
-                        .orWhere('user.username ILIKE :likeSearch', { likeSearch });
-                }),
+            const sortColumn = this.resolveSortColumn(
+                filters.sortBy,
+                AdminService.VERIFICATION_SORT_COLUMNS,
+                'user.createdAt',
             );
+            const sortOrder = this.resolveSortOrder(filters.sortOrder);
+
+            qb.orderBy(sortColumn, sortOrder)
+                .skip(pagination.skip)
+                .take(pagination.limit);
+
+            const [users, total] = await qb.getManyAndCount();
+            const normalizedUsers = users.map((user) => this.normalizeUserState(user));
+
+            return {
+                users: normalizedUsers,
+                items: normalizedUsers,
+                total,
+                page: pagination.page,
+                limit: pagination.limit,
+            };
+        } catch (error) {
+            this.logger.error(
+                `getVerifications failed (type=${filters.type}, status=${filters.status}): ${error instanceof Error ? error.message : error}`,
+                error instanceof Error ? error.stack : undefined,
+            );
+            throw error;
         }
-
-        if (filters.dateFrom) {
-            qb.andWhere('user.updatedAt >= :dateFrom', { dateFrom: filters.dateFrom });
-        }
-        if (filters.dateTo) {
-            qb.andWhere('user.updatedAt <= :dateTo', { dateTo: this.endOfDay(filters.dateTo) });
-        }
-
-        const sortColumn = this.resolveSortColumn(
-            filters.sortBy,
-            AdminService.VERIFICATION_SORT_COLUMNS,
-            'user.createdAt',
-        );
-        const sortOrder = this.resolveSortOrder(filters.sortOrder);
-
-        qb.orderBy(sortColumn, sortOrder)
-            .skip(pagination.skip)
-            .take(pagination.limit);
-
-        const [users, total] = await qb.getManyAndCount();
-        const normalizedUsers = users.map((user) => this.normalizeUserState(user));
-
-        return {
-            users: normalizedUsers,
-            items: normalizedUsers,
-            total,
-            page: pagination.page,
-            limit: pagination.limit,
-        };
     }
 
     async getPendingVerifications() {

@@ -11,6 +11,7 @@
     UseGuards,
     HttpCode,
     HttpStatus,
+    BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
@@ -27,7 +28,6 @@ import { TicketStatus, TicketPriority } from '../../database/entities/support-ti
 import { SubscriptionStatus } from '../../database/entities/subscription.entity';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import {
-    BadRequestException,
     IsEnum,
     IsOptional,
     IsString,
