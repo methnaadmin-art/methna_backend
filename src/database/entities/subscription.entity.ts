@@ -23,6 +23,7 @@ export const ELITE_PLAN = SubscriptionPlan.GOLD;
 
 export enum SubscriptionStatus {
     ACTIVE = 'active',
+    PENDING_CANCELLATION = 'pending_cancellation',
     CANCELLED = 'cancelled',
     EXPIRED = 'expired',
     PAST_DUE = 'past_due',

@@ -276,6 +276,7 @@ export class StripeService {
         const subscription = await this.subscriptionRepo.findOne({
             where: [
                 { userId, status: SubscriptionStatus.ACTIVE, paymentProvider: 'stripe' },
+                { userId, status: SubscriptionStatus.PENDING_CANCELLATION, paymentProvider: 'stripe' },
                 { userId, status: SubscriptionStatus.PAST_DUE, paymentProvider: 'stripe' },
             ],
             order: { updatedAt: 'DESC' },
@@ -335,6 +336,7 @@ export class StripeService {
         const activeSubscription = await this.subscriptionRepo.findOne({
             where: [
                 { userId: user.id, status: SubscriptionStatus.ACTIVE },
+                { userId: user.id, status: SubscriptionStatus.PENDING_CANCELLATION },
                 { userId: user.id, status: SubscriptionStatus.PAST_DUE },
                 { userId: user.id, status: SubscriptionStatus.TRIAL },
             ],
@@ -500,10 +502,17 @@ export class StripeService {
         }
 
         const stripeStatus = stripeSub.status;
+        const cancelAtPeriodEnd = (stripeSub as any).cancel_at_period_end === true;
         let newStatus: SubscriptionStatus;
 
         switch (stripeStatus) {
             case 'active':
+                // If Stripe says cancel_at_period_end, the subscription is still
+                // active but won't renew → map to PENDING_CANCELLATION.
+                newStatus = cancelAtPeriodEnd
+                    ? SubscriptionStatus.PENDING_CANCELLATION
+                    : SubscriptionStatus.ACTIVE;
+                break;
             case 'trialing':
                 newStatus = SubscriptionStatus.ACTIVE;
                 break;
@@ -649,6 +658,10 @@ export class StripeService {
             // Cancel existing active subscriptions
             await subscriptionRepository.update(
                 { userId, status: SubscriptionStatus.ACTIVE },
+                { status: SubscriptionStatus.CANCELLED },
+            );
+            await subscriptionRepository.update(
+                { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
                 { status: SubscriptionStatus.CANCELLED },
             );
             await subscriptionRepository.update(

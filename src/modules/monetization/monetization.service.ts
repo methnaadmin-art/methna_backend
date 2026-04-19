@@ -105,6 +105,7 @@ export class MonetizationService {
     async isPremium(userId: string): Promise<boolean> {
         const { plan, subscription } = await this.plansService.resolveUserEntitlements(userId);
         const isActive = subscription?.status === SubscriptionStatus.ACTIVE ||
+            subscription?.status === SubscriptionStatus.PENDING_CANCELLATION ||
             subscription?.status === SubscriptionStatus.PAST_DUE;
         return !!isActive && plan.code !== 'free';
     }
@@ -127,6 +128,10 @@ export class MonetizationService {
 
         await this.subscriptionRepository.update(
             { userId, status: SubscriptionStatus.ACTIVE },
+            { status: SubscriptionStatus.CANCELLED },
+        );
+        await this.subscriptionRepository.update(
+            { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
             { status: SubscriptionStatus.CANCELLED },
         );
 

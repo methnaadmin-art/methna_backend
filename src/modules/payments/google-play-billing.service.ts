@@ -55,6 +55,7 @@ interface GooglePlayVerificationSnapshot {
     verified: boolean;
     orderId: string | null;
     expiryDate: Date | null;
+    autoRenewing: boolean;
 }
 
 @Injectable()
@@ -220,6 +221,15 @@ export class GooglePlayBillingService {
             await subscriptionRepository.update(
                 {
                     userId,
+                    status: SubscriptionStatus.PENDING_CANCELLATION,
+                },
+                {
+                    status: SubscriptionStatus.CANCELLED,
+                },
+            );
+            await subscriptionRepository.update(
+                {
+                    userId,
                     status: SubscriptionStatus.PAST_DUE,
                 },
                 {
@@ -241,7 +251,12 @@ export class GooglePlayBillingService {
                 plan: plan.code,
                 planId: plan.id,
                 planEntity: plan,
-                status: SubscriptionStatus.ACTIVE,
+                // If Google Play reports autoRenewing=false, the user has cancelled
+                // auto-renew through the Play Store. Set PENDING_CANCELLATION so the
+                // subscription remains active until endDate but won't renew.
+                status: verification.autoRenewing
+                    ? SubscriptionStatus.ACTIVE
+                    : SubscriptionStatus.PENDING_CANCELLATION,
                 startDate: transactionDate,
                 endDate: expiryDate,
                 paymentReference: savedPurchase.id,
@@ -502,6 +517,7 @@ export class GooglePlayBillingService {
                 verified: true,
                 orderId: null,
                 expiryDate: null,
+                autoRenewing: true, // Assume renewing when bypass is active
                 raw: {
                     verificationMode: 'trusted_device_token',
                     warning: 'Server-side Google Play verification bypass is enabled',
@@ -530,13 +546,14 @@ export class GooglePlayBillingService {
             const expiryDate = Number.isFinite(expiryTimeMillis) && expiryTimeMillis > 0
                 ? new Date(expiryTimeMillis)
                 : null;
+            const autoRenewing = payload.autoRenewing === true || payload.autoRenewing === 'true';
 
             const purchased = !Number.isFinite(paymentState) || paymentState === 1 || paymentState === 2;
             const notCancelledBeforePurchase = !Number.isFinite(purchaseState) || purchaseState === 0;
             const notExpired = !expiryDate || expiryDate.getTime() > Date.now();
 
             this.logger.log(
-                `[PAYMENT] Google API response received productId=${productId} paymentState=${paymentState} purchaseState=${purchaseState} orderId=${
+                `[PAYMENT] Google API response received productId=${productId} paymentState=${paymentState} purchaseState=${purchaseState} autoRenewing=${autoRenewing} orderId=${
                     typeof payload.orderId === 'string' ? payload.orderId : 'n/a'
                 } expiresAt=${expiryDate?.toISOString() || 'n/a'}`,
             );
@@ -545,6 +562,7 @@ export class GooglePlayBillingService {
                 verified: purchased && notCancelledBeforePurchase && notExpired,
                 orderId: typeof payload.orderId === 'string' ? payload.orderId : null,
                 expiryDate,
+                autoRenewing,
                 raw: payload,
             };
         } catch (error) {
@@ -567,6 +585,7 @@ export class GooglePlayBillingService {
                     verified: true,
                     orderId: null,
                     expiryDate: null,
+                    autoRenewing: true, // Assume renewing in fallback mode
                     raw: {
                         status,
                         reason,
@@ -581,6 +600,7 @@ export class GooglePlayBillingService {
                 verified: false,
                 orderId: null,
                 expiryDate: null,
+                autoRenewing: false,
                 raw: {
                     status,
                     reason,
@@ -616,6 +636,7 @@ export class GooglePlayBillingService {
                 verified: true,
                 orderId: null,
                 expiryDate: null,
+                autoRenewing: true, // Not applicable for consumables
                 raw: {
                     verificationMode: 'trusted_device_token',
                     purchaseType: 'consumable',
@@ -659,6 +680,7 @@ export class GooglePlayBillingService {
                 verified: isPurchased,
                 orderId: typeof payload.orderId === 'string' ? payload.orderId : null,
                 expiryDate: null, // consumables have no expiry
+                autoRenewing: true, // Not applicable for consumables
                 raw: payload,
             };
         } catch (error) {
@@ -681,6 +703,7 @@ export class GooglePlayBillingService {
                     verified: true,
                     orderId: null,
                     expiryDate: null,
+                    autoRenewing: true, // Not applicable for consumables
                     raw: {
                         status,
                         reason,
@@ -696,6 +719,7 @@ export class GooglePlayBillingService {
                 verified: false,
                 orderId: null,
                 expiryDate: null,
+                autoRenewing: false,
                 raw: {
                     status,
                     reason,
@@ -858,6 +882,7 @@ export class GooglePlayBillingService {
     private isSubscriptionStillActive(subscription: Subscription): boolean {
         if (
             subscription.status !== SubscriptionStatus.ACTIVE &&
+            subscription.status !== SubscriptionStatus.PENDING_CANCELLATION &&
             subscription.status !== SubscriptionStatus.PAST_DUE &&
             subscription.status !== SubscriptionStatus.TRIAL
         ) {

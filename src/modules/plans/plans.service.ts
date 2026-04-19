@@ -125,7 +125,10 @@ export class PlansService {
 
         // Check if any active subscriptions use this plan
         const activeSubs = await this.subscriptionRepository.count({
-            where: { planId: id, status: SubscriptionStatus.ACTIVE },
+            where: [
+                { planId: id, status: SubscriptionStatus.ACTIVE },
+                { planId: id, status: SubscriptionStatus.PENDING_CANCELLATION },
+            ],
         });
 
         if (activeSubs > 0) {
@@ -565,7 +568,10 @@ export class PlansService {
 
     private async invalidatePlanUserCaches(planId: string): Promise<void> {
         const subs = await this.subscriptionRepository.find({
-            where: { planId, status: SubscriptionStatus.ACTIVE },
+            where: [
+                { planId, status: SubscriptionStatus.ACTIVE },
+                { planId, status: SubscriptionStatus.PENDING_CANCELLATION },
+            ],
             select: ['userId'],
         });
         if (subs.length === 0) return;
@@ -585,6 +591,7 @@ export class PlansService {
             return await this.subscriptionRepository.findOne({
                 where: [
                     { userId, status: SubscriptionStatus.ACTIVE },
+                    { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
                     { userId, status: SubscriptionStatus.PAST_DUE },
                     { userId, status: SubscriptionStatus.TRIAL },
                 ],
@@ -600,6 +607,7 @@ export class PlansService {
             return this.subscriptionRepository.findOne({
                 where: [
                     { userId, status: SubscriptionStatus.ACTIVE },
+                    { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
                     { userId, status: SubscriptionStatus.PAST_DUE },
                     { userId, status: SubscriptionStatus.TRIAL },
                 ],

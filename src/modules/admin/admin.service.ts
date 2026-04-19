@@ -349,7 +349,7 @@ export class AdminService implements OnModuleInit {
                 'subscriptions',
                 'sub',
                 'sub."userId" = user.id AND sub.status IN (:...subStatuses)',
-                { subStatuses: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE] },
+                { subStatuses: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PENDING_CANCELLATION, SubscriptionStatus.PAST_DUE] },
             );
             qb.leftJoin('plans', 'planEntity', 'planEntity.id = sub."planId"');
             qb.andWhere('(planEntity.code = :plan OR sub.plan = :plan)', { plan: filters.plan });
@@ -1066,7 +1066,7 @@ export class AdminService implements OnModuleInit {
                 's',
                 's."userId" = u.id AND s.status IN (:...premiumStatuses)',
                 {
-                    premiumStatuses: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE],
+                    premiumStatuses: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PENDING_CANCELLATION, SubscriptionStatus.PAST_DUE],
                 },
             );
             qb.leftJoin('plans', 'sp', 'sp.id = s."planId"');
@@ -1264,6 +1264,10 @@ export class AdminService implements OnModuleInit {
         // Cancel existing
         await this.subscriptionRepository.update(
             { userId, status: SubscriptionStatus.ACTIVE },
+            { status: SubscriptionStatus.CANCELLED },
+        );
+        await this.subscriptionRepository.update(
+            { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
             { status: SubscriptionStatus.CANCELLED },
         );
 
@@ -2160,7 +2164,7 @@ export class AdminService implements OnModuleInit {
                 .createQueryBuilder('subscription')
                 .leftJoin('subscription.planEntity', 'planEntity')
                 .where('subscription.status IN (:...statuses)', {
-                    statuses: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE],
+                    statuses: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PENDING_CANCELLATION, SubscriptionStatus.PAST_DUE],
                 })
                 .andWhere("COALESCE(planEntity.code, subscription.plan, 'free') != :freePlan", {
                     freePlan: 'free',
@@ -2263,6 +2267,7 @@ export class AdminService implements OnModuleInit {
         const subscriptions = await this.subscriptionRepository.find({
             where: [
                 { userId: In(userIds), status: SubscriptionStatus.ACTIVE },
+                { userId: In(userIds), status: SubscriptionStatus.PENDING_CANCELLATION },
                 { userId: In(userIds), status: SubscriptionStatus.PAST_DUE },
                 { userId: In(userIds), status: SubscriptionStatus.TRIAL },
             ],

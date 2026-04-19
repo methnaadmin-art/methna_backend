@@ -77,6 +77,7 @@ export class PaymentsService {
         const active = await this.subscriptionRepository.findOne({
             where: [
                 { userId, status: SubscriptionStatus.ACTIVE },
+                { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
                 { userId, status: SubscriptionStatus.PAST_DUE },
                 { userId, status: SubscriptionStatus.TRIAL },
             ],

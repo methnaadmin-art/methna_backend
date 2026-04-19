@@ -234,7 +234,7 @@ export class JobsService {
             .leftJoin('subscription.planEntity', 'planEntity')
             .select('subscription.userId', 'userId')
             .where('subscription.status IN (:...statuses)', {
-                statuses: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE],
+                statuses: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PENDING_CANCELLATION, SubscriptionStatus.PAST_DUE],
             })
             .andWhere("COALESCE(planEntity.code, subscription.plan, 'free') != :freePlan", {
                 freePlan: 'free',

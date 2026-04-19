@@ -78,6 +78,7 @@ export class SubscriptionsService {
             sub = await this.subscriptionRepository.findOne({
                 where: [
                     { userId, status: SubscriptionStatus.ACTIVE },
+                    { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
                     { userId, status: SubscriptionStatus.PAST_DUE },
                     { userId, status: SubscriptionStatus.TRIAL },
                 ],
@@ -93,6 +94,7 @@ export class SubscriptionsService {
             sub = await this.subscriptionRepository.findOne({
                 where: [
                     { userId, status: SubscriptionStatus.ACTIVE },
+                    { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
                     { userId, status: SubscriptionStatus.PAST_DUE },
                     { userId, status: SubscriptionStatus.TRIAL },
                 ],
@@ -130,6 +132,10 @@ export class SubscriptionsService {
         // Cancel existing active subscription
         await this.subscriptionRepository.update(
             { userId, status: SubscriptionStatus.ACTIVE },
+            { status: SubscriptionStatus.CANCELLED },
+        );
+        await this.subscriptionRepository.update(
+            { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
             { status: SubscriptionStatus.CANCELLED },
         );
 
@@ -174,6 +180,7 @@ export class SubscriptionsService {
         const activeSubscriptions = await this.subscriptionRepository.find({
             where: [
                 { userId, status: SubscriptionStatus.ACTIVE },
+                { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
                 { userId, status: SubscriptionStatus.PAST_DUE },
                 { userId, status: SubscriptionStatus.TRIAL },
             ],
@@ -202,15 +209,22 @@ export class SubscriptionsService {
 
     async cancelSubscription(userId: string): Promise<void> {
         const sub = await this.subscriptionRepository.findOne({
-            where: { userId, status: SubscriptionStatus.ACTIVE },
+            where: [
+                { userId, status: SubscriptionStatus.ACTIVE },
+                { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
+            ],
         });
         if (!sub) throw new NotFoundException('No active subscription found');
 
-        sub.status = SubscriptionStatus.CANCELLED;
+        // Mark as pending cancellation — user keeps access until endDate.
+        // This matches pro app behavior (Tinder, Bumble): cancel stops auto-renew
+        // but does NOT immediately revoke premium features.
+        sub.status = SubscriptionStatus.PENDING_CANCELLATION;
         await this.subscriptionRepository.save(sub);
 
-        // Invalidate premium cache
-        await this.updateUserPremiumState(userId, false, null, null, null);
+        // Do NOT revoke premium here — access continues until endDate.
+        // Premium will be revoked when the subscription actually expires
+        // (via syncUserPremiumState or a scheduled job).
         await this.invalidatePremiumCaches(userId);
     }
 
@@ -248,6 +262,10 @@ export class SubscriptionsService {
 
         await this.subscriptionRepository.update(
             { userId, status: SubscriptionStatus.ACTIVE },
+            { status: SubscriptionStatus.CANCELLED },
+        );
+        await this.subscriptionRepository.update(
+            { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
             { status: SubscriptionStatus.CANCELLED },
         );
 
@@ -289,6 +307,10 @@ export class SubscriptionsService {
             { userId, status: SubscriptionStatus.ACTIVE },
             { status: SubscriptionStatus.CANCELLED },
         );
+        await this.subscriptionRepository.update(
+            { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
+            { status: SubscriptionStatus.CANCELLED },
+        );
 
         await this.updateUserPremiumState(userId, false, null, null, null);
         await this.invalidatePremiumCaches(userId);
@@ -300,6 +322,7 @@ export class SubscriptionsService {
             expiredSubscriptions = await this.subscriptionRepository.find({
                 where: [
                     { status: SubscriptionStatus.ACTIVE },
+                    { status: SubscriptionStatus.PENDING_CANCELLATION },
                     { status: SubscriptionStatus.PAST_DUE },
                     { status: SubscriptionStatus.TRIAL },
                 ],
@@ -315,6 +338,7 @@ export class SubscriptionsService {
             expiredSubscriptions = await this.subscriptionRepository.find({
                 where: [
                     { status: SubscriptionStatus.ACTIVE },
+                    { status: SubscriptionStatus.PENDING_CANCELLATION },
                     { status: SubscriptionStatus.PAST_DUE },
                     { status: SubscriptionStatus.TRIAL },
                 ],
@@ -374,6 +398,7 @@ export class SubscriptionsService {
             activeSubscription = await this.subscriptionRepository.findOne({
                 where: [
                     { userId, status: SubscriptionStatus.ACTIVE },
+                    { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
                     { userId, status: SubscriptionStatus.PAST_DUE },
                     { userId, status: SubscriptionStatus.TRIAL },
                 ],
@@ -389,6 +414,7 @@ export class SubscriptionsService {
             activeSubscription = await this.subscriptionRepository.findOne({
                 where: [
                     { userId, status: SubscriptionStatus.ACTIVE },
+                    { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
                     { userId, status: SubscriptionStatus.PAST_DUE },
                     { userId, status: SubscriptionStatus.TRIAL },
                 ],
@@ -409,6 +435,7 @@ export class SubscriptionsService {
 
             const isPremium =
                 activeSubscription.status === SubscriptionStatus.ACTIVE ||
+                activeSubscription.status === SubscriptionStatus.PENDING_CANCELLATION ||
                 activeSubscription.status === SubscriptionStatus.PAST_DUE ||
                 activeSubscription.status === SubscriptionStatus.TRIAL;
 
@@ -560,6 +587,7 @@ export class SubscriptionsService {
 
         return (
             subscription.status === SubscriptionStatus.ACTIVE ||
+            subscription.status === SubscriptionStatus.PENDING_CANCELLATION ||
             subscription.status === SubscriptionStatus.PAST_DUE ||
             subscription.status === SubscriptionStatus.TRIAL
         );
