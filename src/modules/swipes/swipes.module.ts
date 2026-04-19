@@ -10,6 +10,7 @@ import { UserPreference } from '../../database/entities/user-preference.entity';
 import { Conversation } from '../../database/entities/conversation.entity';
 import { RematchRequest } from '../../database/entities/rematch-request.entity';
 import { User } from '../../database/entities/user.entity';
+import { Photo } from '../../database/entities/photo.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { MonetizationModule } from '../monetization/monetization.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
@@ -17,7 +18,7 @@ import { ModerationModule } from '../../common/moderation.module';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Like, Match, BlockedUser, Profile, UserPreference, Conversation, RematchRequest, User]),
+        TypeOrmModule.forFeature([Like, Match, BlockedUser, Profile, UserPreference, Conversation, RematchRequest, User, Photo]),
         NotificationsModule,
         MonetizationModule,
         SubscriptionsModule,

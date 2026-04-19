@@ -351,9 +351,16 @@ export class SearchService {
         }
 
         const effectiveViewerProfile = this.resolveEffectiveProfileLocation(currentProfile);
-        const effectiveFilters = this.withPassportCountryOverride(
+        const passportAdjustedFilters = this.withPassportCountryOverride(
             filters,
             currentProfile.user as User | undefined,
+        );
+        const hasAdvancedFilterAccess = this.hasActivePremiumEntitlement(
+            currentProfile.user as User | undefined,
+        );
+        const effectiveFilters = this.applyFreeTierFilterLimits(
+            passportAdjustedFilters,
+            hasAdvancedFilterAccess,
         );
         const skipRelationshipExclusions =
             filters.forceRefresh &&
@@ -2305,10 +2312,9 @@ export class SearchService {
     private isViewerGalleryRestricted(currentProfile: Profile | null): boolean {
         const viewer = currentProfile?.user as User | undefined;
         const isVerified = viewer?.selfieVerified === true;
-        const isPremium = this.hasActivePremiumEntitlement(viewer);
 
-        // Policy: free + non-verified viewers can only access the main profile photo.
-        return !isVerified && !isPremium;
+        // Policy: selfie verification is required to unlock additional gallery photos.
+        return !isVerified;
     }
 
     private applyViewerPhotoAccessPolicy(
@@ -2359,8 +2365,8 @@ export class SearchService {
             moderationNote: null,
             createdAt: mainPhoto?.createdAt ?? null,
             isLocked: true,
-            lockReason: 'Verify your profile or upgrade to Premium to unlock all photos',
-            unlockCta: 'Verify your profile or upgrade to Premium',
+            lockReason: 'Verify your selfie to unlock all photos',
+            unlockCta: 'Verify selfie now',
         }));
 
         return [unlockedMain, ...lockedPlaceholders];
@@ -2396,6 +2402,37 @@ export class SearchService {
             country: passport.country,
             goGlobal: true,
             maxDistance: undefined,
+        } as SearchFiltersDto;
+    }
+
+    private applyFreeTierFilterLimits(
+        filters: SearchFiltersDto,
+        hasAdvancedFilterAccess: boolean,
+    ): SearchFiltersDto {
+        if (hasAdvancedFilterAccess) {
+            return filters;
+        }
+
+        return {
+            ...filters,
+            education: undefined,
+            religiousLevel: undefined,
+            prayerFrequency: undefined,
+            marriageIntention: undefined,
+            timeFrame: undefined,
+            intentMode: undefined,
+            livingSituation: undefined,
+            interests: undefined,
+            languages: undefined,
+            familyValues: undefined,
+            nationalities: undefined,
+            communicationStyles: undefined,
+            verifiedOnly: undefined,
+            onlineOnly: undefined,
+            recentlyActiveOnly: undefined,
+            withPhotosOnly: undefined,
+            minTrustScore: undefined,
+            backgroundCheckStatus: undefined,
         } as SearchFiltersDto;
     }
 

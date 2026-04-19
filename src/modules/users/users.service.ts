@@ -481,7 +481,6 @@ export class UsersService {
         if (!user) throw new NotFoundException('User not found');
 
         let viewerSelfieVerified = false;
-        let viewerIsPremium = false;
         if (viewerId && viewerId !== userId) {
             try {
                 const viewer = await this.userRepository.findOne({
@@ -489,14 +488,10 @@ export class UsersService {
                     select: {
                         id: true,
                         selfieVerified: true,
-                        isPremium: true,
-                        premiumStartDate: true,
-                        premiumExpiryDate: true,
                     },
                 });
 
                 viewerSelfieVerified = viewer?.selfieVerified === true;
-                viewerIsPremium = this.hasActivePremiumEntitlement(viewer);
             } catch {
                 // Backward compatibility for databases missing premium columns.
                 const viewer = await this.userRepository.findOne({
@@ -507,15 +502,13 @@ export class UsersService {
                     },
                 } as any);
                 viewerSelfieVerified = viewer?.selfieVerified === true;
-                viewerIsPremium = false;
             }
         }
 
         const shouldRestrictGallery =
             !!viewerId &&
             viewerId !== userId &&
-            !viewerSelfieVerified &&
-            !viewerIsPremium;
+            !viewerSelfieVerified;
         const shouldMaskGhostProfile =
             !!viewerId &&
             viewerId !== userId &&
@@ -842,10 +835,10 @@ export class UsersService {
             createdAt: photo.createdAt,
             isLocked,
             lockReason: isLocked
-                ? 'Verify your profile or upgrade to Premium to unlock all photos'
+                ? 'Verify your selfie to unlock all photos'
                 : null,
             unlockCta: isLocked
-                ? 'Verify your profile or upgrade to Premium'
+                ? 'Verify selfie now'
                 : null,
         });
 
@@ -879,8 +872,8 @@ export class UsersService {
                 moderationNote: null,
                 createdAt: mainPhoto.createdAt,
                 isLocked: true,
-                lockReason: 'Verify your profile or upgrade to Premium to unlock all photos',
-                unlockCta: 'Verify your profile or upgrade to Premium',
+                lockReason: 'Verify your selfie to unlock all photos',
+                unlockCta: 'Verify selfie now',
             });
         }
 

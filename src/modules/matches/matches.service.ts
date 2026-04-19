@@ -617,17 +617,13 @@ export class MatchesService {
             select: {
                 id: true,
                 selfieVerified: true,
-                isPremium: true,
-                premiumStartDate: true,
-                premiumExpiryDate: true,
             },
         });
 
         const isVerified = viewer?.selfieVerified === true;
-        const isPremium = this.hasActivePremiumEntitlement(viewer);
 
-        // Policy: free + non-verified viewers can only access the main profile photo.
-        return !isVerified && !isPremium;
+        // Policy: selfie verification is required to unlock additional gallery photos.
+        return !isVerified;
     }
 
     private applyViewerPhotoAccessPolicy(
@@ -678,8 +674,8 @@ export class MatchesService {
             moderationNote: null,
             createdAt: mainPhoto?.createdAt ?? null,
             isLocked: true,
-            lockReason: 'Verify your profile or upgrade to Premium to unlock all photos',
-            unlockCta: 'Verify your profile or upgrade to Premium',
+            lockReason: 'Verify your selfie to unlock all photos',
+            unlockCta: 'Verify selfie now',
         }));
 
         return [unlockedMain, ...lockedPlaceholders];

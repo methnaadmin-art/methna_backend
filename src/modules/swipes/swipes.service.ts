@@ -19,6 +19,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { MonetizationService, FeatureFlag } from '../monetization/monetization.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { User, UserStatus } from '../../database/entities/user.entity';
+import { Photo, PhotoModerationStatus } from '../../database/entities/photo.entity';
+import { CloudinaryService } from '../photos/cloudinary.service';
 
 @Injectable()
 export class SwipesService {
@@ -41,6 +43,8 @@ export class SwipesService {
         private readonly rematchRepository: Repository<RematchRequest>,
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
+        @InjectRepository(Photo)
+        private readonly photoRepository: Repository<Photo>,
         private readonly redisService: RedisService,
         private readonly notificationsService: NotificationsService,
         private readonly monetizationService: MonetizationService,
@@ -66,10 +70,10 @@ export class SwipesService {
         }
 
         const blockedStatuses = [UserStatus.BANNED, UserStatus.CLOSED, UserStatus.DEACTIVATED];
-        const [targetUser, profileReadiness] = await Promise.all([
-            this.userRepository.findOne({ where: { id: targetUserId }, select: ['id', 'status'] }),
-            this.getProfileSwipeReadiness(userId),
-        ]);
+        const targetUser = await this.userRepository.findOne({
+            where: { id: targetUserId },
+            select: ['id', 'status'],
+        });
 
         // Cannot swipe on a banned/closed/deactivated target user
         if (targetUser && blockedStatuses.includes(targetUser.status as UserStatus)) {
@@ -94,8 +98,6 @@ export class SwipesService {
             [SwipeAction.COMPLIMENT]: LikeType.COMPLIMENT,
             [SwipeAction.PASS]: LikeType.PASS,
         };
-
-        this.assertProfileReadyForPositiveSwipe(profileReadiness);
 
         const existingSwipe = await this.likeRepository.findOne({
             where: { likerId: userId, likedId: targetUserId },
@@ -226,8 +228,9 @@ export class SwipesService {
         const filteredLikes = visibleLikes.filter(l => !matchedUserIds.has(l.likerId));
 
         if (!canSeeWhoLikedYou) {
-            // Non-premium: return anonymized data for blurred card display
-            const photos = filteredLikes.length > 0
+            // Non-premium: return anonymized data for blurred card display.
+            // Keep main photo URL so clients can render loaded photos under blur.
+            const profiles = filteredLikes.length > 0
                 ? await this.profileRepository
                     .createQueryBuilder('profile')
                     .leftJoinAndSelect('profile.user', 'user')
@@ -236,12 +239,39 @@ export class SwipesService {
                     })
                     .getMany()
                 : [];
-            const profileMap = new Map(photos.map(p => [p.userId, p]));
+
+            const approvedPhotos = filteredLikes.length > 0
+                ? await this.photoRepository
+                    .createQueryBuilder('photo')
+                    .where('photo.userId IN (:...userIds)', {
+                        userIds: filteredLikes.map((l) => l.likerId),
+                    })
+                    .andWhere('photo.moderationStatus = :approvedStatus', {
+                        approvedStatus: PhotoModerationStatus.APPROVED,
+                    })
+                    .orderBy('photo.userId', 'ASC')
+                    .addOrderBy('photo.isMain', 'DESC')
+                    .addOrderBy('photo.order', 'ASC')
+                    .addOrderBy('photo.createdAt', 'ASC')
+                    .getMany()
+                : [];
+
+            const profileMap = new Map(profiles.map(p => [p.userId, p]));
+            const mainPhotoByUserId = new Map<string, Photo>();
+            for (const photo of approvedPhotos) {
+                if (!mainPhotoByUserId.has(photo.userId)) {
+                    mainPhotoByUserId.set(photo.userId, photo);
+                }
+            }
 
             return {
                 count: filteredLikes.length,
                 users: filteredLikes.map((l) => {
                     const profile = profileMap.get(l.likerId);
+                    const mainPhoto = mainPhotoByUserId.get(l.likerId);
+                    const mainPhotoUrl = mainPhoto
+                        ? CloudinaryService.profileUrl(mainPhoto.url)
+                        : null;
                     return {
                         userId: l.likerId,
                         // Anonymized: no name, only age/city for teaser
@@ -251,6 +281,8 @@ export class SwipesService {
                             ? Math.floor((Date.now() - new Date(profile.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
                             : null,
                         city: profile?.city ?? null,
+                        mainPhotoUrl,
+                        photoUrl: mainPhotoUrl,
                         type: l.type,
                         isBlurred: true,
                         createdAt: l.createdAt,
@@ -758,35 +790,6 @@ export class SwipesService {
                 this.redisService.delByPattern(`search:${id}:*`),
             ]),
         );
-    }
-
-    private async getProfileSwipeReadiness(
-        userId: string,
-    ): Promise<Pick<Profile, 'userId' | 'isComplete' | 'profileCompletionPercentage'> | null> {
-        return this.profileRepository.findOne({
-            where: { userId },
-            select: {
-                userId: true,
-                isComplete: true,
-                profileCompletionPercentage: true,
-            },
-        });
-    }
-
-    private assertProfileReadyForPositiveSwipe(
-        profile: Pick<Profile, 'userId' | 'isComplete' | 'profileCompletionPercentage'> | null,
-    ): void {
-        if (profile?.isComplete) {
-            return;
-        }
-
-        throw new ForbiddenException({
-            message: 'Complete your profile before liking members.',
-            code: 'PROFILE_INCOMPLETE',
-            actionRequired: 'COMPLETE_PROFILE',
-            minimumCompletion: 60,
-            currentCompletion: profile?.profileCompletionPercentage ?? 0,
-        });
     }
 
     private async findActiveMatch(userA: string, userB: string): Promise<Match | null> {
