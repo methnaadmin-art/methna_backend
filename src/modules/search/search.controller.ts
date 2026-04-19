@@ -34,7 +34,13 @@ export class SearchController {
             );
             return await this.searchService.search(userId, effectiveFilters);
         } catch (error) {
-            this.logger.error(`[Search] FAILED for userId=${userId}: ${error.message}`, error.stack);
+            let message = 'Unknown error';
+            let stack: string | undefined = undefined;
+            if (error instanceof Error) {
+                message = error.message;
+                stack = error.stack;
+            }
+            this.logger.error(`[Search] FAILED for userId=${userId}: ${message}` + (stack ? `\n${stack}` : ''));
             // Re-throw HttpExceptions as-is (e.g., validation errors)
             if (error instanceof HttpException) {
                 throw error;
@@ -42,7 +48,7 @@ export class SearchController {
             // In development, surface the real error message
             const isDev = process.env.NODE_ENV !== 'production';
             throw new InternalServerErrorException(
-                isDev ? `Search failed: ${error.message}` : 'Search failed. Please try again.',
+                isDev ? `Search failed: ${message}` : 'Search failed. Please try again.',
             );
         }
     }
