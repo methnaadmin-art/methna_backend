@@ -51,7 +51,7 @@ export class AnalyticsService {
             .createQueryBuilder('event')
             .select('COUNT(DISTINCT event.userId)', 'count')
             .where('event.eventDate = :date', { date: targetDate })
-            .where('event.eventType IN (:...types)', {
+            .andWhere('event.eventType IN (:...types)', {
                 types: [AnalyticsEventType.USER_LOGIN, AnalyticsEventType.USER_ACTIVE],
             })
             .getRawOne();

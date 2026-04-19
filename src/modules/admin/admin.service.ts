@@ -870,10 +870,20 @@ export class AdminService implements OnModuleInit {
     async getConversations(pagination: PaginationDto, search?: string, filters?: { locked?: boolean; flagged?: boolean }) {
         const qb = this.conversationRepository
             .createQueryBuilder('c')
-            .leftJoinAndSelect('c.user1', 'user1')
-            .leftJoinAndSelect('c.user2', 'user2')
-            .leftJoinAndSelect('user1.profile', 'profile1')
-            .leftJoinAndSelect('user2.profile', 'profile2')
+            .leftJoin('c.user1', 'user1')
+            .leftJoin('c.user2', 'user2')
+            .addSelect([
+                'user1.id',
+                'user1.email',
+                'user1.username',
+                'user1.firstName',
+                'user1.lastName',
+                'user2.id',
+                'user2.email',
+                'user2.username',
+                'user2.firstName',
+                'user2.lastName',
+            ])
             .orderBy('c.lastMessageAt', 'DESC')
             .skip(pagination.skip)
             .take(pagination.limit);
@@ -917,11 +927,19 @@ export class AdminService implements OnModuleInit {
         if (normalizedSearch) {
             const skip = pagination.skip || 0;
             const limit = pagination.limit || 20;
-            const allMessages = await this.messageRepository.find({
-                where: { conversationId },
-                relations: ['sender', 'sender.profile'],
-                order: { createdAt: 'ASC' },
-            });
+            const allMessages = await this.messageRepository
+                .createQueryBuilder('m')
+                .leftJoin('m.sender', 'sender')
+                .addSelect([
+                    'sender.id',
+                    'sender.email',
+                    'sender.username',
+                    'sender.firstName',
+                    'sender.lastName',
+                ])
+                .where('m.conversationId = :cid', { cid: conversationId })
+                .orderBy('m.createdAt', 'ASC')
+                .getMany();
 
             const filtered = allMessages
                 .map(message => {
@@ -957,8 +975,14 @@ export class AdminService implements OnModuleInit {
 
         const qb = this.messageRepository
             .createQueryBuilder('m')
-            .leftJoinAndSelect('m.sender', 'sender')
-            .leftJoinAndSelect('sender.profile', 'senderProfile')
+            .leftJoin('m.sender', 'sender')
+            .addSelect([
+                'sender.id',
+                'sender.email',
+                'sender.username',
+                'sender.firstName',
+                'sender.lastName',
+            ])
             .where('m.conversationId = :cid', { cid: conversationId })
             .orderBy('m.createdAt', 'ASC')
             .skip(pagination.skip)
@@ -1299,8 +1323,16 @@ export class AdminService implements OnModuleInit {
     ) {
         const qb = this.subscriptionRepository
             .createQueryBuilder('subscription')
-            .leftJoinAndSelect('subscription.user', 'user')
+            .leftJoin('subscription.user', 'user')
             .leftJoinAndSelect('subscription.planEntity', 'planEntity')
+            .addSelect([
+                'user.id',
+                'user.email',
+                'user.username',
+                'user.phone',
+                'user.firstName',
+                'user.lastName',
+            ])
             .skip(pagination.skip)
             .take(pagination.limit);
 
