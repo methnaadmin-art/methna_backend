@@ -1,9 +1,4 @@
-import {
-    Injectable,
-    NotFoundException,
-    BadRequestException,
-    Logger,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -13,10 +8,7 @@ import {
     PlanLimits,
     BillingCycle,
 } from '../../database/entities/plan.entity';
-import {
-    Subscription,
-    SubscriptionStatus,
-} from '../../database/entities/subscription.entity';
+import { Subscription, SubscriptionStatus } from '../../database/entities/subscription.entity';
 import { User } from '../../database/entities/user.entity';
 import { RedisService } from '../redis/redis.service';
 
@@ -33,7 +25,7 @@ export class PlansService {
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
         private readonly redisService: RedisService,
-    ) { }
+    ) {}
 
     // PUBLIC ENDPOINTS
 
@@ -71,13 +63,17 @@ export class PlansService {
     // ADMIN CRUD
 
     async getAllPlans(): Promise<Plan[]> {
-        return this.planRepository.find({ order: { sortOrder: 'ASC', price: 'ASC' } });
+        return this.planRepository.find({
+            order: { sortOrder: 'ASC', price: 'ASC' },
+        });
     }
 
     async createPlan(dto: Partial<Plan>): Promise<Plan> {
         // Validate unique code
         if (dto.code) {
-            const existing = await this.planRepository.findOne({ where: { code: dto.code } });
+            const existing = await this.planRepository.findOne({
+                where: { code: dto.code },
+            });
             if (existing) throw new BadRequestException("Plan code '" + dto.code + "' already exists");
         }
 
@@ -100,7 +96,9 @@ export class PlansService {
 
         // Validate unique code if changing
         if (dto.code && dto.code !== plan.code) {
-            const existing = await this.planRepository.findOne({ where: { code: dto.code } });
+            const existing = await this.planRepository.findOne({
+                where: { code: dto.code },
+            });
             if (existing) throw new BadRequestException(`Plan code '${dto.code}' already exists`);
         }
 
@@ -162,23 +160,27 @@ export class PlansService {
         }>(cacheKey);
         if (cached) return cached;
 
-        const sub = await this.findLatestSubscriptionForEntitlements(userId);
+        let sub = await this.findLatestSubscriptionForEntitlements(userId);
+        const now = new Date();
 
         // Check expiry
-        if (sub && sub.endDate && new Date(sub.endDate) < new Date()) {
-            await this.subscriptionRepository.update(sub.id, { status: SubscriptionStatus.EXPIRED });
+        if (sub && this.getSubscriptionPlanCode(sub) !== 'free' && sub.endDate && new Date(sub.endDate) < now) {
+            await this.subscriptionRepository.update(sub.id, {
+                status: SubscriptionStatus.EXPIRED,
+            });
             await this.userRepository.update(userId, {
                 isPremium: false,
                 premiumStartDate: null,
                 premiumExpiryDate: null,
             });
             await this.redisService.del(cacheKey);
+            sub = null;
             // Fall through to free plan
         }
 
         let plan: Plan | null = null;
 
-        if (sub && sub.planEntity && (!sub.endDate || new Date(sub.endDate) >= new Date())) {
+        if (sub && sub.planEntity && this.isSubscriptionCurrentlyUsable(sub, now)) {
             plan = sub.planEntity;
         }
 
@@ -323,13 +325,10 @@ export class PlansService {
         if (ent.monthlyRewinds === -1) ent.unlimitedRewinds = true;
         if (ent.boost === undefined) {
             ent.boost =
-                ent.profileBoostPriority === true ||
-                (typeof ent.weeklyBoosts === 'number' && ent.weeklyBoosts !== 0);
+                ent.profileBoostPriority === true || (typeof ent.weeklyBoosts === 'number' && ent.weeklyBoosts !== 0);
         }
         if (ent.likes === undefined) {
-            ent.likes =
-                ent.unlimitedLikes === true ||
-                (typeof ent.dailyLikes === 'number' && ent.dailyLikes !== 0);
+            ent.likes = ent.unlimitedLikes === true || (typeof ent.dailyLikes === 'number' && ent.dailyLikes !== 0);
         }
 
         return ent;
@@ -392,8 +391,10 @@ export class PlansService {
         if (ent.advancedFilters) featureFlags.push('advanced_filters');
         if (ent.seeWhoLikesYou) featureFlags.push('see_who_liked');
         if (ent.whoLikedMe) featureFlags.push('who_liked_me');
-        if (ent.superLike || ent.dailySuperLikes === -1 || (ent.dailySuperLikes ?? 0) > 0) featureFlags.push('super_like');
-        if (ent.profileBoostPriority || ent.weeklyBoosts === -1 || (ent.weeklyBoosts ?? 0) > 0) featureFlags.push('profile_boost');
+        if (ent.superLike || ent.dailySuperLikes === -1 || (ent.dailySuperLikes ?? 0) > 0)
+            featureFlags.push('super_like');
+        if (ent.profileBoostPriority || ent.weeklyBoosts === -1 || (ent.weeklyBoosts ?? 0) > 0)
+            featureFlags.push('profile_boost');
         if (ent.boost) featureFlags.push('boost');
         if (ent.readReceipts) featureFlags.push('read_receipts');
         if (ent.priorityMatching) featureFlags.push('priority_matching');
@@ -418,20 +419,20 @@ export class PlansService {
         currentPlanId?: string,
         currentPlan?: Plan,
     ): Promise<void> {
-        const effectivePrice = dto.price !== undefined
-            ? Number(dto.price)
-            : Number(currentPlan?.price ?? 0);
+        const effectivePrice = dto.price !== undefined ? Number(dto.price) : Number(currentPlan?.price ?? 0);
         const isPaidPlan = Number.isFinite(effectivePrice) && effectivePrice > 0;
         if (!isPaidPlan) {
             return;
         }
 
-        const googleProductId = this.normalizeNullableString(dto.googleProductId) || currentPlan?.googleProductId || null;
+        const googleProductId =
+            this.normalizeNullableString(dto.googleProductId) || currentPlan?.googleProductId || null;
         if (!googleProductId) {
             throw new BadRequestException('googleProductId is required for paid plans');
         }
 
-        const googleBasePlanId = this.normalizeNullableString(dto.googleBasePlanId) || currentPlan?.googleBasePlanId || null;
+        const googleBasePlanId =
+            this.normalizeNullableString(dto.googleBasePlanId) || currentPlan?.googleBasePlanId || null;
         if (!googleBasePlanId) {
             throw new BadRequestException('googleBasePlanId is required for paid plans');
         }
@@ -577,7 +578,7 @@ export class PlansService {
         if (subs.length === 0) return;
 
         await Promise.all(
-            subs.flatMap(s => [
+            subs.flatMap((s) => [
                 this.redisService.del(`entitlements:${s.userId}`),
                 this.redisService.del(`plan:${s.userId}`),
                 this.redisService.del(`features:${s.userId}`),
@@ -587,8 +588,9 @@ export class PlansService {
     }
 
     private async findLatestSubscriptionForEntitlements(userId: string): Promise<Subscription | null> {
+        let subscriptions: Subscription[];
         try {
-            return await this.subscriptionRepository.findOne({
+            subscriptions = await this.subscriptionRepository.find({
                 where: [
                     { userId, status: SubscriptionStatus.ACTIVE },
                     { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
@@ -604,7 +606,7 @@ export class PlansService {
             }
 
             this.logMissingPlanCodeColumnWarning('resolveUserEntitlements:subscription');
-            return this.subscriptionRepository.findOne({
+            subscriptions = await this.subscriptionRepository.find({
                 where: [
                     { userId, status: SubscriptionStatus.ACTIVE },
                     { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
@@ -614,6 +616,99 @@ export class PlansService {
                 order: { createdAt: 'DESC' },
             });
         }
+
+        return this.selectCurrentSubscriptionForEntitlements(subscriptions);
+    }
+
+    private selectCurrentSubscriptionForEntitlements(subscriptions: Subscription[]): Subscription | null {
+        if (subscriptions.length === 0) {
+            return null;
+        }
+
+        const now = new Date();
+        return [...subscriptions].sort((a, b) => this.compareSubscriptionsForCurrentPlan(a, b, now))[0];
+    }
+
+    private compareSubscriptionsForCurrentPlan(a: Subscription, b: Subscription, now: Date): number {
+        const rankDifference = this.subscriptionCurrentPlanRank(b, now) - this.subscriptionCurrentPlanRank(a, now);
+        if (rankDifference !== 0) {
+            return rankDifference;
+        }
+
+        const endDateDifference = this.subscriptionEndDateSortValue(b) - this.subscriptionEndDateSortValue(a);
+        if (endDateDifference !== 0) {
+            return endDateDifference;
+        }
+
+        return this.dateSortValue(b.createdAt) - this.dateSortValue(a.createdAt);
+    }
+
+    private subscriptionCurrentPlanRank(subscription: Subscription, now: Date): number {
+        const planCode = this.getSubscriptionPlanCode(subscription);
+        if (planCode === 'free') {
+            return 1;
+        }
+
+        if (!this.hasActiveEntitlementStatus(subscription.status)) {
+            return 0;
+        }
+
+        const startDate = subscription.startDate ? new Date(subscription.startDate) : null;
+        const endDate = subscription.endDate ? new Date(subscription.endDate) : null;
+
+        if (endDate && endDate < now) {
+            return 3;
+        }
+
+        if (startDate && startDate > now) {
+            return 2;
+        }
+
+        return 4;
+    }
+
+    private isSubscriptionCurrentlyUsable(subscription: Subscription, now: Date): boolean {
+        if (!this.hasActiveEntitlementStatus(subscription.status)) {
+            return false;
+        }
+
+        const startDate = subscription.startDate ? new Date(subscription.startDate) : null;
+        if (startDate && startDate > now) {
+            return false;
+        }
+
+        const endDate = subscription.endDate ? new Date(subscription.endDate) : null;
+        return !endDate || endDate >= now;
+    }
+
+    private hasActiveEntitlementStatus(status?: SubscriptionStatus | null): boolean {
+        return (
+            status === SubscriptionStatus.ACTIVE ||
+            status === SubscriptionStatus.PENDING_CANCELLATION ||
+            status === SubscriptionStatus.PAST_DUE ||
+            status === SubscriptionStatus.TRIAL
+        );
+    }
+
+    private getSubscriptionPlanCode(subscription?: Partial<Subscription> | null): string {
+        return this.normalizePlanToken(subscription?.planEntity?.code ?? subscription?.plan) || 'free';
+    }
+
+    private subscriptionEndDateSortValue(subscription: Subscription): number {
+        return subscription.endDate ? new Date(subscription.endDate).getTime() : Number.MAX_SAFE_INTEGER;
+    }
+
+    private dateSortValue(value?: Date | string | null): number {
+        return value ? new Date(value).getTime() : 0;
+    }
+
+    private normalizePlanToken(value?: string | null): string {
+        return (value ?? '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_|_$/g, '');
     }
 
     private async findFreePlanForEntitlements(): Promise<Plan | null> {

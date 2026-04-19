@@ -1,15 +1,7 @@
-import {
-    Injectable,
-    NotFoundException,
-    BadRequestException,
-    Logger,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import {
-    Subscription,
-    SubscriptionStatus,
-} from '../../database/entities/subscription.entity';
+import { Subscription, SubscriptionStatus } from '../../database/entities/subscription.entity';
 import { User } from '../../database/entities/user.entity';
 import { RedisService } from '../redis/redis.service';
 import { Plan } from '../../database/entities/plan.entity';
@@ -28,7 +20,7 @@ export class SubscriptionsService {
         @InjectRepository(Plan)
         private readonly planRepository: Repository<Plan>,
         private readonly redisService: RedisService,
-    ) { }
+    ) {}
 
     async createTrialSubscription(userId: string, days: number = 3): Promise<Subscription> {
         // Check if user already has a subscription
@@ -60,47 +52,14 @@ export class SubscriptionsService {
         });
 
         const saved = await this.subscriptionRepository.save(subscription);
-        await this.updateUserPremiumState(
-            userId,
-            true,
-            now,
-            endDate,
-            planEntity?.id ?? null,
-        );
+        await this.updateUserPremiumState(userId, true, now, endDate, planEntity?.id ?? null);
         await this.invalidatePremiumCaches(userId);
-        
+
         return saved;
     }
 
     async getMySubscription(userId: string): Promise<Subscription> {
-        let sub: Subscription | null;
-        try {
-            sub = await this.subscriptionRepository.findOne({
-                where: [
-                    { userId, status: SubscriptionStatus.ACTIVE },
-                    { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
-                    { userId, status: SubscriptionStatus.PAST_DUE },
-                    { userId, status: SubscriptionStatus.TRIAL },
-                ],
-                order: { endDate: 'DESC', createdAt: 'DESC' },
-                relations: ['planEntity'],
-            });
-        } catch (error) {
-            if (!this.isMissingPlanCodeColumnError(error)) {
-                throw error;
-            }
-
-            this.logMissingPlanCodeColumnWarning('getMySubscription');
-            sub = await this.subscriptionRepository.findOne({
-                where: [
-                    { userId, status: SubscriptionStatus.ACTIVE },
-                    { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
-                    { userId, status: SubscriptionStatus.PAST_DUE },
-                    { userId, status: SubscriptionStatus.TRIAL },
-                ],
-                order: { endDate: 'DESC', createdAt: 'DESC' },
-            });
-        }
+        let sub = await this.findCurrentSubscriptionForUser(userId, 'getMySubscription');
 
         if (!sub) {
             sub = await this.ensureFreeSubscriptionForUser(userId);
@@ -119,7 +78,10 @@ export class SubscriptionsService {
         if (!normalizedPlanRef) throw new BadRequestException('planId or planCode is required');
 
         const planEntity = await this.planRepository.findOne({
-            where: this.planLookupWhere(normalizedPlanRef, { isActive: true, isVisible: true }),
+            where: this.planLookupWhere(normalizedPlanRef, {
+                isActive: true,
+                isVisible: true,
+            }),
         });
         if (!planEntity) throw new BadRequestException('Plan not found, inactive, or hidden');
 
@@ -159,13 +121,7 @@ export class SubscriptionsService {
         const saved = await this.subscriptionRepository.save(subscription);
 
         // Invalidate premium cache so swipe limits update immediately
-        await this.updateUserPremiumState(
-            userId,
-            planEntity.code !== 'free',
-            now,
-            endDate,
-            planEntity.id,
-        );
+        await this.updateUserPremiumState(userId, planEntity.code !== 'free', now, endDate, planEntity.id);
         await this.invalidatePremiumCaches(userId);
 
         return saved;
@@ -351,11 +307,7 @@ export class SubscriptionsService {
         for (const subscription of expiredSubscriptions) {
             const planCode = this.getSubscriptionPlanCode(subscription);
             const isNonFree = planCode !== 'free';
-            if (
-                isNonFree &&
-                subscription.endDate &&
-                new Date(subscription.endDate) <= now
-            ) {
+            if (isNonFree && subscription.endDate && new Date(subscription.endDate) <= now) {
                 await this.subscriptionRepository.update(subscription.id, {
                     status: SubscriptionStatus.EXPIRED,
                 });
@@ -389,39 +341,13 @@ export class SubscriptionsService {
         return ids;
     }
 
-    async syncUserPremiumState(
-        userId: string,
-    ): Promise<{ isPremium: boolean; premiumStartDate: Date | null; premiumExpiryDate: Date | null }> {
+    async syncUserPremiumState(userId: string): Promise<{
+        isPremium: boolean;
+        premiumStartDate: Date | null;
+        premiumExpiryDate: Date | null;
+    }> {
         // Check both ACTIVE and PAST_DUE to support provider grace periods.
-        let activeSubscription: Subscription | null;
-        try {
-            activeSubscription = await this.subscriptionRepository.findOne({
-                where: [
-                    { userId, status: SubscriptionStatus.ACTIVE },
-                    { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
-                    { userId, status: SubscriptionStatus.PAST_DUE },
-                    { userId, status: SubscriptionStatus.TRIAL },
-                ],
-                order: { endDate: 'DESC', createdAt: 'DESC' },
-                relations: ['planEntity'],
-            });
-        } catch (error) {
-            if (!this.isMissingPlanCodeColumnError(error)) {
-                throw error;
-            }
-
-            this.logMissingPlanCodeColumnWarning('syncUserPremiumState');
-            activeSubscription = await this.subscriptionRepository.findOne({
-                where: [
-                    { userId, status: SubscriptionStatus.ACTIVE },
-                    { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
-                    { userId, status: SubscriptionStatus.PAST_DUE },
-                    { userId, status: SubscriptionStatus.TRIAL },
-                ],
-                order: { endDate: 'DESC', createdAt: 'DESC' },
-            });
-        }
-
+        const activeSubscription = await this.findCurrentSubscriptionForUser(userId, 'syncUserPremiumState');
         const now = new Date();
 
         if (
@@ -505,7 +431,14 @@ export class SubscriptionsService {
             };
         }
 
-        await this.updateUserPremiumState(userId, false, null, null, null);
+        const freeSubscription = await this.ensureFreeSubscriptionForUser(userId, now);
+        await this.updateUserPremiumState(
+            userId,
+            false,
+            null,
+            null,
+            freeSubscription.planId ?? freeSubscription.planEntity?.id ?? null,
+        );
         await this.invalidatePremiumCaches(userId);
 
         return {
@@ -557,8 +490,7 @@ export class SubscriptionsService {
 
     private blocksSamePlanSubscription(subscription: Subscription, normalizedPlanCode: string, now: Date): boolean {
         const statusBlocks =
-            subscription.status === SubscriptionStatus.ACTIVE ||
-            subscription.status === SubscriptionStatus.PAST_DUE;
+            subscription.status === SubscriptionStatus.ACTIVE || subscription.status === SubscriptionStatus.PAST_DUE;
         if (!statusBlocks) {
             return false;
         }
@@ -593,10 +525,95 @@ export class SubscriptionsService {
         );
     }
 
-    private async ensureFreeSubscriptionForUser(
-        userId: string,
-        startDate: Date = new Date(),
-    ): Promise<Subscription> {
+    private async findCurrentSubscriptionForUser(userId: string, context: string): Promise<Subscription | null> {
+        let subscriptions: Subscription[];
+        try {
+            subscriptions = await this.subscriptionRepository.find({
+                where: [
+                    { userId, status: SubscriptionStatus.ACTIVE },
+                    { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
+                    { userId, status: SubscriptionStatus.PAST_DUE },
+                    { userId, status: SubscriptionStatus.TRIAL },
+                ],
+                order: { createdAt: 'DESC' },
+                relations: ['planEntity'],
+            });
+        } catch (error) {
+            if (!this.isMissingPlanCodeColumnError(error)) {
+                throw error;
+            }
+
+            this.logMissingPlanCodeColumnWarning(context);
+            subscriptions = await this.subscriptionRepository.find({
+                where: [
+                    { userId, status: SubscriptionStatus.ACTIVE },
+                    { userId, status: SubscriptionStatus.PENDING_CANCELLATION },
+                    { userId, status: SubscriptionStatus.PAST_DUE },
+                    { userId, status: SubscriptionStatus.TRIAL },
+                ],
+                order: { createdAt: 'DESC' },
+            });
+        }
+
+        return this.selectCurrentSubscription(subscriptions);
+    }
+
+    private selectCurrentSubscription(subscriptions: Subscription[]): Subscription | null {
+        if (subscriptions.length === 0) {
+            return null;
+        }
+
+        const now = new Date();
+        return [...subscriptions].sort((a, b) => this.compareSubscriptionsForCurrentPlan(a, b, now))[0];
+    }
+
+    private compareSubscriptionsForCurrentPlan(a: Subscription, b: Subscription, now: Date): number {
+        const rankDifference = this.subscriptionCurrentPlanRank(b, now) - this.subscriptionCurrentPlanRank(a, now);
+        if (rankDifference !== 0) {
+            return rankDifference;
+        }
+
+        const endDateDifference = this.subscriptionEndDateSortValue(b) - this.subscriptionEndDateSortValue(a);
+        if (endDateDifference !== 0) {
+            return endDateDifference;
+        }
+
+        return this.dateSortValue(b.createdAt) - this.dateSortValue(a.createdAt);
+    }
+
+    private subscriptionCurrentPlanRank(subscription: Subscription, now: Date): number {
+        const planCode = this.getSubscriptionPlanCode(subscription);
+        if (planCode === 'free') {
+            return 1;
+        }
+
+        if (!this.hasPremiumAccessSubscription(subscription)) {
+            return 0;
+        }
+
+        const startDate = subscription.startDate ? new Date(subscription.startDate) : null;
+        const endDate = subscription.endDate ? new Date(subscription.endDate) : null;
+
+        if (endDate && endDate <= now) {
+            return 3;
+        }
+
+        if (startDate && startDate > now) {
+            return 2;
+        }
+
+        return 4;
+    }
+
+    private subscriptionEndDateSortValue(subscription: Subscription): number {
+        return subscription.endDate ? new Date(subscription.endDate).getTime() : Number.MAX_SAFE_INTEGER;
+    }
+
+    private dateSortValue(value?: Date | string | null): number {
+        return value ? new Date(value).getTime() : 0;
+    }
+
+    private async ensureFreeSubscriptionForUser(userId: string, startDate: Date = new Date()): Promise<Subscription> {
         let freeSubscription: Subscription | null;
         try {
             freeSubscription = await this.subscriptionRepository.findOne({

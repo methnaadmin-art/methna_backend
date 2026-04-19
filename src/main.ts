@@ -25,40 +25,22 @@ function getConfigString(configService: ConfigService, ...keys: string[]): strin
 }
 
 function validateProductionRuntimeConfig(configService: ConfigService, logger: Logger): void {
-    const nodeEnv =
-        getConfigString(configService, 'NODE_ENV') ||
-        (process.env.NODE_ENV || 'development').trim();
+    const nodeEnv = getConfigString(configService, 'NODE_ENV') || (process.env.NODE_ENV || 'development').trim();
     const isProduction = isProductionEnv(nodeEnv);
 
     const allowUnverifiedFromConfig = configService.get<boolean>('googlePlay.allowUnverifiedTokens');
     const allowUnverifiedFromEnv =
         getConfigString(configService, 'GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS').toLowerCase() === 'true';
     const allowUnverifiedTokens =
-        typeof allowUnverifiedFromConfig === 'boolean'
-            ? allowUnverifiedFromConfig
-            : allowUnverifiedFromEnv;
+        typeof allowUnverifiedFromConfig === 'boolean' ? allowUnverifiedFromConfig : allowUnverifiedFromEnv;
 
-    const googlePlayClientEmail = getConfigString(
-        configService,
-        'googlePlay.clientEmail',
-        'GOOGLE_PLAY_CLIENT_EMAIL',
-    );
-    const googlePlayPrivateKey = getConfigString(
-        configService,
-        'googlePlay.privateKey',
-        'GOOGLE_PLAY_PRIVATE_KEY',
-    );
-    const googlePlayPackageName = getConfigString(
-        configService,
-        'googlePlay.packageName',
-        'GOOGLE_PLAY_PACKAGE_NAME',
-    );
+    const googlePlayClientEmail = getConfigString(configService, 'googlePlay.clientEmail', 'GOOGLE_PLAY_CLIENT_EMAIL');
+    const googlePlayPrivateKey = getConfigString(configService, 'googlePlay.privateKey', 'GOOGLE_PLAY_PRIVATE_KEY');
+    const googlePlayPackageName = getConfigString(configService, 'googlePlay.packageName', 'GOOGLE_PLAY_PACKAGE_NAME');
 
     if (isProduction) {
         if (allowUnverifiedTokens) {
-            throw new Error(
-                'FATAL: GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS must be false in production runtime.',
-            );
+            throw new Error('FATAL: GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS must be false in production runtime.');
         }
 
         if (!googlePlayClientEmail || !googlePlayPrivateKey || !googlePlayPackageName) {
@@ -77,9 +59,7 @@ function validateProductionRuntimeConfig(configService: ConfigService, logger: L
     }
 
     if (!isProduction && allowUnverifiedTokens) {
-        logger.warn(
-            '[CONFIG] Google Play unverified-token bypass is enabled (non-production only).',
-        );
+        logger.warn('[CONFIG] Google Play unverified-token bypass is enabled (non-production only).');
     }
 
     logger.log(
@@ -108,7 +88,7 @@ async function bootstrap() {
         logger.warn('⚠️  CORS_ORIGIN is set to "*". Restrict this in production!');
     }
     app.enableCors({
-        origin: corsOrigin === '*' ? true : corsOrigin.split(',').map(o => o.trim()),
+        origin: corsOrigin === '*' ? true : corsOrigin.split(',').map((o) => o.trim()),
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
         credentials: true,
     });
@@ -133,10 +113,7 @@ async function bootstrap() {
 
     // Global filters & interceptors
     app.useGlobalFilters(new GlobalExceptionFilter());
-    app.useGlobalInterceptors(
-        new LoggingInterceptor(),
-        new TransformInterceptor(),
-    );
+    app.useGlobalInterceptors(new LoggingInterceptor(), new TransformInterceptor());
 
     // Swagger API docs — only in non-production environments
     if (process.env.NODE_ENV !== 'production') {
@@ -166,22 +143,23 @@ async function bootstrap() {
         logger.log('📚 Swagger docs DISABLED in production');
     }
 
-    await app.listen(port, '0.0.0.0');
-
-    // Run pending migrations after app is ready
+    // Run pending migrations before the HTTP server and schedulers start.
+    // Subscription code depends on enum values and plan columns being present.
     try {
         if (!dataSource.isInitialized) {
             await dataSource.initialize();
         }
-        const migrations = await dataSource.runMigrations({ transaction: 'all' });
+        const migrations = await dataSource.runMigrations({ transaction: 'each' });
         if (migrations.length > 0) {
-            logger.log(`✅ Ran ${migrations.length} migration(s): ${migrations.map(m => m.name).join(', ')}`);
+            logger.log(`✅ Ran ${migrations.length} migration(s): ${migrations.map((m) => m.name).join(', ')}`);
         } else {
             logger.log('✅ Database migrations up to date');
         }
     } catch (err) {
-        logger.error('❌ Migration run failed — continuing anyway', err);
+        logger.error('Migration run failed; refusing to start with a drifted schema', err);
+        throw err;
     }
+    await app.listen(port, '0.0.0.0');
 
     logger.log(`🚀 Wafaa API running on http://0.0.0.0:${port}/${apiPrefix}`);
     logger.log(`📚 Swagger docs at http://0.0.0.0:${port}/api/docs`);
