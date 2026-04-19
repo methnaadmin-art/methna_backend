@@ -88,12 +88,15 @@ export class SearchController {
             marriageIntention: undefined,
             timeFrame: undefined,
             intentMode: undefined,
+            goGlobal: undefined,
             livingSituation: undefined,
             interests: undefined,
             languages: undefined,
             familyValues: undefined,
+            nationalities: undefined,
             communicationStyles: undefined,
             verifiedOnly: undefined,
+            onlineOnly: undefined,
             recentlyActiveOnly: undefined,
             withPhotosOnly: undefined,
             minTrustScore: undefined,
@@ -109,12 +112,15 @@ export class SearchController {
                 filters.marriageIntention ||
                 filters.timeFrame ||
                 filters.intentMode ||
+                filters.goGlobal ||
                 filters.livingSituation ||
                 (filters.interests?.length ?? 0) > 0 ||
                 (filters.languages?.length ?? 0) > 0 ||
                 (filters.familyValues?.length ?? 0) > 0 ||
+                (filters.nationalities?.length ?? 0) > 0 ||
                 (filters.communicationStyles?.length ?? 0) > 0 ||
                 filters.verifiedOnly ||
+                filters.onlineOnly ||
                 filters.recentlyActiveOnly ||
                 filters.withPhotosOnly ||
                 (filters.minTrustScore ?? 0) > 0 ||

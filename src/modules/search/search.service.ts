@@ -294,46 +294,6 @@ export class SearchService {
             }
         }
 
-        if (filters.forceRefresh) {
-            const globalHotDeckKey = this.buildGlobalHotDeckCacheKey(filters);
-            const globalHotDeckPayloadKey = this.buildGlobalHotDeckPayloadCacheKey(filters);
-
-            const [globalDeck, globalPayload] = await Promise.all([
-                this.redisService.getJson<SearchDeckEntry[]>(globalHotDeckKey).catch(() => null),
-                this.redisService
-                    .getJson<HotDeckPayloadMap>(globalHotDeckPayloadKey)
-                    .catch(() => null),
-            ]);
-
-            if (Array.isArray(globalDeck) && globalDeck.length > 0) {
-                const exclusionSet = new Set([userId, ...explicitExcludeIds]);
-                const filteredDeck = globalDeck.filter((entry) => !exclusionSet.has(entry.userId));
-                const total = filteredDeck.length;
-                const pagedDeck = filteredDeck.slice(startOffset, startOffset + limit);
-
-                if (pagedDeck.length > 0) {
-                    const cachedUsers = this.resolveUsersFromHotDeckPayload(
-                        pagedDeck,
-                        globalPayload,
-                    );
-
-                    if (cachedUsers) {
-                        void this.redisService.setJson(rawHotDeckCacheKey, globalDeck, 120).catch(() => undefined);
-                        void this.redisService
-                            .setJson(rawHotDeckPayloadCacheKey, globalPayload, 120)
-                            .catch(() => undefined);
-
-                        const response = buildResponse(cachedUsers, total, startOffset);
-                        void this.redisService.setJson(cacheKey, response, 90).catch(() => undefined);
-                        this.logger.debug(
-                            `[Search] Served userId=${userId} from global hot deck fallback`,
-                        );
-                        return response;
-                    }
-                }
-            }
-        }
-
         const [currentProfile, currentPreference] = await Promise.all([
             this.profileRepository.findOne({
                 where: { userId },
@@ -350,14 +310,18 @@ export class SearchService {
             return buildResponse([], 0, 0);
         }
 
-        const effectiveViewerProfile = this.resolveEffectiveProfileLocation(currentProfile);
-        const passportAdjustedFilters = this.withPassportCountryOverride(
-            filters,
-            currentProfile.user as User | undefined,
-        );
         const hasAdvancedFilterAccess = this.hasActivePremiumEntitlement(
             currentProfile.user as User | undefined,
         );
+        const effectiveViewerProfile = hasAdvancedFilterAccess
+            ? this.resolveEffectiveProfileLocation(currentProfile)
+            : currentProfile;
+        const passportAdjustedFilters = hasAdvancedFilterAccess
+            ? this.withPassportCountryOverride(
+                filters,
+                currentProfile.user as User | undefined,
+            )
+            : filters;
         const effectiveFilters = this.applyFreeTierFilterLimits(
             passportAdjustedFilters,
             hasAdvancedFilterAccess,
@@ -2421,6 +2385,7 @@ export class SearchService {
             marriageIntention: undefined,
             timeFrame: undefined,
             intentMode: undefined,
+            goGlobal: undefined,
             livingSituation: undefined,
             interests: undefined,
             languages: undefined,

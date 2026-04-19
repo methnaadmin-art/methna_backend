@@ -19,8 +19,6 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { MonetizationService, FeatureFlag } from '../monetization/monetization.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { User, UserStatus } from '../../database/entities/user.entity';
-import { Photo, PhotoModerationStatus } from '../../database/entities/photo.entity';
-import { CloudinaryService } from '../photos/cloudinary.service';
 
 @Injectable()
 export class SwipesService {
@@ -43,8 +41,6 @@ export class SwipesService {
         private readonly rematchRepository: Repository<RematchRequest>,
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
-        @InjectRepository(Photo)
-        private readonly photoRepository: Repository<Photo>,
         private readonly redisService: RedisService,
         private readonly notificationsService: NotificationsService,
         private readonly monetizationService: MonetizationService,
@@ -228,66 +224,19 @@ export class SwipesService {
         const filteredLikes = visibleLikes.filter(l => !matchedUserIds.has(l.likerId));
 
         if (!canSeeWhoLikedYou) {
-            // Non-premium: return anonymized data for blurred card display.
-            // Keep main photo URL so clients can render loaded photos under blur.
-            const profiles = filteredLikes.length > 0
-                ? await this.profileRepository
-                    .createQueryBuilder('profile')
-                    .leftJoinAndSelect('profile.user', 'user')
-                    .where('profile.userId IN (:...userIds)', {
-                        userIds: filteredLikes.map(l => l.likerId),
-                    })
-                    .getMany()
-                : [];
-
-            const approvedPhotos = filteredLikes.length > 0
-                ? await this.photoRepository
-                    .createQueryBuilder('photo')
-                    .where('photo.userId IN (:...userIds)', {
-                        userIds: filteredLikes.map((l) => l.likerId),
-                    })
-                    .andWhere('photo.moderationStatus = :approvedStatus', {
-                        approvedStatus: PhotoModerationStatus.APPROVED,
-                    })
-                    .orderBy('photo.userId', 'ASC')
-                    .addOrderBy('photo.isMain', 'DESC')
-                    .addOrderBy('photo.order', 'ASC')
-                    .addOrderBy('photo.createdAt', 'ASC')
-                    .getMany()
-                : [];
-
-            const profileMap = new Map(profiles.map(p => [p.userId, p]));
-            const mainPhotoByUserId = new Map<string, Photo>();
-            for (const photo of approvedPhotos) {
-                if (!mainPhotoByUserId.has(photo.userId)) {
-                    mainPhotoByUserId.set(photo.userId, photo);
-                }
-            }
-
             return {
                 count: filteredLikes.length,
-                users: filteredLikes.map((l) => {
-                    const profile = profileMap.get(l.likerId);
-                    const mainPhoto = mainPhotoByUserId.get(l.likerId);
-                    const mainPhotoUrl = mainPhoto
-                        ? CloudinaryService.profileUrl(mainPhoto.url)
-                        : null;
-                    return {
-                        userId: l.likerId,
-                        // Anonymized: no name, only age/city for teaser
-                        firstName: null,
-                        lastName: null,
-                        age: profile?.dateOfBirth
-                            ? Math.floor((Date.now() - new Date(profile.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
-                            : null,
-                        city: profile?.city ?? null,
-                        mainPhotoUrl,
-                        photoUrl: mainPhotoUrl,
-                        type: l.type,
-                        isBlurred: true,
-                        createdAt: l.createdAt,
-                    };
-                }),
+                users: filteredLikes.map((l, index) => ({
+                    id: `locked_like_${index}`,
+                    userId: `locked_like_${index}`,
+                    firstName: null,
+                    lastName: null,
+                    type: l.type,
+                    isBlurred: true,
+                    locked: true,
+                    requiresPremium: true,
+                    createdAt: l.createdAt,
+                })),
                 isPremiumFeature: true,
             };
         }

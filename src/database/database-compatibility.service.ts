@@ -19,9 +19,57 @@ export class DatabaseCompatibilityService implements OnModuleInit {
 
         const enumStatements = [
             {
+                label: 'users_status_enum.limited',
+                sql: `DO $$ BEGIN
+                    ALTER TYPE "users_status_enum" ADD VALUE IF NOT EXISTS 'limited';
+                EXCEPTION
+                    WHEN undefined_object THEN NULL;
+                END $$;`,
+            },
+            {
+                label: 'users_status_enum.shadow_suspended',
+                sql: `DO $$ BEGIN
+                    ALTER TYPE "users_status_enum" ADD VALUE IF NOT EXISTS 'shadow_suspended';
+                EXCEPTION
+                    WHEN undefined_object THEN NULL;
+                END $$;`,
+            },
+            {
+                label: 'users_status_enum.deactivated',
+                sql: `DO $$ BEGIN
+                    ALTER TYPE "users_status_enum" ADD VALUE IF NOT EXISTS 'deactivated';
+                EXCEPTION
+                    WHEN undefined_object THEN NULL;
+                END $$;`,
+            },
+            {
+                label: 'users_status_enum.closed',
+                sql: `DO $$ BEGIN
+                    ALTER TYPE "users_status_enum" ADD VALUE IF NOT EXISTS 'closed';
+                EXCEPTION
+                    WHEN undefined_object THEN NULL;
+                END $$;`,
+            },
+            {
+                label: 'users_status_enum.pending_verification',
+                sql: `DO $$ BEGIN
+                    ALTER TYPE "users_status_enum" ADD VALUE IF NOT EXISTS 'pending_verification';
+                EXCEPTION
+                    WHEN undefined_object THEN NULL;
+                END $$;`,
+            },
+            {
                 label: 'users_status_enum.rejected',
                 sql: `DO $$ BEGIN
                     ALTER TYPE "users_status_enum" ADD VALUE IF NOT EXISTS 'rejected';
+                EXCEPTION
+                    WHEN undefined_object THEN NULL;
+                END $$;`,
+            },
+            {
+                label: 'users_role_enum.moderator',
+                sql: `DO $$ BEGIN
+                    ALTER TYPE "users_role_enum" ADD VALUE IF NOT EXISTS 'moderator';
                 EXCEPTION
                     WHEN undefined_object THEN NULL;
                 END $$;`,
@@ -37,6 +85,15 @@ export class DatabaseCompatibilityService implements OnModuleInit {
         ];
 
         const columnStatements = [
+            { label: 'users.statusReason', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "statusReason" text' },
+            { label: 'users.moderationReasonCode', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "moderationReasonCode" character varying' },
+            { label: 'users.moderationReasonText', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "moderationReasonText" text' },
+            { label: 'users.actionRequired', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "actionRequired" character varying' },
+            { label: 'users.supportMessage', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "supportMessage" text' },
+            { label: 'users.isUserVisible', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "isUserVisible" boolean DEFAULT true' },
+            { label: 'users.moderationExpiresAt', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "moderationExpiresAt" timestamptz' },
+            { label: 'users.internalAdminNote', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "internalAdminNote" text' },
+            { label: 'users.updatedByAdminId', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "updatedByAdminId" character varying' },
             { label: 'users.readReceipts', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "readReceipts" boolean DEFAULT true' },
             { label: 'users.typingIndicator', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "typingIndicator" boolean DEFAULT true' },
             { label: 'users.autoDownloadMedia', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "autoDownloadMedia" boolean DEFAULT true' },
