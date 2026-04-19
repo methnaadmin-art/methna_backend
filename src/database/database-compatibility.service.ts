@@ -182,7 +182,15 @@ export class DatabaseCompatibilityService implements OnModuleInit {
             { label: 'users.isPremium', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "isPremium" boolean DEFAULT false' },
             { label: 'users.premiumStartDate', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "premiumStartDate" timestamptz' },
             { label: 'users.premiumExpiryDate', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "premiumExpiryDate" timestamptz' },
+            { label: 'users.subscriptionPlanId', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "subscriptionPlanId" character varying' },
+            { label: 'users.isGhostModeEnabled', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "isGhostModeEnabled" boolean DEFAULT false' },
+            { label: 'users.isPassportActive', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "isPassportActive" boolean DEFAULT false' },
+            { label: 'users.realLocation', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "realLocation" jsonb' },
+            { label: 'users.passportLocation', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "passportLocation" jsonb' },
             { label: 'users.verification', sql: `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "verification" jsonb DEFAULT '{}'::jsonb` },
+            { label: 'users.backgroundCheckStatus', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "backgroundCheckStatus" character varying' },
+            { label: 'users.backgroundCheckCheckId', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "backgroundCheckCheckId" character varying' },
+            { label: 'users.backgroundCheckCompletedAt', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "backgroundCheckCompletedAt" timestamptz' },
             { label: 'users.likesBalance', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "likesBalance" integer DEFAULT 0' },
             { label: 'users.complimentsBalance', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "complimentsBalance" integer DEFAULT 0' },
             { label: 'users.boostsBalance', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "boostsBalance" integer DEFAULT 0' },
@@ -299,6 +307,12 @@ export class DatabaseCompatibilityService implements OnModuleInit {
             { label: 'boosts.isActive', sql: 'ALTER TABLE "boosts" ADD COLUMN IF NOT EXISTS "isActive" boolean DEFAULT true' },
             { label: 'boosts.type', sql: `ALTER TABLE "boosts" ADD COLUMN IF NOT EXISTS "type" character varying DEFAULT 'paid'` },
             { label: 'boosts.profileViewsGained', sql: 'ALTER TABLE "boosts" ADD COLUMN IF NOT EXISTS "profileViewsGained" integer DEFAULT 0' },
+            { label: 'ads.targetGender', sql: 'ALTER TABLE "ads" ADD COLUMN IF NOT EXISTS "targetGender" character varying' },
+            { label: 'ads.targetPlan', sql: 'ALTER TABLE "ads" ADD COLUMN IF NOT EXISTS "targetPlan" character varying' },
+            { label: 'ads.targetCountry', sql: 'ALTER TABLE "ads" ADD COLUMN IF NOT EXISTS "targetCountry" character varying' },
+            { label: 'ads.targetCity', sql: 'ALTER TABLE "ads" ADD COLUMN IF NOT EXISTS "targetCity" character varying' },
+            { label: 'ads.showEveryNUsers', sql: 'ALTER TABLE "ads" ADD COLUMN IF NOT EXISTS "showEveryNUsers" integer DEFAULT 1' },
+            { label: 'ads.weight', sql: 'ALTER TABLE "ads" ADD COLUMN IF NOT EXISTS "weight" integer DEFAULT 1' },
         ];
 
         for (const statement of [...enumStatements, ...tableStatements, ...columnStatements]) {
@@ -335,6 +349,24 @@ export class DatabaseCompatibilityService implements OnModuleInit {
              END
              FROM ranked r
              WHERE p.id = r.id`,
+        );
+
+        await this.runStatement(
+            'users.subscriptionPlanId index',
+            `CREATE INDEX IF NOT EXISTS "IDX_users_subscriptionPlanId"
+             ON "users" ("subscriptionPlanId")`,
+        );
+
+        await this.runStatement(
+            'users.isGhostModeEnabled index',
+            `CREATE INDEX IF NOT EXISTS "IDX_users_isGhostModeEnabled"
+             ON "users" ("isGhostModeEnabled")`,
+        );
+
+        await this.runStatement(
+            'users.isPassportActive index',
+            `CREATE INDEX IF NOT EXISTS "IDX_users_isPassportActive"
+             ON "users" ("isPassportActive")`,
         );
 
         await this.runStatement(

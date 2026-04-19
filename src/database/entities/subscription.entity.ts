@@ -9,7 +9,8 @@ import {
     Index,
 } from 'typeorm';
 import { User } from './user.entity';
-import { Plan, BillingCycle } from './plan.entity';
+import { Plan } from './plan.entity';
+import { BillingCycle } from './billing-cycle.enum';
 
 /** @deprecated Use Plan.code from planEntity instead. Kept for DB backward compat. */
 export enum SubscriptionPlan {

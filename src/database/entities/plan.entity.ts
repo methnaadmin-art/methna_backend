@@ -8,6 +8,7 @@ import {
     Index,
 } from 'typeorm';
 import { Subscription } from './subscription.entity';
+import { BillingCycle } from './billing-cycle.enum';
 
 /** Feature entitlements stored as JSONB on each plan. */
 export interface PlanEntitlements {
@@ -80,12 +81,7 @@ export interface PlanLimits {
     complimentsLimit?: number;
 }
 
-export enum BillingCycle {
-    MONTHLY = 'monthly',
-    YEARLY = 'yearly',
-    WEEKLY = 'weekly',
-    ONE_TIME = 'one_time',
-}
+export { BillingCycle } from './billing-cycle.enum';
 
 @Index('UQ_plans_googleProductId_googleBasePlanId', ['googleProductId', 'googleBasePlanId'], {
     unique: true,
