@@ -428,7 +428,14 @@ export class SearchService {
 
         const query = this.profileRepository
             .createQueryBuilder('profile')
-            .leftJoinAndSelect('profile.user', 'user')
+            .leftJoinAndSelect('profile.user', 'user');
+
+        // Compute effective coordinates ONCE via CROSS JOIN LATERAL.
+        // This replaces all inline CASE/regex/CAST duplication — coords.effective_lat
+        // and coords.effective_lng are available for use anywhere in the query.
+        this.addEffectiveCoordinatesJoin(query);
+
+        query
             .select([
                 ...SearchService.DISCOVERY_PROFILE_RANK_SELECT,
                 ...SearchService.DISCOVERY_USER_RANK_SELECT,
@@ -517,12 +524,11 @@ export class SearchService {
             effectiveFilters,
         );
 
-        // Always compute distance when user has location (needed for ranking + response)
+        // Always compute distance when user has location (needed for ranking + response).
+        // Uses pre-computed coords.effective_lat / coords.effective_lng from the LATERAL join.
         if (hasUserLocation) {
-            const candidateLatitude = this.buildEffectiveCoordinateSql('latitude');
-            const candidateLongitude = this.buildEffectiveCoordinateSql('longitude');
             query.addSelect(
-                this.buildDistanceSql(candidateLatitude, candidateLongitude, 'orderLat', 'orderLng'),
+                this.buildDistanceSql('orderLat', 'orderLng'),
                 'distance',
             );
             query.setParameter('orderLat', effectiveViewerProfile.latitude);
@@ -1335,12 +1341,66 @@ export class SearchService {
     }
 
     /**
-     * Applies a distance constraint using a two-stage filter:
-     * 1. Bounding box pre-filter on profile coordinates (index-friendly, cheap)
-     * 2. Precise Haversine distance check using effective coordinates (passport-aware)
+     * Adds a CROSS JOIN LATERAL subquery that computes effective coordinates
+     * exactly ONCE per row. The computed columns are:
+     *   coords.effective_lat  (passport lat if active+valid, else profile lat)
+     *   coords.effective_lng  (passport lng if active+valid, else profile lng)
      *
-     * This avoids duplicating the effective-coordinate CASE expression 6+ times,
-     * which caused the original SQL syntax error from deeply nested parentheses.
+     * This eliminates all inline CASE/regex/CAST duplication across the query.
+     * The regex and CAST appear exactly ONCE in the entire SQL.
+     *
+     * Must be called AFTER `.leftJoinAndSelect('profile.user', 'user')` so that
+     * "user" and "profile" aliases are in scope for the LATERAL subquery.
+     */
+    private addEffectiveCoordinatesJoin(query: SelectQueryBuilder<Profile>): void {
+        // Regex validates numeric strings before CAST (supports +/-/no prefix, optional decimal)
+        const numericRegex = `'^[-+]?[0-9]+(\\.[0-9]+)?$'`;
+
+        const lateralSql = `
+            LATERAL (
+                SELECT
+                    CASE
+                        WHEN "user"."isPassportActive" = true
+                            AND passport_coords.plat IS NOT NULL
+                            AND passport_coords.plat BETWEEN -90 AND 90
+                        THEN passport_coords.plat
+                        ELSE CAST("profile"."latitude" AS double precision)
+                    END AS effective_lat,
+                    CASE
+                        WHEN "user"."isPassportActive" = true
+                            AND passport_coords.plng IS NOT NULL
+                            AND passport_coords.plng BETWEEN -180 AND 180
+                        THEN passport_coords.plng
+                        ELSE CAST("profile"."longitude" AS double precision)
+                    END AS effective_lng
+                FROM (
+                    SELECT
+                        CASE
+                            WHEN COALESCE("user"."passportLocation"->>'latitude', '') ~ ${numericRegex}
+                            THEN CAST("user"."passportLocation"->>'latitude' AS double precision)
+                            ELSE NULL
+                        END AS plat,
+                        CASE
+                            WHEN COALESCE("user"."passportLocation"->>'longitude', '') ~ ${numericRegex}
+                            THEN CAST("user"."passportLocation"->>'longitude' AS double precision)
+                            ELSE NULL
+                        END AS plng
+                ) passport_coords
+            )
+        `;
+
+        // Use innerJoin with raw LATERAL expression. TypeORM emits:
+        //   INNER JOIN LATERAL (...) coords ON TRUE
+        query.innerJoin(lateralSql, 'coords', 'TRUE');
+    }
+
+    /**
+     * Applies a distance constraint using pre-computed effective coordinates.
+     * Uses a two-stage filter:
+     * 1. Bounding box on profile columns (index-friendly pre-filter)
+     * 2. Precise Haversine distance using coords.effective_lat / coords.effective_lng
+     *
+     * No inline CASE/regex/CAST — all coordinate logic lives in the LATERAL join.
      */
     private applyDistanceConstraint(
         query: SelectQueryBuilder<Profile>,
@@ -1364,15 +1424,8 @@ export class SearchService {
             },
         );
 
-        // Stage 2: Precise Haversine distance using effective (passport-aware) coordinates
-        const candidateLat = this.buildEffectiveCoordinateSql('latitude');
-        const candidateLng = this.buildEffectiveCoordinateSql('longitude');
-        const distanceExpr = this.buildDistanceSql(
-            candidateLat,
-            candidateLng,
-            `${prefix}UserLat`,
-            `${prefix}UserLng`,
-        );
+        // Stage 2: Precise Haversine distance using pre-computed effective coordinates
+        const distanceExpr = this.buildDistanceSql(`${prefix}UserLat`, `${prefix}UserLng`);
 
         query.andWhere(
             `(${distanceExpr} <= :${prefix}MaxDistance)`,
@@ -1385,42 +1438,19 @@ export class SearchService {
     }
 
     /**
-     * Builds a SQL expression that returns the effective coordinate for a candidate.
-     * When passport is active and valid, uses passport lat/lng; otherwise profile lat/lng.
+     * Builds the Haversine distance SQL using pre-computed coordinate aliases
+     * (coords.effective_lat, coords.effective_lng). These are produced by the
+     * LATERAL join added via `addEffectiveCoordinatesJoin()`.
      *
-     * Uses a single clean CASE with TRY-CAST pattern:
-     *   CASE WHEN passport_active AND passport_lat IS valid numeric
-     *        THEN passport_lat
-     *        ELSE profile_lat
-     *   END
-     *
-     * The regex '^[-+]?[0-9]+(\.[0-9]+)?$' safely validates numeric strings before CAST.
-     * This replaces the old approach that duplicated massive nested CASE blocks 6+ times.
+     * acos input is clamped between -1 and 1 to prevent NaN from floating-point
+     * rounding errors.
      */
-    private buildEffectiveCoordinateSql(axis: 'latitude' | 'longitude'): string {
-        const col = axis === 'latitude' ? 'latitude' : 'longitude';
-        const minVal = axis === 'latitude' ? -90 : -180;
-        const maxVal = axis === 'latitude' ? 90 : 180;
-        const passportVal = `"user"."passportLocation"->>'${col}'`;
-        const profileVal = `"profile"."${col}"`;
-
-        // Safe numeric extraction from passport JSON field
-        const passportNum = `CASE WHEN COALESCE(${passportVal}, '') ~ '^[-+]?[0-9]+(\\.[0-9]+)?$' THEN CAST(${passportVal} AS double precision) ELSE NULL END`;
-
-        return `CASE WHEN "user"."isPassportActive" = true AND ${passportNum} IS NOT NULL AND ${passportNum} BETWEEN ${minVal} AND ${maxVal} THEN ${passportNum} ELSE CAST(${profileVal} AS double precision) END`;
-    }
-
-    /**
-     * Builds the Haversine distance SQL using pre-built coordinate expressions.
-     * acos input is clamped between -1 and 1 to prevent NaN from floating-point rounding.
-     */
-    private buildDistanceSql(
-        candidateLatitudeSql: string,
-        candidateLongitudeSql: string,
-        latitudeParam: string,
-        longitudeParam: string,
-    ): string {
-        return `(6371 * acos(LEAST(1.0, GREATEST(-1.0, cos(radians(:${latitudeParam})) * cos(radians(${candidateLatitudeSql})) * cos(radians(${candidateLongitudeSql}) - radians(:${longitudeParam})) + sin(radians(:${latitudeParam})) * sin(radians(${candidateLatitudeSql}))))))`;
+    private buildDistanceSql(latitudeParam: string, longitudeParam: string): string {
+        return `(6371 * acos(LEAST(1.0, GREATEST(-1.0, ` +
+            `cos(radians(:${latitudeParam})) * cos(radians(coords.effective_lat)) ` +
+            `* cos(radians(coords.effective_lng) - radians(:${longitudeParam})) ` +
+            `+ sin(radians(:${latitudeParam})) * sin(radians(coords.effective_lat))` +
+            `))))`;
     }
 
     private matchesPreference(
