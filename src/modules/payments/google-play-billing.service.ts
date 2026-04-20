@@ -14,6 +14,7 @@ import {
     PlanFeatureFlags,
     PlanLimits,
 } from '../../database/entities/plan.entity';
+import { BillingCycle } from '../../database/entities/billing-cycle.enum';
 import {
     PurchaseProvider,
     PurchaseStatus,
@@ -169,7 +170,7 @@ export class GooglePlayBillingService {
         );
 
         const transactionDate = this.resolveTransactionDate(dto.transactionDate);
-        const expiryDate = verification.expiryDate || this.defaultExpiryFromPlan(plan, transactionDate);
+        const expiryDate = this.resolveExpiryDate(plan, verification.expiryDate, transactionDate);
 
         const subscription = await this.dataSource.transaction(async (manager) => {
             const purchaseRepository = manager.getRepository(PurchaseTransaction);
@@ -497,10 +498,67 @@ export class GooglePlayBillingService {
         return new Date();
     }
 
+    /**
+     * Compute the number of days a subscription should run for based on the
+     * plan's billing cycle. Prefer an explicit plan.durationDays ONLY when it
+     * matches the cycle — this prevents misconfigured weekly plans (where
+     * admins forgot to set durationDays=7 and it stayed at the default 30)
+     * from ever emitting wrong expiries. For WEEKLY, we force 7 days.
+     */
+    private resolvePlanDurationDays(plan: Plan): number {
+        const cycleDays = this.daysForBillingCycle(plan.billingCycle);
+        const explicit = Number(plan.durationDays);
+        if (plan.billingCycle === BillingCycle.WEEKLY) {
+            return 7;
+        }
+        if (Number.isFinite(explicit) && explicit > 0) {
+            return explicit;
+        }
+        return cycleDays;
+    }
+
+    private daysForBillingCycle(cycle: BillingCycle | string | null | undefined): number {
+        switch (cycle) {
+            case BillingCycle.WEEKLY:
+                return 7;
+            case BillingCycle.YEARLY:
+                return 365;
+            case BillingCycle.ONE_TIME:
+                return 36500; // effectively lifetime
+            case BillingCycle.MONTHLY:
+            default:
+                return 30;
+        }
+    }
+
     private defaultExpiryFromPlan(plan: Plan, startDate: Date): Date {
         const endDate = new Date(startDate);
-        endDate.setDate(endDate.getDate() + (plan.durationDays || 30));
+        endDate.setDate(endDate.getDate() + this.resolvePlanDurationDays(plan));
         return endDate;
+    }
+
+    /**
+     * Resolve a trustworthy expiry date. If Google Play returns an expiry,
+     * use it — UNLESS it is absurdly close to the transaction date (which
+     * typically indicates a sandbox/test subscription cycling in minutes),
+     * in which case we honour the plan's real billing cycle so the user
+     * doesn't see "1 day remaining" after buying a 7-day plan.
+     */
+    private resolveExpiryDate(plan: Plan, googleExpiry: Date | null | undefined, transactionDate: Date): Date {
+        const fallback = this.defaultExpiryFromPlan(plan, transactionDate);
+        if (!googleExpiry) {
+            return fallback;
+        }
+        const diffMs = googleExpiry.getTime() - transactionDate.getTime();
+        const oneHourMs = 60 * 60 * 1000;
+        // Guard: ignore obviously-wrong responses (past, or <1h in the future).
+        if (diffMs < oneHourMs) {
+            this.logger.warn(
+                `[PAYMENT] Google Play expiry ${googleExpiry.toISOString()} is <1h after transaction ${transactionDate.toISOString()} — falling back to plan cycle (${plan.billingCycle}).`,
+            );
+            return fallback;
+        }
+        return googleExpiry;
     }
 
     private async verifyWithGooglePlay(productId: string, purchaseToken: string): Promise<GooglePlayVerificationSnapshot> {
