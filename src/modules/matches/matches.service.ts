@@ -196,8 +196,8 @@ export class MatchesService {
                 `(
                     LOWER(profile.country) = LOWER(:country)
                     OR (
-                        user."isPassportActive" = true
-                        AND LOWER(COALESCE(user."passportLocation"->>'country', '')) = LOWER(:country)
+                        "user"."isPassportActive" = true
+                        AND LOWER(COALESCE("user"."passportLocation"->>'country', '')) = LOWER(:country)
                     )
                 )`,
                 { country: country.trim() },
@@ -208,8 +208,8 @@ export class MatchesService {
                 `(
                     LOWER(profile.city) = LOWER(:city)
                     OR (
-                        user."isPassportActive" = true
-                        AND LOWER(COALESCE(user."passportLocation"->>'city', '')) = LOWER(:city)
+                        "user"."isPassportActive" = true
+                        AND LOWER(COALESCE("user"."passportLocation"->>'city', '')) = LOWER(:city)
                     )
                 )`,
                 { city: city.trim() },

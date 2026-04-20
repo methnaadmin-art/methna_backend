@@ -995,8 +995,8 @@ export class SearchService {
                 `(
                     LOWER(profile.city) LIKE LOWER(:cityLike)
                     OR (
-                        user."isPassportActive" = true
-                        AND LOWER(COALESCE(user."passportLocation"->>'city', '')) LIKE LOWER(:cityLike)
+                        "user"."isPassportActive" = true
+                        AND LOWER(COALESCE("user"."passportLocation"->>'city', '')) LIKE LOWER(:cityLike)
                     )
                 )`,
                 {
@@ -1012,12 +1012,12 @@ export class SearchService {
                     LOWER(TRIM(profile.country)) = LOWER(TRIM(:countryExact))
                     OR LOWER(profile.country) LIKE LOWER(:countryLike)
                     OR (
-                        user."isPassportActive" = true
-                        AND LOWER(TRIM(COALESCE(user."passportLocation"->>'country', ''))) = LOWER(TRIM(:countryExact))
+                        "user"."isPassportActive" = true
+                        AND LOWER(TRIM(COALESCE("user"."passportLocation"->>'country', ''))) = LOWER(TRIM(:countryExact))
                     )
                     OR (
-                        user."isPassportActive" = true
-                        AND LOWER(COALESCE(user."passportLocation"->>'country', '')) LIKE LOWER(:countryLike)
+                        "user"."isPassportActive" = true
+                        AND LOWER(COALESCE("user"."passportLocation"->>'country', '')) LIKE LOWER(:countryLike)
                     )
                 )`,
                 {

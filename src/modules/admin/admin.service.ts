@@ -372,11 +372,11 @@ export class AdminService implements OnModuleInit {
         }
 
         if (filters.verificationState && filters.verificationState !== 'all') {
-            const selfieUrlExpr = `NULLIF(COALESCE(user.verification->'selfie'->>'url', user."selfieUrl"), '')`;
-            const identityUrlExpr = `NULLIF(COALESCE(user.verification->'identity'->>'url', CASE WHEN user.verification->'marital_status'->>'url' IS NOT NULL AND user."documentUrl" = user.verification->'marital_status'->>'url' THEN NULL ELSE user."documentUrl" END), '')`;
+            const selfieUrlExpr = `NULLIF(COALESCE(user.verification->'selfie'->>'url', "user"."selfieUrl"), '')`;
+            const identityUrlExpr = `NULLIF(COALESCE(user.verification->'identity'->>'url', CASE WHEN user.verification->'marital_status'->>'url' IS NOT NULL AND "user"."documentUrl" = user.verification->'marital_status'->>'url' THEN NULL ELSE "user"."documentUrl" END), '')`;
             const maritalUrlExpr = `NULLIF(user.verification->'marital_status'->>'url', '')`;
-            const selfieStatusExpr = `COALESCE(user.verification->'selfie'->>'status', CASE WHEN ${selfieUrlExpr} IS NOT NULL AND user."selfieVerified" = true THEN :approvedStatus WHEN ${selfieUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
-            const identityStatusExpr = `COALESCE(user.verification->'identity'->>'status', CASE WHEN ${identityUrlExpr} IS NOT NULL AND user."documentVerified" = true THEN :approvedStatus WHEN user."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN ${identityUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
+            const selfieStatusExpr = `COALESCE(user.verification->'selfie'->>'status', CASE WHEN ${selfieUrlExpr} IS NOT NULL AND "user"."selfieVerified" = true THEN :approvedStatus WHEN ${selfieUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
+            const identityStatusExpr = `COALESCE(user.verification->'identity'->>'status', CASE WHEN ${identityUrlExpr} IS NOT NULL AND "user"."documentVerified" = true THEN :approvedStatus WHEN "user"."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN ${identityUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
             const maritalStatusExpr = `COALESCE(user.verification->'marital_status'->>'status', CASE WHEN ${maritalUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
             qb.setParameters({
                 approvedStatus: VerificationStatus.APPROVED,
