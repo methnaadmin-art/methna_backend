@@ -187,6 +187,8 @@ export class DatabaseCompatibilityService implements OnModuleInit {
             { label: 'users.isPassportActive', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "isPassportActive" boolean DEFAULT false' },
             { label: 'users.realLocation', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "realLocation" jsonb' },
             { label: 'users.passportLocation', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "passportLocation" jsonb' },
+            { label: 'users.passportLatitude', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "passportLatitude" double precision' },
+            { label: 'users.passportLongitude', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "passportLongitude" double precision' },
             { label: 'users.verification', sql: `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "verification" jsonb DEFAULT '{}'::jsonb` },
             { label: 'users.backgroundCheckStatus', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "backgroundCheckStatus" character varying' },
             { label: 'users.backgroundCheckCheckId', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "backgroundCheckCheckId" character varying' },

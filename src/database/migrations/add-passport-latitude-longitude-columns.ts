@@ -22,22 +22,39 @@ export class AddPassportLatitudeLongitudeColumns1740000000000 implements Migrati
             ADD COLUMN IF NOT EXISTS "passportLongitude" double precision NULL
         `);
 
-        // 2. Backfill from existing passportLocation JSONB
-        //    Only write valid numeric values within the geographic range.
-        //    Uses jsonb_typeof to safely check without regex.
+        // 2. Backfill from existing passportLocation JSONB.
+        //    Use nested CASE to guarantee short-circuit: only cast when value is
+        //    confirmed to be a JSON number type. No regex, no WHERE AND ordering
+        //    assumptions. Values outside geographic range are written as NULL.
         await queryRunner.query(`
             UPDATE "users"
-            SET "passportLatitude" = ("passportLocation"->>'latitude')::double precision
+            SET "passportLatitude" = CASE
+                WHEN jsonb_typeof("passportLocation"->'latitude') = 'number'
+                THEN (
+                    CASE
+                        WHEN ("passportLocation"->>'latitude')::double precision BETWEEN -90 AND 90
+                        THEN ("passportLocation"->>'latitude')::double precision
+                        ELSE NULL
+                    END
+                )
+                ELSE NULL
+            END
             WHERE "passportLocation" IS NOT NULL
-              AND jsonb_typeof("passportLocation"->'latitude') = 'number'
-              AND ("passportLocation"->>'latitude')::double precision BETWEEN -90 AND 90
         `);
         await queryRunner.query(`
             UPDATE "users"
-            SET "passportLongitude" = ("passportLocation"->>'longitude')::double precision
+            SET "passportLongitude" = CASE
+                WHEN jsonb_typeof("passportLocation"->'longitude') = 'number'
+                THEN (
+                    CASE
+                        WHEN ("passportLocation"->>'longitude')::double precision BETWEEN -180 AND 180
+                        THEN ("passportLocation"->>'longitude')::double precision
+                        ELSE NULL
+                    END
+                )
+                ELSE NULL
+            END
             WHERE "passportLocation" IS NOT NULL
-              AND jsonb_typeof("passportLocation"->'longitude') = 'number'
-              AND ("passportLocation"->>'longitude')::double precision BETWEEN -180 AND 180
         `);
 
         // 3. Add indexes for search performance
