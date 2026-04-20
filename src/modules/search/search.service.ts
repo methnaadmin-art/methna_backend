@@ -1346,46 +1346,32 @@ export class SearchService {
      *   coords.effective_lat  (passport lat if active+valid, else profile lat)
      *   coords.effective_lng  (passport lng if active+valid, else profile lng)
      *
-     * This eliminates all inline CASE/regex/CAST duplication across the query.
-     * The regex and CAST appear exactly ONCE in the entire SQL.
+     * The effective coordinates use the normalized numeric columns
+     * `user.passportLatitude` / `user.passportLongitude` which are maintained
+     * at write-time by the backend. There is NO regex, NO JSON extraction,
+     * and NO nested CASE inside the query.
+     *
+     * Single CASE per axis, references indexed numeric columns.
      *
      * Must be called AFTER `.leftJoinAndSelect('profile.user', 'user')` so that
      * "user" and "profile" aliases are in scope for the LATERAL subquery.
      */
     private addEffectiveCoordinatesJoin(query: SelectQueryBuilder<Profile>): void {
-        // Regex validates numeric strings before CAST (supports +/-/no prefix, optional decimal)
-        const numericRegex = `'^[-+]?[0-9]+(\\.[0-9]+)?$'`;
-
         const lateralSql = `
             LATERAL (
                 SELECT
                     CASE
                         WHEN "user"."isPassportActive" = true
-                            AND passport_coords.plat IS NOT NULL
-                            AND passport_coords.plat BETWEEN -90 AND 90
-                        THEN passport_coords.plat
+                            AND "user"."passportLatitude" IS NOT NULL
+                        THEN "user"."passportLatitude"
                         ELSE CAST("profile"."latitude" AS double precision)
                     END AS effective_lat,
                     CASE
                         WHEN "user"."isPassportActive" = true
-                            AND passport_coords.plng IS NOT NULL
-                            AND passport_coords.plng BETWEEN -180 AND 180
-                        THEN passport_coords.plng
+                            AND "user"."passportLongitude" IS NOT NULL
+                        THEN "user"."passportLongitude"
                         ELSE CAST("profile"."longitude" AS double precision)
                     END AS effective_lng
-                FROM (
-                    SELECT
-                        CASE
-                            WHEN COALESCE("user"."passportLocation"->>'latitude', '') ~ ${numericRegex}
-                            THEN CAST("user"."passportLocation"->>'latitude' AS double precision)
-                            ELSE NULL
-                        END AS plat,
-                        CASE
-                            WHEN COALESCE("user"."passportLocation"->>'longitude', '') ~ ${numericRegex}
-                            THEN CAST("user"."passportLocation"->>'longitude' AS double precision)
-                            ELSE NULL
-                        END AS plng
-                ) passport_coords
             )
         `;
 

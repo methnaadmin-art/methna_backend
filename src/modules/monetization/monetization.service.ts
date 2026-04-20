@@ -485,9 +485,18 @@ export class MonetizationService {
             country: normalizedCountry,
         };
 
+        // Maintain normalized numeric columns for efficient SQL filtering
+        // (avoids regex/JSON parsing inside search queries).
+        const normalizedLat =
+            Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 ? latitude : null;
+        const normalizedLng =
+            Number.isFinite(longitude) && longitude >= -180 && longitude <= 180 ? longitude : null;
+
         await this.userRepository.update(userId, {
             isPassportActive: true,
             passportLocation,
+            passportLatitude: normalizedLat,
+            passportLongitude: normalizedLng,
             realLocation: existingRealLocation ?? (this.hasLocationValues(derivedRealLocation) ? derivedRealLocation : null),
         });
 
@@ -504,6 +513,8 @@ export class MonetizationService {
         await this.userRepository.update(userId, {
             isPassportActive: false,
             passportLocation: null,
+            passportLatitude: null,
+            passportLongitude: null,
         });
         await this.redisService.del(`passport:${userId}`);
         await this.redisService.delByPattern('search:*');

@@ -246,6 +246,24 @@ export class User {
         country?: string;
     } | null;
 
+    /**
+     * Normalized passport latitude as a numeric column.
+     * Maintained at write-time by the backend to avoid regex/JSON parsing in SQL.
+     * NULL when passport is inactive or coordinates are invalid.
+     */
+    @Index()
+    @Column({ type: 'double precision', nullable: true })
+    passportLatitude: number | null;
+
+    /**
+     * Normalized passport longitude as a numeric column.
+     * Maintained at write-time by the backend to avoid regex/JSON parsing in SQL.
+     * NULL when passport is inactive or coordinates are invalid.
+     */
+    @Index()
+    @Column({ type: 'double precision', nullable: true })
+    passportLongitude: number | null;
+
     @Column({ type: 'jsonb', nullable: true, default: () => "'{}'" })
     verification: UserVerificationState;
 
