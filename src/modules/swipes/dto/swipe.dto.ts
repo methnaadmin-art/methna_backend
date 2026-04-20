@@ -9,7 +9,12 @@ export enum SwipeAction {
 }
 
 export class CreateSwipeDto {
-    @ApiProperty({ description: 'Target user ID' })
+    @ApiProperty({
+        description:
+            'Target user ID. MUST be the users.id (the top-level `id` or `userId` field ' +
+            'from a discovery/search card). Do NOT send the nested `profile.id` — that is ' +
+            'the profiles row id and will cause a foreign key violation on likes.likedId.',
+    })
     @IsUUID()
     targetUserId: string;
 

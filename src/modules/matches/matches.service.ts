@@ -423,7 +423,11 @@ export class MatchesService {
             const hasActivePremium = this.hasActivePremiumEntitlement(p.user);
 
             return {
+                // Canonical user id — USE THIS for swipe/rewind/match/message targetUserId.
+                // Both `id` and `userId` hold the same value (the users.id FK).
+                // Do NOT confuse with nested `profile.id` (which is the profiles row id).
                 id: p.userId,
+                userId: p.userId,
                 username: maskedByGhost ? null : p.user?.username ?? null,
                 email: maskedByGhost ? '' : p.user?.email ?? '',
                 firstName: maskedByGhost ? 'Ghost' : p.user?.firstName ?? null,

@@ -835,7 +835,11 @@ export class SearchService {
                     : candidatePhotos;
 
                 return {
+                    // Canonical user id — USE THIS for swipe/rewind/match/message targetUserId.
+                    // Both `id` and `userId` hold the same value (the users.id FK).
+                    // Do NOT confuse with nested `profile.id` (which is the profiles row id).
                     id: profile.userId,
+                    userId: profile.userId,
                     username: maskedByGhost ? null : profile.user?.username ?? null,
                     email: maskedByGhost ? '' : profile.user?.email ?? '',
                     firstName: maskedByGhost ? 'Ghost' : profile.user?.firstName ?? null,
@@ -2202,7 +2206,11 @@ export class SearchService {
                     : candidatePhotos;
 
                 return {
+                    // Canonical user id — USE THIS for swipe/rewind/match/message targetUserId.
+                    // Both `id` and `userId` hold the same value (the users.id FK).
+                    // Do NOT confuse with nested `profile.id` (which is the profiles row id).
                     id: profile.userId,
+                    userId: profile.userId,
                     username: maskedByGhost ? null : profile.user?.username ?? null,
                     email: maskedByGhost ? '' : profile.user?.email ?? '',
                     firstName: maskedByGhost ? 'Ghost' : profile.user?.firstName ?? null,

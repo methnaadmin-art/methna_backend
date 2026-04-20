@@ -73,7 +73,26 @@ export class SwipesService {
 
         // Target user must exist and not be banned/closed/deactivated
         if (!targetUser) {
-            throw new BadRequestException('This user is no longer available.');
+            // Diagnostic: check if the client accidentally sent a profile.id instead
+            // of a user.id. This is the most common cause of FK violations on the
+            // likes table (likedId must reference users.id, not profiles.id).
+            const matchingProfile = await this.profileRepository.findOne({
+                where: { id: targetUserId },
+                select: ['id', 'userId'],
+            });
+            if (matchingProfile) {
+                this.logger.warn(
+                    `[Swipe] Client sent profile.id (${targetUserId}) instead of user.id ` +
+                    `(correct: ${matchingProfile.userId}) from userId=${userId}`,
+                );
+                throw new BadRequestException(
+                    'Invalid target user id: received a profile id instead of a user id. ' +
+                    'Send the top-level `id` or `userId` field from the discovery card, ' +
+                    'not the nested `profile.id`.',
+                );
+            }
+            this.logger.warn(`[Swipe] targetUserId=${targetUserId} does not exist (from userId=${userId})`);
+            throw new BadRequestException('Invalid target user id: user does not exist.');
         }
         if (blockedStatuses.includes(targetUser.status as UserStatus)) {
             throw new BadRequestException('This user is no longer available.');
