@@ -1,4 +1,4 @@
-import { Module, Global } from '@nestjs/common';
+import { Module, Global, Logger } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Plan } from '../../database/entities/plan.entity';
 import { Subscription } from '../../database/entities/subscription.entity';
@@ -18,4 +18,16 @@ import { RequireFeatureGuard } from '../../common/guards/require-feature.guard';
     providers: [PlansService, RequireFeatureGuard],
     exports: [PlansService, RequireFeatureGuard],
 })
-export class PlansModule { }
+export class PlansModule {
+    private readonly logger = new Logger(PlansModule.name);
+
+    constructor(private readonly plansService: PlansService) {}
+
+    async onModuleInit(): Promise<void> {
+        try {
+            await this.plansService.ensureFreePlanExists();
+        } catch (err: any) {
+            this.logger.warn(`Failed to ensure free plan exists: ${err?.message}`);
+        }
+    }
+}

@@ -71,8 +71,11 @@ export class SwipesService {
             select: ['id', 'status'],
         });
 
-        // Cannot swipe on a banned/closed/deactivated target user
-        if (targetUser && blockedStatuses.includes(targetUser.status as UserStatus)) {
+        // Target user must exist and not be banned/closed/deactivated
+        if (!targetUser) {
+            throw new BadRequestException('This user is no longer available.');
+        }
+        if (blockedStatuses.includes(targetUser.status as UserStatus)) {
             throw new BadRequestException('This user is no longer available.');
         }
 
@@ -160,7 +163,19 @@ export class SwipesService {
             isLike: isPositive,
             complimentMessage: action === SwipeAction.COMPLIMENT ? complimentMessage : undefined,
         });
-        await this.likeRepository.save(like);
+
+        try {
+            await this.likeRepository.save(like);
+        } catch (saveError: any) {
+            // Handle FK violation race condition: target user deleted between check and insert
+            const pgCode = saveError?.code ?? saveError?.driverError?.code;
+            if (pgCode === '23503') {
+                this.logger.warn(`Swipe FK violation: target user ${targetUserId} no longer exists`);
+                throw new BadRequestException('This user is no longer available.');
+            }
+            throw saveError;
+        }
+
         this.scheduleDiscoveryCacheInvalidation(userId);
 
         // Notify target user for like actions

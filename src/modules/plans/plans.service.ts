@@ -60,6 +60,64 @@ export class PlansService {
         return this.planRepository.findOne({ where: { code } });
     }
 
+    /** Ensure the free plan exists in DB. Call on app startup to avoid fallback warnings. */
+    async ensureFreePlanExists(): Promise<void> {
+        const existing = await this.planRepository.findOne({ where: { code: 'free' } });
+        if (existing) return;
+
+        this.logger.log('Free plan not found in DB — creating default free plan');
+        const freePlan = this.planRepository.create({
+            code: 'free',
+            name: 'Free',
+            description: 'Default free plan with basic features',
+            price: 0,
+            currency: 'usd',
+            billingCycle: BillingCycle.MONTHLY,
+            stripePriceId: null,
+            stripeProductId: null,
+            googleProductId: null,
+            googleBasePlanId: null,
+            durationDays: 0,
+            isActive: true,
+            isVisible: false,
+            sortOrder: 0,
+            entitlements: {
+                dailyLikes: 10,
+                dailySuperLikes: 0,
+                dailyCompliments: 0,
+                weeklyBoosts: 0,
+                monthlyRewinds: 0,
+                seeWhoLikesYou: false,
+                unlimitedLikes: false,
+                unlimitedRewinds: false,
+                advancedFilters: false,
+                invisibleMode: false,
+                ghostMode: false,
+                passportMode: false,
+                premiumBadge: false,
+                hideAds: false,
+                rematch: false,
+                videoChat: false,
+                readReceipts: false,
+                typingIndicators: false,
+                priorityMatching: false,
+                improvedVisits: false,
+                profileBoostPriority: false,
+            } as PlanEntitlements,
+            featureFlags: {} as PlanFeatureFlags,
+            features: [] as string[],
+            limits: {
+                dailyLikes: 10,
+                dailySuperLikes: 0,
+                dailyCompliments: 0,
+                weeklyBoosts: 0,
+                monthlyRewinds: 0,
+            } as PlanLimits,
+        });
+        await this.planRepository.save(freePlan);
+        this.logger.log('Default free plan created successfully');
+    }
+
     // ADMIN CRUD
 
     async getAllPlans(): Promise<Plan[]> {

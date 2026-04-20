@@ -1334,6 +1334,14 @@ export class SearchService {
         }
     }
 
+    /**
+     * Applies a distance constraint using a two-stage filter:
+     * 1. Bounding box pre-filter on profile coordinates (index-friendly, cheap)
+     * 2. Precise Haversine distance check using effective coordinates (passport-aware)
+     *
+     * This avoids duplicating the effective-coordinate CASE expression 6+ times,
+     * which caused the original SQL syntax error from deeply nested parentheses.
+     */
     private applyDistanceConstraint(
         query: SelectQueryBuilder<Profile>,
         currentProfile: Profile,
@@ -1344,23 +1352,31 @@ export class SearchService {
         const longitude = Number(currentProfile.longitude);
         const latDelta = maxDistance / 111;
         const lngDelta = maxDistance / (111 * Math.cos((latitude * Math.PI) / 180));
-        const candidateLatitude = this.buildEffectiveCoordinateSql('latitude');
-        const candidateLongitude = this.buildEffectiveCoordinateSql('longitude');
 
-        const distanceExpression = this.buildDistanceSql(
-            candidateLatitude,
-            candidateLongitude,
-            `${prefix}UserLat`,
-            `${prefix}UserLng`,
-        );
-
+        // Stage 1: Bounding box on profile coordinates (uses indexes, fast pre-filter)
         query.andWhere(
-            `(${candidateLatitude} BETWEEN :${prefix}MinLat AND :${prefix}MaxLat AND ${candidateLongitude} BETWEEN :${prefix}MinLng AND :${prefix}MaxLng AND ${distanceExpression} <= :${prefix}MaxDistance)`,
+            `(CAST("profile"."latitude" AS double precision) BETWEEN :${prefix}MinLat AND :${prefix}MaxLat AND CAST("profile"."longitude" AS double precision) BETWEEN :${prefix}MinLng AND :${prefix}MaxLng)`,
             {
                 [`${prefix}MinLat`]: latitude - latDelta,
                 [`${prefix}MaxLat`]: latitude + latDelta,
                 [`${prefix}MinLng`]: longitude - lngDelta,
                 [`${prefix}MaxLng`]: longitude + lngDelta,
+            },
+        );
+
+        // Stage 2: Precise Haversine distance using effective (passport-aware) coordinates
+        const candidateLat = this.buildEffectiveCoordinateSql('latitude');
+        const candidateLng = this.buildEffectiveCoordinateSql('longitude');
+        const distanceExpr = this.buildDistanceSql(
+            candidateLat,
+            candidateLng,
+            `${prefix}UserLat`,
+            `${prefix}UserLng`,
+        );
+
+        query.andWhere(
+            `(${distanceExpr} <= :${prefix}MaxDistance)`,
+            {
                 [`${prefix}UserLat`]: latitude,
                 [`${prefix}UserLng`]: longitude,
                 [`${prefix}MaxDistance`]: maxDistance,
@@ -1368,30 +1384,36 @@ export class SearchService {
         );
     }
 
+    /**
+     * Builds a SQL expression that returns the effective coordinate for a candidate.
+     * When passport is active and valid, uses passport lat/lng; otherwise profile lat/lng.
+     *
+     * Uses a single clean CASE with TRY-CAST pattern:
+     *   CASE WHEN passport_active AND passport_lat IS valid numeric
+     *        THEN passport_lat
+     *        ELSE profile_lat
+     *   END
+     *
+     * The regex '^[-+]?[0-9]+(\.[0-9]+)?$' safely validates numeric strings before CAST.
+     * This replaces the old approach that duplicated massive nested CASE blocks 6+ times.
+     */
     private buildEffectiveCoordinateSql(axis: 'latitude' | 'longitude'): string {
-        const passportLatitude = `("user"."passportLocation"->>'latitude')`;
-        const passportLongitude = `("user"."passportLocation"->>'longitude')`;
-        const numericPattern = `'^-?[0-9]+(\\.[0-9]+)?$'`;
-        const passportLatitudeNumber =
-            `(CASE WHEN COALESCE(${passportLatitude}, '') ~ ${numericPattern} THEN CAST(${passportLatitude} AS double precision) ELSE NULL END)`;
-        const passportLongitudeNumber =
-            `(CASE WHEN COALESCE(${passportLongitude}, '') ~ ${numericPattern} THEN CAST(${passportLongitude} AS double precision) ELSE NULL END)`;
-        const hasUsablePassportCoordinates = [
-            `"user"."isPassportActive" = true`,
-            `"user"."passportLocation" IS NOT NULL`,
-            `${passportLatitudeNumber} BETWEEN -90 AND 90`,
-            `${passportLongitudeNumber} BETWEEN -180 AND 180`,
-            `NOT (${passportLatitudeNumber} = 0 AND ${passportLongitudeNumber} = 0)`,
-        ].join(' AND ');
-        const passportCoordinate = axis === 'latitude' ? passportLatitudeNumber : passportLongitudeNumber;
-        const profileCoordinate =
-            axis === 'latitude'
-                ? `CAST("profile"."latitude" AS double precision)`
-                : `CAST("profile"."longitude" AS double precision)`;
+        const col = axis === 'latitude' ? 'latitude' : 'longitude';
+        const minVal = axis === 'latitude' ? -90 : -180;
+        const maxVal = axis === 'latitude' ? 90 : 180;
+        const passportVal = `"user"."passportLocation"->>'${col}'`;
+        const profileVal = `"profile"."${col}"`;
 
-        return `(CASE WHEN ${hasUsablePassportCoordinates} THEN ${passportCoordinate} ELSE ${profileCoordinate} END)`;
+        // Safe numeric extraction from passport JSON field
+        const passportNum = `CASE WHEN COALESCE(${passportVal}, '') ~ '^[-+]?[0-9]+(\\.[0-9]+)?$' THEN CAST(${passportVal} AS double precision) ELSE NULL END`;
+
+        return `CASE WHEN "user"."isPassportActive" = true AND ${passportNum} IS NOT NULL AND ${passportNum} BETWEEN ${minVal} AND ${maxVal} THEN ${passportNum} ELSE CAST(${profileVal} AS double precision) END`;
     }
 
+    /**
+     * Builds the Haversine distance SQL using pre-built coordinate expressions.
+     * acos input is clamped between -1 and 1 to prevent NaN from floating-point rounding.
+     */
     private buildDistanceSql(
         candidateLatitudeSql: string,
         candidateLongitudeSql: string,
