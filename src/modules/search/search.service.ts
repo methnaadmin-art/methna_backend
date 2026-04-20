@@ -437,11 +437,11 @@ export class SearchService {
             .createQueryBuilder('profile')
             .leftJoinAndSelect('profile.user', 'user');
 
-        // Compute effective coordinates ONCE via CROSS JOIN LATERAL.
-        // This replaces all inline CASE/regex/CAST duplication — coords.effective_lat
-        // and coords.effective_lng are available for use anywhere in the query.
-        this.addEffectiveCoordinatesJoin(query);
-
+        // Effective coordinates (passport-aware) are inlined in buildDistanceSql
+        // via a single CASE per axis using normalized numeric columns. No
+        // LATERAL join is needed and none would be safe — TypeORM's innerJoin
+        // does not accept raw LATERAL SQL as its first argument (it would
+        // escape the whole block as an identifier, producing 42601 errors).
         query
             .select([
                 ...SearchService.DISCOVERY_PROFILE_RANK_SELECT,
@@ -532,7 +532,7 @@ export class SearchService {
         );
 
         // Always compute distance when user has location (needed for ranking + response).
-        // Uses pre-computed coords.effective_lat / coords.effective_lng from the LATERAL join.
+        // Effective coordinates (passport-aware) are inlined in buildDistanceSql.
         if (hasUserLocation) {
             query.addSelect(
                 this.buildDistanceSql('orderLat', 'orderLng'),
@@ -1352,52 +1352,11 @@ export class SearchService {
     }
 
     /**
-     * Adds a CROSS JOIN LATERAL subquery that computes effective coordinates
-     * exactly ONCE per row. The computed columns are:
-     *   coords.effective_lat  (passport lat if active+valid, else profile lat)
-     *   coords.effective_lng  (passport lng if active+valid, else profile lng)
-     *
-     * The effective coordinates use the normalized numeric columns
-     * `user.passportLatitude` / `user.passportLongitude` which are maintained
-     * at write-time by the backend. There is NO regex, NO JSON extraction,
-     * and NO nested CASE inside the query.
-     *
-     * Single CASE per axis, references indexed numeric columns.
-     *
-     * Must be called AFTER `.leftJoinAndSelect('profile.user', 'user')` so that
-     * "user" and "profile" aliases are in scope for the LATERAL subquery.
-     */
-    private addEffectiveCoordinatesJoin(query: SelectQueryBuilder<Profile>): void {
-        const lateralSql = `
-            LATERAL (
-                SELECT
-                    CASE
-                        WHEN "user"."isPassportActive" = true
-                            AND "user"."passportLatitude" IS NOT NULL
-                        THEN "user"."passportLatitude"
-                        ELSE CAST("profile"."latitude" AS double precision)
-                    END AS effective_lat,
-                    CASE
-                        WHEN "user"."isPassportActive" = true
-                            AND "user"."passportLongitude" IS NOT NULL
-                        THEN "user"."passportLongitude"
-                        ELSE CAST("profile"."longitude" AS double precision)
-                    END AS effective_lng
-            )
-        `;
-
-        // Use innerJoin with raw LATERAL expression. TypeORM emits:
-        //   INNER JOIN LATERAL (...) coords ON TRUE
-        query.innerJoin(lateralSql, 'coords', 'TRUE');
-    }
-
-    /**
-     * Applies a distance constraint using pre-computed effective coordinates.
+     * Applies a distance constraint using inlined effective coordinates.
      * Uses a two-stage filter:
      * 1. Bounding box on profile columns (index-friendly pre-filter)
-     * 2. Precise Haversine distance using coords.effective_lat / coords.effective_lng
-     *
-     * No inline CASE/regex/CAST — all coordinate logic lives in the LATERAL join.
+     * 2. Precise Haversine distance with passport-aware CASE inlined via
+     *    buildDistanceSql (single CASE per axis, no regex, no JSON extraction).
      */
     private applyDistanceConstraint(
         query: SelectQueryBuilder<Profile>,
@@ -1435,19 +1394,35 @@ export class SearchService {
     }
 
     /**
-     * Builds the Haversine distance SQL using pre-computed coordinate aliases
-     * (coords.effective_lat, coords.effective_lng). These are produced by the
-     * LATERAL join added via `addEffectiveCoordinatesJoin()`.
+     * Builds the Haversine distance SQL with effective coordinates inlined
+     * directly. Uses normalized numeric columns — no LATERAL join, no regex,
+     * no JSON extraction, single CASE per axis (no nesting).
+     *
+     * Effective lat = passportLatitude if passport active + non-null,
+     *                 else profile.latitude (cast to double).
+     * Effective lng = same pattern for longitude.
      *
      * acos input is clamped between -1 and 1 to prevent NaN from floating-point
      * rounding errors.
      */
     private buildDistanceSql(latitudeParam: string, longitudeParam: string): string {
-        return `(6371 * acos(LEAST(1.0, GREATEST(-1.0, ` +
-            `cos(radians(:${latitudeParam})) * cos(radians(coords.effective_lat)) ` +
-            `* cos(radians(coords.effective_lng) - radians(:${longitudeParam})) ` +
-            `+ sin(radians(:${latitudeParam})) * sin(radians(coords.effective_lat))` +
-            `))))`;
+        const effLat =
+            `(CASE WHEN "user"."isPassportActive" = true ` +
+            `AND "user"."passportLatitude" IS NOT NULL ` +
+            `THEN "user"."passportLatitude" ` +
+            `ELSE CAST("profile"."latitude" AS double precision) END)`;
+        const effLng =
+            `(CASE WHEN "user"."isPassportActive" = true ` +
+            `AND "user"."passportLongitude" IS NOT NULL ` +
+            `THEN "user"."passportLongitude" ` +
+            `ELSE CAST("profile"."longitude" AS double precision) END)`;
+        return (
+            `(6371 * acos(LEAST(1.0, GREATEST(-1.0, ` +
+            `cos(radians(:${latitudeParam})) * cos(radians(${effLat})) ` +
+            `* cos(radians(${effLng}) - radians(:${longitudeParam})) ` +
+            `+ sin(radians(:${latitudeParam})) * sin(radians(${effLat}))` +
+            `))))`
+        );
     }
 
     private matchesPreference(
