@@ -222,8 +222,15 @@ export class SearchService {
         const hasExplicitExcludeIds = Array.isArray(filters.excludeIds)
             ? filters.excludeIds.some((id) => String(id ?? '').trim().length > 0)
             : false;
+        // Detect whether the viewer applied any user-facing filter. When true,
+        // we MUST bypass every cache layer (search response, per-user hot
+        // deck, global hot deck) and query fresh from Postgres — otherwise
+        // the user keeps seeing stale results after changing filters.
+        const hasActiveFilters = this.hasUserFacingFilters(filters);
+        const shouldBypassCache =
+            Boolean(filters.forceRefresh) || hasActiveFilters;
 
-        if (!filters.forceRefresh && !hasExplicitExcludeIds) {
+        if (!shouldBypassCache && !hasExplicitExcludeIds) {
             try {
                 const cached = await this.redisService.getJson<any>(cacheKey);
                 if (cached) {
@@ -257,7 +264,7 @@ export class SearchService {
         const rawHotDeckCacheKey = this.buildHotDeckCacheKey(userId, filters);
         const rawHotDeckPayloadCacheKey = this.buildHotDeckPayloadCacheKey(userId, filters);
 
-        if (!filters.forceRefresh) {
+        if (!shouldBypassCache) {
             const [cachedHotDeck, cachedHotDeckPayload] = await Promise.all([
                 this.redisService.getJson<SearchDeckEntry[]>(rawHotDeckCacheKey).catch(() => null),
                 this.redisService
@@ -354,7 +361,7 @@ export class SearchService {
             maximumFetch,
         );
 
-        if (!filters.forceRefresh) {
+        if (!shouldBypassCache) {
             const [cachedHotDeck, cachedHotDeckPayload, blockedIds, dynamicExcludedIds] = await Promise.all([
                 this.redisService.getJson<SearchDeckEntry[]>(hotDeckCacheKey),
                 this.redisService
@@ -1972,6 +1979,59 @@ export class SearchService {
         }
 
         return response;
+    }
+
+    /**
+     * Returns true if the viewer applied any user-facing filter. Pagination,
+     * cursor, excludeIds, forceRefresh and includeDeckMeta are intentionally
+     * excluded — they are transport concerns, not filters.
+     *
+     * When any of these filters is present, the search cache MUST be bypassed
+     * so the user sees results that actually reflect their selection instead
+     * of a stale deck from a previous filter combination.
+     */
+    private hasUserFacingFilters(filters: SearchFiltersDto): boolean {
+        if (!filters) return false;
+        const f = filters as SearchFiltersDto & Record<string, unknown>;
+        const hasArray = (v: unknown) => Array.isArray(v) && v.length > 0;
+        const hasString = (v: unknown) =>
+            typeof v === 'string' && v.trim().length > 0;
+
+        return Boolean(
+            // Numeric / range
+            f.minAge !== undefined ||
+                f.maxAge !== undefined ||
+                f.maxDistance !== undefined ||
+                (f.minTrustScore ?? 0) > 0 ||
+                // Enum / string
+                f.gender ||
+                hasString(f.city) ||
+                hasString(f.country) ||
+                f.maritalStatus ||
+                f.religiousLevel ||
+                hasString(f.ethnicity) ||
+                f.education ||
+                f.prayerFrequency ||
+                f.marriageIntention ||
+                f.timeFrame ||
+                f.intentMode ||
+                f.livingSituation ||
+                hasString(f.q) ||
+                hasString(f.name) ||
+                hasString(f.backgroundCheckStatus) ||
+                // Array filters
+                hasArray(f.interests) ||
+                hasArray(f.languages) ||
+                hasArray(f.familyValues) ||
+                hasArray(f.nationalities) ||
+                hasArray(f.communicationStyles) ||
+                // Boolean flags
+                f.goGlobal ||
+                f.verifiedOnly ||
+                f.onlineOnly ||
+                f.recentlyActiveOnly ||
+                f.withPhotosOnly,
+        );
     }
 
     private buildSearchCacheKey(userId: string, filters: SearchFiltersDto): string {
