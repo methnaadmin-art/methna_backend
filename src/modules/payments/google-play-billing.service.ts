@@ -896,11 +896,41 @@ export class GooglePlayBillingService {
         return new Date(subscription.endDate).getTime() > Date.now();
     }
 
-    private initGooglePlayClient(): void {
-        const clientEmail = this.configService.get<string>('GOOGLE_PLAY_CLIENT_EMAIL');
-        const privateKey = this.configService.get<string>('GOOGLE_PLAY_PRIVATE_KEY');
+    /**
+     * Parses the GOOGLE_PLAY_PRIVATE_KEY value into a valid PEM string.
+     *
+     * Common issues that cause ERR_OSSL_UNSUPPORTED:
+     * 1. Literal \n in env var instead of real newlines (Railway/Heroku)
+     * 2. Wrapping double quotes from .env files: "-----BEGIN PRIVATE KEY-----..."
+     * 3. Leading/trailing whitespace
+     *
+     * This method handles all three cases to produce a clean PEM key.
+     */
+    private parsePrivateKey(raw: string): string {
+        let key = raw;
 
-        if (!clientEmail || !privateKey) {
+        // Strip wrapping double quotes (e.g. .env: KEY="-----BEGIN...")
+        if (key.startsWith('"') && key.endsWith('"')) {
+            key = key.slice(1, -1);
+        }
+
+        // Replace literal \n sequences with real newlines
+        key = key.replace(/\\n/g, '\n');
+
+        // Trim leading/trailing whitespace
+        key = key.trim();
+
+        return key;
+    }
+
+    private initGooglePlayClient(): void {
+        const clientEmail = this.configService.get<string>('googlePlay.clientEmail')
+            || this.configService.get<string>('GOOGLE_PLAY_CLIENT_EMAIL');
+        const rawPrivateKey = this.configService.get<string>('googlePlay.privateKey')
+            || this.configService.get<string>('GOOGLE_PLAY_PRIVATE_KEY')
+            || '';
+
+        if (!clientEmail || !rawPrivateKey) {
             const message =
                 'GOOGLE_PLAY_CLIENT_EMAIL or GOOGLE_PLAY_PRIVATE_KEY not set. Server-side verification disabled unless GOOGLE_PLAY_ALLOW_UNVERIFIED_TOKENS=true.';
 
@@ -914,10 +944,27 @@ export class GooglePlayBillingService {
             return;
         }
 
+        const privateKey = this.parsePrivateKey(rawPrivateKey);
+
+        // Validate key format before attempting JWT auth
+        if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+            this.logger.error(
+                `[GooglePlay] Private key is missing PEM header. Key starts with: ${privateKey.substring(0, 40)}...`,
+            );
+            if (this.isProductionEnvironment()) {
+                throw new Error('FATAL: GOOGLE_PLAY_PRIVATE_KEY is not a valid PEM key (missing header).');
+            }
+            return;
+        }
+
+        this.logger.log(
+            `[GooglePlay] Private key parsed OK — header present, length=${privateKey.length}, hasNewlines=${privateKey.includes('\n')}`,
+        );
+
         try {
             const jwtClient = new google.auth.JWT({
                 email: clientEmail,
-                key: privateKey.replace(/\\n/g, '\n'),
+                key: privateKey,
                 scopes: ['https://www.googleapis.com/auth/androidpublisher'],
             });
 
@@ -928,10 +975,22 @@ export class GooglePlayBillingService {
 
             this.logger.log('Google Play Developer API client initialized.');
         } catch (error) {
+            const errMsg = (error as Error).message || String(error);
+            const isOsslError = errMsg.includes('ERR_OSSL_UNSUPPORTED') || errMsg.includes('DECODER routines');
+
+            if (isOsslError) {
+                this.logger.error(
+                    `[GooglePlay] OpenSSL key decode error — private key is malformed. ` +
+                    `Ensure GOOGLE_PLAY_PRIVATE_KEY has real newlines (not literal \\n) and no wrapping quotes. ` +
+                    `Error: ${errMsg}`,
+                );
+            } else {
+                this.logger.error(`Failed to initialize Google Play client: ${errMsg}`);
+            }
+
             if (this.isProductionEnvironment()) {
                 throw error;
             }
-            this.logger.error(`Failed to initialize Google Play client: ${(error as Error).message}`);
         }
     }
 

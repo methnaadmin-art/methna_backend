@@ -110,7 +110,9 @@ export default () => {
 
         googlePlay: {
             clientEmail: process.env.GOOGLE_PLAY_CLIENT_EMAIL || '',
-            privateKey: (process.env.GOOGLE_PLAY_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+            privateKey: (process.env.GOOGLE_PLAY_PRIVATE_KEY || '')
+                .replace(/^"|"$/g, '')   // strip wrapping double quotes from .env
+                .replace(/\\n/g, '\n'),   // replace literal \n with real newlines
             packageName: process.env.GOOGLE_PLAY_PACKAGE_NAME || '',
             allowUnverifiedTokens: googlePlayAllowUnverifiedTokens,
             licensingPublicKey: process.env.GOOGLE_PLAY_LICENSING_PUBLIC_KEY || '',
