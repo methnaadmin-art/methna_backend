@@ -214,9 +214,20 @@ export class ConsumableService {
             return { granted: false, balances: this.extractBalances(user) };
         }
 
-        return this.dataSource.transaction(async (manager) => {
+        try {
+            return await this.dataSource.transaction(async (manager) => {
             const purchaseRepo = manager.getRepository(PurchaseTransaction);
             const userRepo = manager.getRepository(User);
+
+            const existingPurchase = await purchaseRepo.findOne({ where: { purchaseToken } });
+            if (existingPurchase?.status === PurchaseStatus.VERIFIED) {
+                const user = await userRepo.findOne({
+                    where: { id: userId },
+                    select: ['id', 'likesBalance', 'complimentsBalance', 'boostsBalance'],
+                });
+                if (!user) throw new NotFoundException('User not found');
+                return { granted: false, balances: this.extractBalances(user) };
+            }
 
             const { startOfDay, endOfDay } = this.getUtcDayWindow(new Date());
             const purchasesToday = await purchaseRepo
@@ -236,7 +247,7 @@ export class ConsumableService {
             }
 
             // Create/update purchase record
-            const purchase = existing || purchaseRepo.create({
+            const purchase = existingPurchase || purchaseRepo.create({
                 userId,
                 consumableProductId: product.id,
                 provider,
@@ -279,6 +290,16 @@ export class ConsumableService {
             const user = await userRepo.findOne({ where: { id: userId }, select: ['id', 'likesBalance', 'complimentsBalance', 'boostsBalance'] });
             return { granted: true, balances: this.extractBalances(user!) };
         });
+        } catch (error) {
+            if (this.isDuplicatePurchaseTokenViolation(error)) {
+                this.logger.warn(
+                    `Consumable purchase token already processed for user ${userId}; returning current balances.`,
+                );
+                const user = await this.getUserWithBalances(userId);
+                return { granted: false, balances: this.extractBalances(user) };
+            }
+            throw error;
+        }
     }
 
     private getUtcDayWindow(date: Date): { startOfDay: Date; endOfDay: Date } {
@@ -511,6 +532,26 @@ export class ConsumableService {
         });
         if (!user) throw new NotFoundException('User not found');
         return user;
+    }
+
+    private isDuplicatePurchaseTokenViolation(error: any): boolean {
+        const code = error?.code || error?.driverError?.code;
+        if (code !== '23505') {
+            return false;
+        }
+
+        const constraint = String(
+            error?.constraint ||
+            error?.driverError?.constraint ||
+            error?.detail ||
+            error?.driverError?.detail ||
+            '',
+        );
+
+        return constraint.includes('purchaseToken') ||
+            constraint.includes('purchase_transactions') ||
+            constraint.includes('IDX_837356b744349997ace98f55b3') ||
+            constraint.includes('IDX_purchase_transactions_purchaseToken');
     }
 
     private extractBalances(user: User): UserBalances {
