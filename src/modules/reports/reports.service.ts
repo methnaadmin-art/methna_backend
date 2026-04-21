@@ -66,6 +66,39 @@ export class ReportsService {
     }
 
     // ─── Admin ─────────────────────────────────────────────
+    async createAutomatedChatModerationReport(input: {
+        senderId: string;
+        recipientId: string;
+        conversationId: string;
+        content: string;
+        flaggedWords: string[];
+    }): Promise<Report> {
+        const normalizedWords = Array.from(
+            new Set(
+                input.flaggedWords
+                    .map((word) => word.trim().toLowerCase())
+                    .filter((word) => word.length > 0),
+            ),
+        );
+
+        const report = this.reportRepository.create({
+            reporterId: input.recipientId,
+            reportedId: input.senderId,
+            reason: ReportReason.HARASSMENT,
+            details: [
+                'Auto-detected chat moderation case.',
+                `Conversation ID: ${input.conversationId}`,
+                `Sender ID: ${input.senderId}`,
+                `Recipient ID: ${input.recipientId}`,
+                `Flagged words: ${normalizedWords.join(', ') || 'unknown'}`,
+                `Blocked content: ${input.content}`,
+            ].join('\n'),
+            status: 'pending' as any,
+        });
+
+        return this.reportRepository.save(report);
+    }
+
     async getAllReports(page: number = 1, limit: number = 20): Promise<{ data: Report[]; total: number }> {
         const [data, total] = await this.reportRepository.findAndCount({
             relations: ['reporter', 'reported'],

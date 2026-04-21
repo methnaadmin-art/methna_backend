@@ -8,7 +8,7 @@ import {
     ConnectedSocket,
     MessageBody,
 } from '@nestjs/websockets';
-import { Logger, Inject, Optional, forwardRef } from '@nestjs/common';
+import { Logger, Inject, forwardRef } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -17,7 +17,6 @@ import { Repository } from 'typeorm';
 
 import { ChatService } from './chat.service';
 import { RedisService } from '../redis/redis.service';
-import { TrustSafetyService } from '../trust-safety/trust-safety.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MessageType } from '../../database/entities/message.entity';
 import { User, UserStatus } from '../../database/entities/user.entity';
@@ -55,8 +54,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly jwtService: JwtService,
         private readonly configService: ConfigService,
         private readonly notificationsService: NotificationsService,
-        @Optional() @Inject(TrustSafetyService)
-        private readonly trustSafetyService?: TrustSafetyService,
     ) { }
 
     afterInit(server: Server) {
@@ -176,15 +173,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             const msgType = MessageType.TEXT;
             let msgContent = content;
 
-            let flagged = false;
-            if (msgType === MessageType.TEXT && this.trustSafetyService) {
-                const moderation = await this.trustSafetyService.moderateMessage(senderId, '', msgContent);
-                if (!moderation.isClean) {
-                    msgContent = moderation.cleanContent;
-                    flagged = true;
-                }
-            }
-
             const message = await this.chatService.sendMessage(
                 senderId,
                 conversationId,
@@ -193,7 +181,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
                 clientMsgId,
             );
 
-            return { success: true, messageId: message.id, flagged, clientMsgId };
+            return { success: true, messageId: message.id, flagged: false, clientMsgId };
         } catch (error) {
             return { success: false, error: (error as Error).message };
         }

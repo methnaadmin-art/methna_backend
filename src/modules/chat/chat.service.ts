@@ -20,6 +20,9 @@ import { PaginationDto } from '../../common/dto/pagination.dto';
 import { ChatGateway } from './chat.gateway';
 import { RedisService } from '../redis/redis.service';
 import { CloudinaryService } from '../photos/cloudinary.service';
+import { TrustSafetyService } from '../trust-safety/trust-safety.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { ReportsService } from '../reports/reports.service';
 
 @Injectable()
 export class ChatService {
@@ -38,6 +41,9 @@ export class ChatService {
         private readonly userRepository: Repository<User>,
         private readonly configService: ConfigService,
         private readonly redisService: RedisService,
+        private readonly trustSafetyService: TrustSafetyService,
+        private readonly notificationsService: NotificationsService,
+        private readonly reportsService: ReportsService,
         @Inject(forwardRef(() => ChatGateway))
         private readonly chatGateway: ChatGateway,
     ) { }
@@ -240,8 +246,18 @@ export class ChatService {
             }
         }
 
-        const encryptedContent = this.encryptContent(safeContent);
-        const encryptedPreview = this.encryptContent(safeContent.substring(0, 200));
+        const moderatedContent =
+            type === MessageType.TEXT
+                ? await this.enforceMessageContentPolicy(
+                    senderId,
+                    recipientId,
+                    conversationId,
+                    safeContent,
+                )
+                : safeContent;
+
+        const encryptedContent = this.encryptContent(moderatedContent);
+        const encryptedPreview = this.encryptContent(moderatedContent.substring(0, 200));
 
         const message = this.messageRepository.create({
             conversationId,
@@ -278,7 +294,7 @@ export class ChatService {
             id: saved.id,
             conversationId: saved.conversationId,
             senderId: saved.senderId,
-            content: safeContent,
+            content: moderatedContent,
             type: saved.type,
             status: saved.status,
             createdAt: saved.createdAt,
@@ -287,12 +303,67 @@ export class ChatService {
             console.error('Failed to broadcast message:', err);
         });
 
-        saved.content = safeContent;
+        saved.content = moderatedContent;
         return saved;
     }
 
 
     // ─── MESSAGE STATUS ─────────────────────────────────────
+
+    private async enforceMessageContentPolicy(
+        senderId: string,
+        recipientId: string,
+        conversationId: string,
+        content: string,
+    ): Promise<string> {
+        const trimmedContent = content.trim();
+        if (trimmedContent.length === 0) {
+            return trimmedContent;
+        }
+
+        const moderation = await this.trustSafetyService.moderateMessage(
+            senderId,
+            conversationId,
+            trimmedContent,
+        );
+
+        if (moderation.isClean) {
+            return trimmedContent;
+        }
+
+        const normalizedWords = Array.from(
+            new Set(
+                moderation.flaggedWords
+                    .map((word) => word.trim().toLowerCase())
+                    .filter((word) => word.length > 0),
+            ),
+        );
+
+        await Promise.all([
+            this.notificationsService.createNotification(senderId, {
+                type: 'system',
+                title: 'Message blocked',
+                body: 'You sent language that breaks our community rules. This message was blocked and reported to moderation.',
+                extraData: {
+                    conversationId,
+                    recipientId,
+                    flaggedWords: normalizedWords,
+                    reason: 'bad_words',
+                },
+            }),
+            this.reportsService.createAutomatedChatModerationReport({
+                senderId,
+                recipientId,
+                conversationId,
+                content: trimmedContent,
+                flaggedWords: normalizedWords,
+            }),
+        ]);
+
+        throw new BadRequestException(
+            'Your message was blocked because it contains language that breaks our community rules.',
+        );
+    }
 
     async markAsDelivered(userId: string, conversationId: string): Promise<void> {
         await this.verifyConversationParticipant(userId, conversationId);

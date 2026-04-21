@@ -336,7 +336,11 @@ export class TrustSafetyService {
         return { clean, hasBadWords: flaggedWords.length > 0, flaggedWords };
     }
 
-    async moderateMessage(userId: string, messageId: string, content: string): Promise<{ isClean: boolean; cleanContent: string }> {
+    async moderateMessage(
+        userId: string,
+        messageId: string,
+        content: string,
+    ): Promise<{ isClean: boolean; cleanContent: string; flaggedWords: string[] }> {
         const result = this.filterBadWords(content);
 
         if (result.hasBadWords) {
@@ -356,7 +360,11 @@ export class TrustSafetyService {
             this.logger.warn(`Bad words detected in message from user ${userId}: ${result.flaggedWords.join(', ')}`);
         }
 
-        return { isClean: !result.hasBadWords, cleanContent: result.clean };
+        return {
+            isClean: !result.hasBadWords,
+            cleanContent: result.clean,
+            flaggedWords: result.flaggedWords,
+        };
     }
 
     async moderateProfileText(userId: string, text: string, field: string): Promise<{ isClean: boolean; cleanText: string }> {
