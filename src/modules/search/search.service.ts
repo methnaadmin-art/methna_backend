@@ -1218,7 +1218,7 @@ export class SearchService {
             );
             if (normalizedStyles.length > 0) {
                 query.andWhere(
-                    'LOWER(profile.communicationStyle) IN (:...communicationStyles)',
+                    'LOWER(CAST(profile.communicationStyle AS text)) IN (:...communicationStyles)',
                     { communicationStyles: normalizedStyles },
                 );
             }

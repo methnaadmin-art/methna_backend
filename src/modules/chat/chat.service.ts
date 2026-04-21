@@ -222,6 +222,24 @@ export class ChatService {
         }
 
         const safeContent = content.trim();
+        if (clientMsgId) {
+            const dedupeKey = `chat:message:${senderId}:${conversationId}:${clientMsgId}`;
+            const existingMessageId = await this.redisService.get(dedupeKey);
+            if (existingMessageId) {
+                const existingMessage = await this.messageRepository.findOne({
+                    where: {
+                        id: existingMessageId,
+                        conversationId,
+                        senderId,
+                    },
+                });
+                if (existingMessage) {
+                    existingMessage.content = this.decryptContent(existingMessage.content);
+                    return existingMessage;
+                }
+            }
+        }
+
         const encryptedContent = this.encryptContent(safeContent);
         const encryptedPreview = this.encryptContent(safeContent.substring(0, 200));
 
@@ -235,6 +253,13 @@ export class ChatService {
         });
 
         const saved = await this.messageRepository.save(message);
+        if (clientMsgId) {
+            await this.redisService.set(
+                `chat:message:${senderId}:${conversationId}:${clientMsgId}`,
+                saved.id,
+                60 * 60 * 24,
+            );
+        }
 
         // Update conversation metadata
         const isUser1 = conversation.user1Id === senderId;
