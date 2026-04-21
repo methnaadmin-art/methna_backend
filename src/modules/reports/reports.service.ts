@@ -93,7 +93,6 @@ export class ReportsService {
                 `Flagged words: ${normalizedWords.join(', ') || 'unknown'}`,
                 `Blocked content: ${input.content}`,
             ].join('\n'),
-            status: 'pending' as any,
         });
 
         return this.reportRepository.save(report);

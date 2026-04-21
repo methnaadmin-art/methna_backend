@@ -5,6 +5,7 @@ import {
     BadRequestException,
     Inject,
     forwardRef,
+    Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -15,7 +16,7 @@ import { Match, MatchStatus } from '../../database/entities/match.entity';
 import { Conversation } from '../../database/entities/conversation.entity';
 import { Photo } from '../../database/entities/photo.entity';
 import { BlockedUser } from '../../database/entities/blocked-user.entity';
-import { User } from '../../database/entities/user.entity';
+import { User, UserRole, UserStatus } from '../../database/entities/user.entity';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { ChatGateway } from './chat.gateway';
 import { RedisService } from '../redis/redis.service';
@@ -26,6 +27,8 @@ import { ReportsService } from '../reports/reports.service';
 
 @Injectable()
 export class ChatService {
+    private readonly logger = new Logger(ChatService.name);
+
     constructor(
         @InjectRepository(Message)
         private readonly messageRepository: Repository<Message>,
@@ -339,8 +342,12 @@ export class ChatService {
             ),
         );
 
-        await Promise.all([
-            this.notificationsService.createNotification(senderId, {
+        this.logger.warn(
+            `Blocked message with prohibited language from ${senderId} to ${recipientId} in conversation ${conversationId}: ${normalizedWords.join(', ')}`,
+        );
+
+        try {
+            await this.notificationsService.createNotification(senderId, {
                 type: 'system',
                 title: 'Message blocked',
                 body: 'You sent language that breaks our community rules. This message was blocked and reported to moderation.',
@@ -349,20 +356,86 @@ export class ChatService {
                     recipientId,
                     flaggedWords: normalizedWords,
                     reason: 'bad_words',
+                    category: 'safety',
                 },
-            }),
-            this.reportsService.createAutomatedChatModerationReport({
+            });
+        } catch (error) {
+            this.logger.error(
+                `Failed to create sender moderation notification for ${senderId}: ${(error as Error).message}`,
+            );
+        }
+
+        try {
+            await this.reportsService.createAutomatedChatModerationReport({
                 senderId,
                 recipientId,
                 conversationId,
                 content: trimmedContent,
                 flaggedWords: normalizedWords,
-            }),
-        ]);
+            });
+        } catch (error) {
+            this.logger.error(
+                `Failed to create moderation report for blocked message ${senderId}->${recipientId}: ${(error as Error).message}`,
+            );
+        }
+
+        await this.notifyModerationTeamOfBlockedMessage({
+            senderId,
+            recipientId,
+            conversationId,
+            content: trimmedContent,
+            flaggedWords: normalizedWords,
+        });
 
         throw new BadRequestException(
             'Your message was blocked because it contains language that breaks our community rules.',
         );
+    }
+
+    private async notifyModerationTeamOfBlockedMessage(input: {
+        senderId: string;
+        recipientId: string;
+        conversationId: string;
+        content: string;
+        flaggedWords: string[];
+    }): Promise<void> {
+        try {
+            const moderationUsers = await this.userRepository.find({
+                where: [
+                    { role: UserRole.ADMIN, status: UserStatus.ACTIVE },
+                    { role: UserRole.MODERATOR, status: UserStatus.ACTIVE },
+                ],
+                select: ['id'],
+            });
+
+            if (moderationUsers.length === 0) {
+                this.logger.warn('No active admin or moderator found for blocked message alert');
+                return;
+            }
+
+            await Promise.all(
+                moderationUsers.map((moderator) =>
+                    this.notificationsService.createNotification(moderator.id, {
+                        type: 'system',
+                        title: 'Chat moderation alert',
+                        body: `Blocked language detected from ${input.senderId} to ${input.recipientId}.`,
+                        extraData: {
+                            senderId: input.senderId,
+                            recipientId: input.recipientId,
+                            conversationId: input.conversationId,
+                            flaggedWords: input.flaggedWords,
+                            blockedContent: input.content,
+                            category: 'safety',
+                            reason: 'chat_bad_words',
+                        },
+                    }),
+                ),
+            );
+        } catch (error) {
+            this.logger.error(
+                `Failed to notify moderation team for blocked message ${input.senderId}->${input.recipientId}: ${(error as Error).message}`,
+            );
+        }
     }
 
     async markAsDelivered(userId: string, conversationId: string): Promise<void> {
