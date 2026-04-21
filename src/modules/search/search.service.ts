@@ -2467,18 +2467,12 @@ export class SearchService {
             timeFrame: undefined,
             intentMode: undefined,
             goGlobal: undefined,
-            livingSituation: undefined,
             interests: undefined,
             languages: undefined,
             familyValues: undefined,
             nationalities: undefined,
             communicationStyles: undefined,
-            verifiedOnly: undefined,
             onlineOnly: undefined,
-            recentlyActiveOnly: undefined,
-            withPhotosOnly: undefined,
-            minTrustScore: undefined,
-            backgroundCheckStatus: undefined,
         } as SearchFiltersDto;
     }
 
