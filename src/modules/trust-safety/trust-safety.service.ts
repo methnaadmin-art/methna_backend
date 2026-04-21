@@ -18,7 +18,7 @@ import { BackgroundCheckStatus } from './background-check.service';
 const BAD_WORDS = [
     'fuck', 'shit', 'ass', 'bitch', 'dick', 'pussy', 'whore', 'slut',
     'nigger', 'faggot', 'retard', 'cunt', 'bastard', 'damn', 'cock',
-    'porn', 'sex', 'nude', 'naked', 'hoe', 'thot',
+    'porn', 'sex', 'sexy', 'sexual', 'nude', 'naked', 'hoe', 'thot',
 ];
 
 @Injectable()
