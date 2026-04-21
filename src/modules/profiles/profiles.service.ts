@@ -1,5 +1,6 @@
 import {
     Injectable,
+    BadRequestException,
     NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -50,7 +51,9 @@ export class ProfilesService {
     }
 
     async createOrUpdateProfile(userId: string, dto: CreateProfileDto | UpdateProfileDto): Promise<Profile> {
-        const sanitizedDto = await this.sanitizeProfilePayload(userId, dto);
+        const sanitizedDto = this.normalizeCoreProfileFields(
+            await this.sanitizeProfilePayload(userId, dto),
+        );
 
         let profile = await this.profileRepository.findOne({
             where: { userId },
@@ -63,6 +66,7 @@ export class ProfilesService {
                 }
             });
         } else {
+            this.assertRequiredFieldsForCreate(sanitizedDto);
             profile = this.profileRepository.create({
                 userId,
                 ...sanitizedDto,
@@ -187,6 +191,53 @@ export class ProfilesService {
         }, 0);
 
         return Math.round((achievedWeight / totalWeight) * 100);
+    }
+
+    private normalizeCoreProfileFields(
+        dto: CreateProfileDto | UpdateProfileDto,
+    ): CreateProfileDto | UpdateProfileDto {
+        const normalized = { ...dto } as Record<string, any>;
+
+        if (normalized.gender === null || normalized.gender === '') {
+            delete normalized.gender;
+        }
+
+        if (normalized.dateOfBirth === null || normalized.dateOfBirth === '') {
+            delete normalized.dateOfBirth;
+        } else if (normalized.dateOfBirth instanceof Date) {
+            if (Number.isNaN(normalized.dateOfBirth.getTime())) {
+                delete normalized.dateOfBirth;
+            }
+        } else if (normalized.dateOfBirth !== undefined) {
+            const parsed = new Date(normalized.dateOfBirth);
+            if (Number.isNaN(parsed.getTime())) {
+                delete normalized.dateOfBirth;
+            } else {
+                normalized.dateOfBirth = parsed;
+            }
+        }
+
+        return normalized as CreateProfileDto | UpdateProfileDto;
+    }
+
+    private assertRequiredFieldsForCreate(
+        dto: CreateProfileDto | UpdateProfileDto,
+    ): void {
+        const missingFields: string[] = [];
+
+        if (!(dto as any).gender) {
+            missingFields.push('gender');
+        }
+
+        if (!(dto as any).dateOfBirth) {
+            missingFields.push('dateOfBirth');
+        }
+
+        if (missingFields.length > 0) {
+            throw new BadRequestException(
+                `Cannot create profile without required fields: ${missingFields.join(', ')}`,
+            );
+        }
     }
 
     private async sanitizeProfilePayload(
