@@ -27,17 +27,13 @@ export class AppUpdatePolicyService {
     ) {}
 
     async getPolicy(): Promise<AppUpdatePolicy> {
-        const existing = await this.policyRepository.findOne({
-            order: { updatedAt: 'DESC', createdAt: 'DESC' },
-        });
+        const existing = await this.findLatestPolicy();
 
         return existing ?? this.policyRepository.create(this.defaultPolicy());
     }
 
     async updatePolicy(patch: UpdatePolicyPatch, adminId?: string): Promise<AppUpdatePolicy> {
-        const existing = await this.policyRepository.findOne({
-            order: { updatedAt: 'DESC', createdAt: 'DESC' },
-        });
+        const existing = await this.findLatestPolicy();
 
         const target = existing ?? this.policyRepository.create(this.defaultPolicy());
         const merged = this.policyRepository.merge(target, {
@@ -94,6 +90,15 @@ export class AppUpdatePolicyService {
             storeUrliOS: policy.storeUrliOS?.trim() || null,
             updatedAt: policy.updatedAt ?? null,
         };
+    }
+
+    private async findLatestPolicy(): Promise<AppUpdatePolicy | null> {
+        const [policy] = await this.policyRepository.find({
+            order: { updatedAt: 'DESC', createdAt: 'DESC' },
+            take: 1,
+        });
+
+        return policy ?? null;
     }
 
     private defaultPolicy(): Partial<AppUpdatePolicy> {
