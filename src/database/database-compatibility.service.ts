@@ -162,6 +162,23 @@ export class DatabaseCompatibilityService implements OnModuleInit {
                     "updatedAt" timestamp NOT NULL DEFAULT now()
                 )`,
             },
+            {
+                label: 'app_update_policies table',
+                sql: `CREATE TABLE IF NOT EXISTS "app_update_policies" (
+                    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+                    "isActive" boolean NOT NULL DEFAULT false,
+                    "minimumSupportedVersion" character varying(64) NULL,
+                    "latestVersion" character varying(64) NULL,
+                    "title" character varying(160) NULL,
+                    "hardUpdateMessage" text NULL,
+                    "softUpdateMessage" text NULL,
+                    "storeUrlAndroid" character varying(512) NULL,
+                    "storeUrliOS" character varying(512) NULL,
+                    "updatedById" character varying(64) NULL,
+                    "createdAt" timestamp NOT NULL DEFAULT now(),
+                    "updatedAt" timestamp NOT NULL DEFAULT now()
+                )`,
+            },
         ];
 
         const columnStatements = [
@@ -296,6 +313,17 @@ export class DatabaseCompatibilityService implements OnModuleInit {
             { label: 'purchase_transactions.paymentReference', sql: 'ALTER TABLE "purchase_transactions" ADD COLUMN IF NOT EXISTS "paymentReference" character varying' },
             { label: 'purchase_transactions.createdAt', sql: 'ALTER TABLE "purchase_transactions" ADD COLUMN IF NOT EXISTS "createdAt" timestamp DEFAULT now()' },
             { label: 'purchase_transactions.updatedAt', sql: 'ALTER TABLE "purchase_transactions" ADD COLUMN IF NOT EXISTS "updatedAt" timestamp DEFAULT now()' },
+            { label: 'app_update_policies.isActive', sql: 'ALTER TABLE "app_update_policies" ADD COLUMN IF NOT EXISTS "isActive" boolean DEFAULT false' },
+            { label: 'app_update_policies.minimumSupportedVersion', sql: 'ALTER TABLE "app_update_policies" ADD COLUMN IF NOT EXISTS "minimumSupportedVersion" character varying(64)' },
+            { label: 'app_update_policies.latestVersion', sql: 'ALTER TABLE "app_update_policies" ADD COLUMN IF NOT EXISTS "latestVersion" character varying(64)' },
+            { label: 'app_update_policies.title', sql: 'ALTER TABLE "app_update_policies" ADD COLUMN IF NOT EXISTS "title" character varying(160)' },
+            { label: 'app_update_policies.hardUpdateMessage', sql: 'ALTER TABLE "app_update_policies" ADD COLUMN IF NOT EXISTS "hardUpdateMessage" text' },
+            { label: 'app_update_policies.softUpdateMessage', sql: 'ALTER TABLE "app_update_policies" ADD COLUMN IF NOT EXISTS "softUpdateMessage" text' },
+            { label: 'app_update_policies.storeUrlAndroid', sql: 'ALTER TABLE "app_update_policies" ADD COLUMN IF NOT EXISTS "storeUrlAndroid" character varying(512)' },
+            { label: 'app_update_policies.storeUrliOS', sql: 'ALTER TABLE "app_update_policies" ADD COLUMN IF NOT EXISTS "storeUrliOS" character varying(512)' },
+            { label: 'app_update_policies.updatedById', sql: 'ALTER TABLE "app_update_policies" ADD COLUMN IF NOT EXISTS "updatedById" character varying(64)' },
+            { label: 'app_update_policies.createdAt', sql: 'ALTER TABLE "app_update_policies" ADD COLUMN IF NOT EXISTS "createdAt" timestamp DEFAULT now()' },
+            { label: 'app_update_policies.updatedAt', sql: 'ALTER TABLE "app_update_policies" ADD COLUMN IF NOT EXISTS "updatedAt" timestamp DEFAULT now()' },
             { label: 'likes.type', sql: `ALTER TABLE "likes" ADD COLUMN IF NOT EXISTS "type" character varying DEFAULT 'like'` },
             { label: 'likes.isLike', sql: 'ALTER TABLE "likes" ADD COLUMN IF NOT EXISTS "isLike" boolean DEFAULT true' },
             { label: 'likes.complimentMessage', sql: 'ALTER TABLE "likes" ADD COLUMN IF NOT EXISTS "complimentMessage" character varying(500)' },
@@ -445,6 +473,12 @@ export class DatabaseCompatibilityService implements OnModuleInit {
             `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_purchase_transactions_purchaseToken"
              ON "purchase_transactions" ("purchaseToken")
              WHERE "purchaseToken" IS NOT NULL`,
+        );
+
+        await this.runStatement(
+            'app_update_policies active/updated index',
+            `CREATE INDEX IF NOT EXISTS "IDX_app_update_policies_active_updated"
+             ON "app_update_policies" ("isActive", "updatedAt")`,
         );
 
         await this.runStatement(

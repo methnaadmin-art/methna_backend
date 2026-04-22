@@ -21,6 +21,7 @@ import { RematchRequest } from '../../database/entities/rematch-request.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ChatModule } from '../chat/chat.module';
+import { AppUpdatePolicyModule } from '../app-update-policy/app-update-policy.module';
 
 @Module({
     imports: [
@@ -31,6 +32,7 @@ import { ChatModule } from '../chat/chat.module';
         NotificationsModule,
         SubscriptionsModule,
         ChatModule,
+        AppUpdatePolicyModule,
     ],
     controllers: [AdminController],
     providers: [AdminService],

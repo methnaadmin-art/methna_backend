@@ -4,6 +4,7 @@ import {
     Get,
     Post,
     Body,
+    Query,
     UseGuards,
     HttpCode,
     Logger,
@@ -19,6 +20,7 @@ import {
     RestorePurchaseDto,
 } from '../payments/google-play-billing.service';
 import { ConsumableService } from '../consumables/consumable.service';
+import { AppUpdatePolicyService } from '../app-update-policy/app-update-policy.service';
 
 /**
  * Mobile API surface — Google Play Billing ONLY.
@@ -41,7 +43,17 @@ export class MobileController {
         private readonly subscriptionsService: SubscriptionsService,
         private readonly googlePlayBillingService: GooglePlayBillingService,
         private readonly consumableService: ConsumableService,
+        private readonly appUpdatePolicyService: AppUpdatePolicyService,
     ) {}
+
+    @Get('config/update-policy')
+    @ApiOperation({ summary: 'Get the current mobile app update policy' })
+    async getMobileUpdatePolicy(
+        @Query('platform') platform?: string,
+        @Query('version') version?: string,
+    ) {
+        return this.appUpdatePolicyService.getMobilePolicy({ platform, version });
+    }
 
     // ─── Plans (public, no auth) ─────────────────────────────
 

@@ -96,21 +96,27 @@ export class ChatService {
     }
 
     async getConversations(userId: string, pagination: PaginationDto) {
-        const [conversations, total] = await this.conversationRepository.findAndCount({
-            where: [
-                { user1Id: userId, isActive: true },
-                { user2Id: userId, isActive: true },
-                { user1Id: userId, isLocked: true },
-                { user2Id: userId, isLocked: true },
-            ],
-            relations: ['user1', 'user2'],
-            order: { lastMessageAt: 'DESC' },
-            skip: pagination.skip,
-            take: pagination.limit,
-        });
+        const activeMatchMap = await this.getActiveMatchMapForUser(userId);
+        const activeMatchIds = Array.from(new Set(activeMatchMap.values()));
+        if (activeMatchIds.length === 0) {
+            return { conversations: [], total: 0, page: pagination.page, limit: pagination.limit };
+        }
+
+        const qb = this.conversationRepository
+            .createQueryBuilder('conversation')
+            .leftJoinAndSelect('conversation.user1', 'user1')
+            .leftJoinAndSelect('conversation.user2', 'user2')
+            .where('(conversation.user1Id = :userId OR conversation.user2Id = :userId)', { userId })
+            .andWhere('conversation.matchId IN (:...activeMatchIds)', { activeMatchIds })
+            .andWhere('(conversation.isActive = true OR conversation.isLocked = true)')
+            .orderBy('conversation.lastMessageAt', 'DESC')
+            .skip(pagination.skip)
+            .take(pagination.limit);
+
+        const [eligibleConversations, total] = await qb.getManyAndCount();
 
         // Batch fetch photos for all other users (avoids N+1)
-        const otherUserIds = conversations.map(c =>
+        const otherUserIds = eligibleConversations.map(c =>
             c.user1Id === userId ? c.user2Id : c.user1Id,
         );
         const photos = otherUserIds.length > 0
@@ -123,7 +129,7 @@ export class ChatService {
             : [];
         const photoMap = new Map(photos.map(p => [p.userId, p.url]));
 
-        const enriched = conversations.map((conv) => {
+        const enriched = eligibleConversations.map((conv) => {
             const otherUserId = conv.user1Id === userId ? conv.user2Id : conv.user1Id;
             const otherUser = conv.user1Id === userId ? conv.user2 : conv.user1;
             const unreadCount = conv.user1Id === userId ? conv.user1UnreadCount : conv.user2UnreadCount;
@@ -139,8 +145,8 @@ export class ChatService {
                     lastName: otherUser?.lastName,
                     photo: photoMap.get(otherUserId) || null,
                     isPremium: hasActivePremium,
-                    premiumStartDate: otherUser?.premiumStartDate ?? null,
-                    premiumExpiryDate: otherUser?.premiumExpiryDate ?? null,
+                premiumStartDate: otherUser?.premiumStartDate ?? null,
+                premiumExpiryDate: otherUser?.premiumExpiryDate ?? null,
                 },
                 lastMessage: this.decryptContent(conv.lastMessageContent),
                 lastMessageAt: conv.lastMessageAt,
@@ -504,6 +510,14 @@ export class ChatService {
         const activeSince = new Date(Date.now() - 24 * 60 * 60 * 1000);
         const onlineUserIds = await this.redisService.getOnlineUsers();
         const onlineSet = new Set(onlineUserIds);
+        const activeMatchMap = await this.getActiveMatchMapForUser(userId);
+        const matchedUserIds = Array.from(activeMatchMap.keys());
+        if (matchedUserIds.length === 0) {
+            return {
+                users: [],
+                total: 0,
+            };
+        }
 
         const query = this.userRepository
             .createQueryBuilder('user')
@@ -515,6 +529,7 @@ export class ChatService {
                 { isMain: true, approvedPhotoStatus: 'approved' },
             )
             .where('user.id != :userId', { userId })
+            .andWhere('user.id IN (:...matchedUserIds)', { matchedUserIds })
             .andWhere('user.status = :activeStatus', { activeStatus: 'active' })
             .andWhere('user.isShadowBanned = false')
             .andWhere(
@@ -614,6 +629,23 @@ export class ChatService {
             users: serialized,
             total: serialized.length,
         };
+    }
+
+    private async getActiveMatchMapForUser(userId: string): Promise<Map<string, string>> {
+        const matches = await this.matchRepository.find({
+            where: [
+                { user1Id: userId, status: MatchStatus.ACTIVE },
+                { user2Id: userId, status: MatchStatus.ACTIVE },
+            ],
+            select: ['id', 'user1Id', 'user2Id'],
+        });
+
+        return new Map(
+            matches.map((match) => [
+                match.user1Id === userId ? match.user2Id : match.user1Id,
+                match.id,
+            ]),
+        );
     }
 
     // ─── PUBLIC: Get conversation participant IDs ─────────

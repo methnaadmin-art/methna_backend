@@ -1082,7 +1082,9 @@ export class AdminService implements OnModuleInit {
             qb.andWhere(`(p.dateOfBirth IS NULL OR date_part('year', age(p.dateOfBirth)) <= :ageMax)`, { ageMax });
         }
         if (filters.gender && filters.gender !== 'all') {
-            qb.andWhere('LOWER(p.gender) = LOWER(:gender)', { gender: String(filters.gender).trim() });
+            qb.andWhere('LOWER(CAST(p.gender AS text)) = LOWER(:gender)', {
+                gender: String(filters.gender).trim(),
+            });
         }
         if (premiumOnly) {
             qb.innerJoin(

@@ -4,6 +4,7 @@ import { PlansModule } from '../plans/plans.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { ConsumablesModule } from '../consumables/consumable.module';
+import { AppUpdatePolicyModule } from '../app-update-policy/app-update-policy.module';
 
 /**
  * Mobile API module.
@@ -17,6 +18,7 @@ import { ConsumablesModule } from '../consumables/consumable.module';
         SubscriptionsModule,
         PaymentsModule,
         ConsumablesModule,
+        AppUpdatePolicyModule,
     ],
     controllers: [MobileController],
 })

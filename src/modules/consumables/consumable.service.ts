@@ -76,6 +76,56 @@ export interface ConsumeBalanceDto {
 export class ConsumableService {
     private readonly logger = new Logger(ConsumableService.name);
     private static readonly MAX_DAILY_PURCHASES = 10;
+    private static readonly DEFAULT_PRODUCTS: Array<CreateConsumableProductDto> = [
+        {
+            code: 'methna_likes_50',
+            title: '50 likes',
+            description: 'Add 50 extra likes to your account.',
+            type: ConsumableType.LIKES_PACK,
+            quantity: 50,
+            price: 2.99,
+            currency: 'usd',
+            platformAvailability: PlatformAvailability.ALL,
+            sortOrder: 10,
+            googleProductId: 'methna_likes_50',
+        },
+        {
+            code: 'methna_compliments_3',
+            title: '3 compliments',
+            description: 'Send 3 thoughtful compliments.',
+            type: ConsumableType.COMPLIMENTS_PACK,
+            quantity: 3,
+            price: 1.99,
+            currency: 'usd',
+            platformAvailability: PlatformAvailability.ALL,
+            sortOrder: 20,
+            googleProductId: 'methna_compliments_3',
+        },
+        {
+            code: 'methna_compliments_10',
+            title: '10 compliments',
+            description: 'Send 10 thoughtful compliments.',
+            type: ConsumableType.COMPLIMENTS_PACK,
+            quantity: 10,
+            price: 4.99,
+            currency: 'usd',
+            platformAvailability: PlatformAvailability.ALL,
+            sortOrder: 21,
+            googleProductId: 'methna_compliments_10',
+        },
+        {
+            code: 'methna_compliments_20',
+            title: '20 compliments',
+            description: 'Send 20 thoughtful compliments.',
+            type: ConsumableType.COMPLIMENTS_PACK,
+            quantity: 20,
+            price: 8.99,
+            currency: 'usd',
+            platformAvailability: PlatformAvailability.ALL,
+            sortOrder: 22,
+            googleProductId: 'methna_compliments_20',
+        },
+    ];
 
     constructor(
         @InjectRepository(ConsumableProduct)
@@ -94,6 +144,8 @@ export class ConsumableService {
 
     /** Get active consumable products for a specific platform */
     async getProducts(platform: 'mobile' | 'web'): Promise<ConsumableProduct[]> {
+        await this.ensureDefaultProducts();
+
         const platformFilter = platform === 'mobile'
             ? [PlatformAvailability.ALL, PlatformAvailability.MOBILE]
             : [PlatformAvailability.ALL, PlatformAvailability.WEB];
@@ -115,6 +167,8 @@ export class ConsumableService {
         archived?: boolean;
         search?: string;
     }): Promise<{ items: ConsumableProduct[]; total: number }> {
+        await this.ensureDefaultProducts();
+
         const qb = this.productRepo.createQueryBuilder('p');
 
         if (filters?.type) qb.andWhere('p.type = :type', { type: filters.type });
@@ -522,6 +576,29 @@ export class ConsumableService {
             case PurchaseProvider.GOOGLE_PLAY: return product.googleProductId || product.code;
             case PurchaseProvider.STRIPE: return product.stripePriceId || product.code;
             default: return product.code;
+        }
+    }
+
+    private async ensureDefaultProducts(): Promise<void> {
+        for (const productData of ConsumableService.DEFAULT_PRODUCTS) {
+            const existing = await this.productRepo.findOne({
+                where: { code: productData.code },
+                select: ['id'],
+            });
+            if (existing) continue;
+
+            await this.productRepo.save(this.productRepo.create({
+                ...productData,
+                description: productData.description || null,
+                currency: productData.currency || 'usd',
+                platformAvailability: productData.platformAvailability || PlatformAvailability.ALL,
+                sortOrder: productData.sortOrder || 0,
+                googleProductId: productData.googleProductId || productData.code,
+                stripePriceId: productData.stripePriceId || null,
+                stripeProductId: productData.stripeProductId || null,
+                isActive: true,
+                isArchived: false,
+            }));
         }
     }
 

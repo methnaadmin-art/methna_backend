@@ -49,8 +49,48 @@ import {
     ValidateIf,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { VerificationStatus } from '../../database/entities/user.entity';
+import { AppUpdatePolicyService } from '../app-update-policy/app-update-policy.service';
+
+const normalizeLowercaseValue = (value: unknown): string | undefined => {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+
+    const normalized = value.trim().toLowerCase();
+    return normalized || undefined;
+};
+
+const normalizeReportStatusValue = (value: unknown): ReportStatus | undefined => {
+    const normalized = normalizeLowercaseValue(value);
+    if (!normalized) {
+        return undefined;
+    }
+
+    if (Object.values(ReportStatus).includes(normalized as ReportStatus)) {
+        return normalized as ReportStatus;
+    }
+
+    return undefined;
+};
+
+const normalizeUserRoleValue = (value: unknown): UserRole | undefined => {
+    const normalized = normalizeLowercaseValue(value);
+    if (!normalized) {
+        return undefined;
+    }
+
+    if (normalized === 'staff') {
+        return UserRole.MODERATOR;
+    }
+
+    if (Object.values(UserRole).includes(normalized as UserRole)) {
+        return normalized as UserRole;
+    }
+
+    return undefined;
+};
 
 class UpdateUserStatusDto {
     @ApiProperty({ enum: UserStatus })
@@ -101,6 +141,7 @@ class UpdateUserStatusDto {
 
 class ResolveReportDto {
     @ApiProperty({ enum: ReportStatus })
+    @Transform(({ value }) => normalizeReportStatusValue(value) ?? value)
     @IsEnum(ReportStatus)
     status!: ReportStatus;
 
@@ -127,8 +168,54 @@ class CreateUserDto {
     @ApiProperty() @IsString() firstName!: string;
     @ApiProperty() @IsString() lastName!: string;
     @ApiPropertyOptional() @IsOptional() @IsString() username?: string;
-    @ApiPropertyOptional({ enum: UserRole }) @IsOptional() @IsEnum(UserRole) role?: UserRole;
+    @ApiPropertyOptional({ enum: [...Object.values(UserRole), 'staff'] })
+    @IsOptional()
+    @Transform(({ value }) => normalizeUserRoleValue(value) ?? value)
+    @IsEnum(UserRole)
+    role?: UserRole;
     @ApiPropertyOptional({ enum: UserStatus }) @IsOptional() @IsEnum(UserStatus) status?: UserStatus;
+}
+
+class UpdateAppUpdatePolicyDto {
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsBoolean()
+    isActive?: boolean;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    minimumSupportedVersion?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    latestVersion?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    title?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    hardUpdateMessage?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    softUpdateMessage?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    storeUrlAndroid?: string;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsString()
+    storeUrliOS?: string;
 }
 
 class SendNotificationDto {
@@ -446,6 +533,7 @@ export class AdminController {
     constructor(
         private readonly adminService: AdminService,
         private readonly redisService: RedisService,
+        private readonly appUpdatePolicyService: AppUpdatePolicyService,
     ) { }
 
     // â”€â”€â”€ USERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -878,9 +966,12 @@ export class AdminController {
     @ApiOperation({ summary: 'List all reports (admin only)' })
     async getReports(
         @Query() pagination: PaginationDto,
-        @Query('status') status?: ReportStatus,
+        @Query('status') status?: string,
     ) {
-        return this.adminService.getReports(pagination, status);
+        return this.adminService.getReports(
+            pagination,
+            normalizeReportStatusValue(status),
+        );
     }
 
     @Patch('reports/:id')
@@ -891,6 +982,22 @@ export class AdminController {
         @Body() dto: ResolveReportDto,
     ) {
         return this.adminService.resolveReport(reportId, adminId, dto.status, dto.moderatorNote);
+    }
+
+    @Get('app-update-policy')
+    @ApiOperation({ summary: 'Get the current mobile app update policy' })
+    async getAppUpdatePolicy() {
+        return this.appUpdatePolicyService.getPolicy();
+    }
+
+    @Roles(UserRole.ADMIN)
+    @Patch('app-update-policy')
+    @ApiOperation({ summary: 'Create or update the mobile app update policy' })
+    async updateAppUpdatePolicy(
+        @CurrentUser('sub') adminId: string,
+        @Body() dto: UpdateAppUpdatePolicyDto,
+    ) {
+        return this.appUpdatePolicyService.updatePolicy(dto, adminId);
     }
 
     // â”€â”€â”€ PHOTO MODERATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

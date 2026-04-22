@@ -65,12 +65,12 @@ export class StripeService {
         const successUrl =
             this.configService.get<string>('stripe.successUrl') ||
             this.configService.get<string>('STRIPE_SUCCESS_URL') ||
-            'https://methna.app/payment-success?session_id={CHECKOUT_SESSION_ID}';
+            'https://methna.com/payment-success?session_id={CHECKOUT_SESSION_ID}';
 
         const cancelUrl =
             this.configService.get<string>('stripe.cancelUrl') ||
             this.configService.get<string>('STRIPE_CANCEL_URL') ||
-            'https://methna.app/payment-cancel';
+            'https://methna.com/payment-cancel';
 
         const session = await this.stripe.checkout.sessions.create({
             mode: 'subscription',
@@ -134,12 +134,12 @@ export class StripeService {
         const finalSuccessUrl =
             successUrl ||
             this.configService.get<string>('STRIPE_SUCCESS_URL') ||
-            'https://methna.app/payment-success?session_id={CHECKOUT_SESSION_ID}';
+            'https://methna.com/payment-success?session_id={CHECKOUT_SESSION_ID}';
 
         const finalCancelUrl =
             cancelUrl ||
             this.configService.get<string>('STRIPE_CANCEL_URL') ||
-            'https://methna.app/payment-cancel';
+            'https://methna.com/payment-cancel';
 
         const session = await this.stripe.checkout.sessions.create({
             mode: 'subscription',
@@ -200,12 +200,12 @@ export class StripeService {
         const successUrl =
             this.configService.get<string>('stripe.successUrl') ||
             this.configService.get<string>('STRIPE_SUCCESS_URL') ||
-            'https://methna.app/payment-success?session_id={CHECKOUT_SESSION_ID}';
+            'https://methna.com/payment-success?session_id={CHECKOUT_SESSION_ID}';
 
         const cancelUrl =
             this.configService.get<string>('stripe.cancelUrl') ||
             this.configService.get<string>('STRIPE_CANCEL_URL') ||
-            'https://methna.app/payment-cancel';
+            'https://methna.com/payment-cancel';
 
         const session = await this.stripe.checkout.sessions.create({
             mode: 'payment', // one-time payment, not subscription
@@ -295,7 +295,7 @@ export class StripeService {
             try {
                 const session = await this.stripe.billingPortal.sessions.create({
                     customer: subscription.stripeCustomerId,
-                    return_url: this.configService.get<string>('FRONTEND_URL') || 'https://methna.app',
+                    return_url: this.configService.get<string>('FRONTEND_URL') || 'https://methna.com',
                 });
                 return session.url;
             } catch (err) {

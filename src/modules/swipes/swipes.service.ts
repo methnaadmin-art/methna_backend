@@ -566,33 +566,53 @@ export class SwipesService {
 
         if (shouldNotify) {
             const matchEventKey = `match:${match.id}`;
+            const participants = await this.userRepository.find({
+                where: [{ id: user1Id }, { id: user2Id }],
+                select: ['id', 'firstName', 'lastName'],
+            });
+            const participantMap = new Map(
+                participants.map((participant) => [participant.id, participant]),
+            );
+            const buildMatchPayload = (recipientId: string, matchedUserId: string) => {
+                const matchedUser = participantMap.get(matchedUserId);
+                const matchedName = [matchedUser?.firstName, matchedUser?.lastName]
+                    .filter((value) => !!value)
+                    .join(' ')
+                    .trim();
+                const displayName = matchedName || 'your new match';
+
+                return {
+                    type: 'match',
+                    userId: matchedUserId,
+                    conversationId: conversation.id,
+                    title: 'New Match!',
+                    body: `You matched with ${displayName}. Say hello now.`,
+                    extraData: {
+                        matchId: match.id,
+                        matchedUserId,
+                        matchedUserName: matchedName || null,
+                        matchedUser: matchedUser
+                            ? {
+                                  id: matchedUser.id,
+                                  firstName: matchedUser.firstName,
+                                  lastName: matchedUser.lastName,
+                              }
+                            : null,
+                        route: '/chat',
+                        targetScreen: 'conversation',
+                        eventKey: `${matchEventKey}:${recipientId}`,
+                    },
+                };
+            };
             void Promise.all([
-                this.notificationsService.createNotification(user1Id, {
-                    type: 'match',
-                    userId: user2Id,
-                    conversationId: conversation.id,
-                    title: 'New Match!',
-                    body: 'You have a new match! Start a conversation.',
-                    extraData: {
-                        matchId: match.id,
-                        route: '/chat',
-                        targetScreen: 'conversation',
-                        eventKey: matchEventKey,
-                    },
-                }),
-                this.notificationsService.createNotification(user2Id, {
-                    type: 'match',
-                    userId: user1Id,
-                    conversationId: conversation.id,
-                    title: 'New Match!',
-                    body: 'You have a new match! Start a conversation.',
-                    extraData: {
-                        matchId: match.id,
-                        route: '/chat',
-                        targetScreen: 'conversation',
-                        eventKey: matchEventKey,
-                    },
-                }),
+                this.notificationsService.createNotification(
+                    user1Id,
+                    buildMatchPayload(user1Id, user2Id),
+                ),
+                this.notificationsService.createNotification(
+                    user2Id,
+                    buildMatchPayload(user2Id, user1Id),
+                ),
             ]).catch((error) => {
                 this.logger.warn(
                     `Failed to send match notifications for match=${match.id}: ${error?.message ?? error}`,
