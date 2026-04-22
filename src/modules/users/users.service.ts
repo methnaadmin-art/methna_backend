@@ -34,6 +34,9 @@ type CloseAccountPayload = {
 
 @Injectable()
 export class UsersService {
+    private static readonly uuidPattern =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
     constructor(
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
@@ -433,6 +436,13 @@ export class UsersService {
         userId: string,
         viewerId?: string,
     ): Promise<Partial<User>> {
+        if (!UsersService.uuidPattern.test(userId)) {
+            throw new BadRequestException('Invalid user id');
+        }
+        if (viewerId && !UsersService.uuidPattern.test(viewerId)) {
+            throw new BadRequestException('Invalid requester id');
+        }
+
         let user: User | null;
         try {
             user = await this.userRepository.findOne({

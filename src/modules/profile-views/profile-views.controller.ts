@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, UseGuards, Request, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ProfileViewsService } from './profile-views.service';
@@ -11,7 +11,10 @@ export class ProfileViewsController {
     constructor(private readonly profileViewsService: ProfileViewsService) { }
 
     @Post(':userId')
-    async recordView(@Request() req, @Param('userId') viewedId: string) {
+    async recordView(
+        @Request() req,
+        @Param('userId', new ParseUUIDPipe({ version: '4' })) viewedId: string,
+    ) {
         await this.profileViewsService.recordView(req.user.id, viewedId);
         return { recorded: true };
     }

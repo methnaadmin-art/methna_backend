@@ -2,8 +2,10 @@ import {
     Injectable,
     NotFoundException,
     BadRequestException,
-    ForbiddenException,
+    HttpException,
+    InternalServerErrorException,
     Logger,
+    ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -60,9 +62,12 @@ export class PhotosService {
             throw new BadRequestException(`Maximum ${MAX_PHOTOS} photos allowed`);
         }
 
+        let uploadedPublicId: string | null = null;
+
         try {
             // Upload to Cloudinary
             const result = await this.cloudinaryService.uploadImage(file);
+            uploadedPublicId = result.public_id;
 
             // Determine if this should be the main photo
             let isMain = isMainRequested || photoCount === 0;
@@ -87,14 +92,29 @@ export class PhotosService {
             const savedPhoto = await this.photoRepository.save(photo);
             return this.withDeliveryUrls(savedPhoto);
         } catch (error) {
-            this.logger.error(`Photo upload failed for user ${userId}: ${error.message}`);
-            
-            // If it's already a NestJS exception (like BadRequest), re-throw it
-            if (error.status && error.message) {
+            if (error instanceof HttpException) {
                 throw error;
             }
-            
-            throw new BadRequestException(`Photo upload failed: ${error.message}`);
+
+            if (uploadedPublicId) {
+                await this.cloudinaryService.deleteImage(uploadedPublicId);
+            }
+
+            const message = error instanceof Error ? error.message : String(error);
+            this.logger.error(
+                `Photo upload failed for user ${userId}: ${message}`,
+                error instanceof Error ? error.stack : undefined,
+            );
+
+            if (message.toLowerCase().includes('cloudinary')) {
+                throw new ServiceUnavailableException(
+                    'Photo storage is temporarily unavailable. Please try again.',
+                );
+            }
+
+            throw new InternalServerErrorException(
+                'Photo upload failed. Please try again.',
+            );
         }
     }
 

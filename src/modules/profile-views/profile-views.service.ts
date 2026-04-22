@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThanOrEqual } from 'typeorm';
 import { ProfileView } from '../../database/entities/profile-view.entity';
@@ -8,6 +8,8 @@ import { RedisService } from '../redis/redis.service';
 @Injectable()
 export class ProfileViewsService {
     private readonly logger = new Logger(ProfileViewsService.name);
+    private static readonly uuidPattern =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
     constructor(
         @InjectRepository(ProfileView)
@@ -20,6 +22,10 @@ export class ProfileViewsService {
         if (!viewerId || !viewedId) {
             this.logger.warn(`recordView skipped: viewerId=${viewerId}, viewedId=${viewedId}`);
             return;
+        }
+        if (!ProfileViewsService.uuidPattern.test(viewerId) ||
+            !ProfileViewsService.uuidPattern.test(viewedId)) {
+            throw new BadRequestException('Invalid profile id');
         }
         if (viewerId === viewedId) return;
 

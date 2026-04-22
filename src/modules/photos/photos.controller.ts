@@ -11,12 +11,23 @@ import {
     UploadedFile,
     HttpCode,
     HttpStatus,
+    BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { PhotosService } from './photos.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+
+const MAX_PROFILE_PHOTO_BYTES = 12 * 1024 * 1024;
+const ALLOWED_PROFILE_PHOTO_TYPES = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/heic',
+    'image/heif',
+]);
 
 @ApiTags('photos')
 @ApiBearerAuth()
@@ -26,7 +37,26 @@ export class PhotosController {
     constructor(private readonly photosService: PhotosService) { }
 
     @Post('upload')
-    @UseInterceptors(FileInterceptor('photo'))
+    @UseInterceptors(FileInterceptor('photo', {
+        storage: memoryStorage(),
+        limits: {
+            files: 1,
+            fileSize: MAX_PROFILE_PHOTO_BYTES,
+        },
+        fileFilter: (_request, file, callback) => {
+            if (ALLOWED_PROFILE_PHOTO_TYPES.has(file.mimetype)) {
+                callback(null, true);
+                return;
+            }
+
+            callback(
+                new BadRequestException(
+                    'Invalid file type. Only JPEG, PNG, WebP, HEIC, and HEIF are allowed.',
+                ),
+                false,
+            );
+        },
+    }))
     @ApiConsumes('multipart/form-data')
     @ApiBody({
         schema: {

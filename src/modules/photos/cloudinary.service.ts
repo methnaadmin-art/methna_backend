@@ -39,10 +39,37 @@ export class CloudinaryService {
         file: Express.Multer.File,
         folder: string = 'wafaa/profiles',
     ): Promise<UploadApiResponse> {
+        if (!file?.buffer || file.buffer.length === 0) {
+            throw new Error('Cloudinary upload failed: empty image buffer.');
+        }
+
+        const cloudName = this.configService.get<string>('cloudinary.cloudName');
+        const apiKey = this.configService.get<string>('cloudinary.apiKey');
+        const apiSecret = this.configService.get<string>('cloudinary.apiSecret');
+        if (!cloudName || !apiKey || !apiSecret) {
+            throw new Error('Cloudinary upload failed: storage credentials are not configured.');
+        }
+
         return new Promise((resolve, reject) => {
             const uploadPreset =
                 this.configService.get<string>('cloudinary.uploadPreset') ||
                 process.env.CLOUDINARY_UPLOAD_PRESET;
+            let settled = false;
+            let timeout: NodeJS.Timeout | undefined;
+
+            const fail = (error: Error) => {
+                if (settled) return;
+                settled = true;
+                if (timeout) clearTimeout(timeout);
+                reject(error);
+            };
+
+            const succeed = (result: UploadApiResponse) => {
+                if (settled) return;
+                settled = true;
+                if (timeout) clearTimeout(timeout);
+                resolve(result);
+            };
 
             const options: Record<string, unknown> = {
                 folder,
@@ -60,21 +87,23 @@ export class CloudinaryService {
                 options,
                 (error, result) => {
                     if (error || !result) {
-                        const cloudName = this.configService.get('cloudinary.cloudName');
-                        const apiKey = this.configService.get('cloudinary.apiKey');
-                        
                         this.logger.error(`Cloudinary upload failed: ${error?.message || 'No result'}`, {
                             error: error || 'No result',
                             cloudName: cloudName,
                             apiKey: apiKey?.substring(0, 4) + '...',
                         });
                         const descriptiveError = new Error(`Cloudinary upload failed: ${error?.message || 'No result'}. Please verify your API Key and Secret.`);
-                        reject(descriptiveError);
+                        fail(descriptiveError);
                     } else {
-                        resolve(result);
+                        succeed(result);
                     }
                 },
             );
+
+            timeout = setTimeout(() => {
+                uploadStream.destroy();
+                fail(new Error('Cloudinary upload failed: upload timed out.'));
+            }, 30000);
 
             streamifier.createReadStream(file.buffer).pipe(uploadStream);
         });
