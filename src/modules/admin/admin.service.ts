@@ -867,7 +867,12 @@ export class AdminService implements OnModuleInit {
 
     // â”€â”€â”€ CONVERSATIONS (ADMIN VIEW) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    async getConversations(pagination: PaginationDto, search?: string, filters?: { locked?: boolean; flagged?: boolean }) {
+    async getConversations(
+        pagination: PaginationDto,
+        search?: string,
+        filters?: { locked?: boolean; flagged?: boolean },
+    ) {
+        const normalizedSearch = search?.trim();
         const qb = this.conversationRepository
             .createQueryBuilder('c')
             .leftJoin('c.user1', 'user1')
@@ -888,34 +893,33 @@ export class AdminService implements OnModuleInit {
             .skip(pagination.skip)
             .take(pagination.limit);
 
-        if (search) {
-            const normalizedSearch = search.trim();
-            const likeSearch = `%${normalizedSearch}%`;
-            qb.andWhere(
-                new Brackets((searchQb) => {
-                    searchQb
-                        .where('c.id::text = :exactSearch', { exactSearch: normalizedSearch })
-                        .orWhere('user1.id::text = :exactSearch', { exactSearch: normalizedSearch })
-                        .orWhere('user2.id::text = :exactSearch', { exactSearch: normalizedSearch })
-                        .orWhere('user1.email ILIKE :likeSearch', { likeSearch })
-                        .orWhere('user2.email ILIKE :likeSearch', { likeSearch })
-                        .orWhere('user1.username ILIKE :likeSearch', { likeSearch })
-                        .orWhere('user2.username ILIKE :likeSearch', { likeSearch })
-                        .orWhere('user1.firstName ILIKE :likeSearch', { likeSearch })
-                        .orWhere('user1.lastName ILIKE :likeSearch', { likeSearch })
-                        .orWhere('user2.firstName ILIKE :likeSearch', { likeSearch })
-                        .orWhere('user2.lastName ILIKE :likeSearch', { likeSearch })
-                        .orWhere("CONCAT(user1.firstName, ' ', user1.lastName) ILIKE :likeSearch", { likeSearch })
-                        .orWhere("CONCAT(user2.firstName, ' ', user2.lastName) ILIKE :likeSearch", { likeSearch });
-                }),
-            );
+        if (typeof filters?.locked === 'boolean') {
+            qb.andWhere('c.isLocked = :locked', { locked: filters.locked });
         }
 
-        if (filters?.locked === true) {
-            qb.andWhere('c.isLocked = true');
+        if (typeof filters?.flagged === 'boolean') {
+            qb.andWhere('c.isFlagged = :flagged', { flagged: filters.flagged });
         }
-        if (filters?.flagged === true) {
-            qb.andWhere('c.isFlagged = true');
+
+        if (normalizedSearch) {
+            const likeSearch = `%${normalizedSearch}%`;
+            qb.andWhere(new Brackets((searchQb) => {
+                searchQb
+                    .where('c.id::text ILIKE :likeSearch', { likeSearch })
+                    .orWhere('c.user1Id::text ILIKE :likeSearch', { likeSearch })
+                    .orWhere('c.user2Id::text ILIKE :likeSearch', { likeSearch })
+                    .orWhere('c.lastMessageContent ILIKE :likeSearch', { likeSearch })
+                    .orWhere('user1.firstName ILIKE :likeSearch', { likeSearch })
+                    .orWhere('user1.lastName ILIKE :likeSearch', { likeSearch })
+                    .orWhere('user1.email ILIKE :likeSearch', { likeSearch })
+                    .orWhere('user1.username ILIKE :likeSearch', { likeSearch })
+                    .orWhere(`concat_ws(' ', user1."firstName", user1."lastName") ILIKE :likeSearch`, { likeSearch })
+                    .orWhere('user2.firstName ILIKE :likeSearch', { likeSearch })
+                    .orWhere('user2.lastName ILIKE :likeSearch', { likeSearch })
+                    .orWhere('user2.email ILIKE :likeSearch', { likeSearch })
+                    .orWhere('user2.username ILIKE :likeSearch', { likeSearch })
+                    .orWhere(`concat_ws(' ', user2."firstName", user2."lastName") ILIKE :likeSearch`, { likeSearch });
+            }));
         }
 
         const [conversations, total] = await qb.getManyAndCount();

@@ -907,13 +907,22 @@ export class AdminController {
     async getConversations(
         @Query() pagination: PaginationDto,
         @Query('search') search?: string,
+        @Query('q') q?: string,
+        @Query('query') query?: string,
         @Query('locked') locked?: string,
         @Query('flagged') flagged?: string,
     ) {
         const filters: { locked?: boolean; flagged?: boolean } = {};
         if (locked === 'true') filters.locked = true;
+        if (locked === 'false') filters.locked = false;
         if (flagged === 'true') filters.flagged = true;
-        return this.adminService.getConversations(pagination, search, Object.keys(filters).length > 0 ? filters : undefined);
+        if (flagged === 'false') filters.flagged = false;
+
+        return this.adminService.getConversations(
+            pagination,
+            search || q || query,
+            Object.keys(filters).length > 0 ? filters : undefined,
+        );
     }
 
     @Get('conversations/:id/messages')
