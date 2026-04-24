@@ -98,14 +98,14 @@ interface AdminSubscriptionsFilters {
 export class AdminService implements OnModuleInit {
     private readonly logger = new Logger(AdminService.name);
     private static readonly USER_SORT_COLUMNS: Record<string, string> = {
-        createdAt: 'user.createdAt',
-        updatedAt: 'user.updatedAt',
-        lastLoginAt: 'user.lastLoginAt',
-        firstName: 'user.firstName',
-        email: 'user.email',
-        status: 'user.status',
-        trustScore: 'user.trustScore',
-        premiumExpiryDate: 'user.premiumExpiryDate',
+        createdAt: '"user"."createdAt"',
+        updatedAt: '"user"."updatedAt"',
+        lastLoginAt: '"user"."lastLoginAt"',
+        firstName: '"user"."firstName"',
+        email: '"user"."email"',
+        status: '"user"."status"',
+        trustScore: '"user"."trustScore"',
+        premiumExpiryDate: '"user"."premiumExpiryDate"',
     };
 
     private static readonly VERIFICATION_SORT_COLUMNS: Record<string, string> = {
@@ -315,14 +315,16 @@ export class AdminService implements OnModuleInit {
     ) {
         const filters = this.normalizeUserFilters(statusOrFilters, search, role, plan);
         const qb = this.userRepository.createQueryBuilder('user');
+        const userAlias = '"user"';
+        const verificationExpr = `COALESCE(${userAlias}."verification", '{}'::jsonb)`;
 
         qb.select([...AdminService.ADMIN_USER_QUERY_SELECT_COLUMNS]).distinct(true);
 
         if (filters.status) {
-            qb.andWhere('user.status = :status', { status: filters.status });
+            qb.andWhere(`${userAlias}."status" = :status`, { status: filters.status });
         }
         if (filters.role) {
-            qb.andWhere('user.role = :role', { role: filters.role });
+            qb.andWhere(`${userAlias}."role" = :role`, { role: filters.role });
         }
 
         const normalizedSearch = filters.search?.trim();
@@ -331,15 +333,15 @@ export class AdminService implements OnModuleInit {
             qb.andWhere(
                 new Brackets((searchQb) => {
                     searchQb
-                        .where('user.id::text = :exactSearch', { exactSearch: normalizedSearch })
-                        .orWhere('user.firstName ILIKE :likeSearch', { likeSearch })
-                        .orWhere('user.lastName ILIKE :likeSearch', { likeSearch })
-                        .orWhere("CONCAT(user.firstName, ' ', user.lastName) ILIKE :likeSearch", {
+                        .where(`${userAlias}."id"::text = :exactSearch`, { exactSearch: normalizedSearch })
+                        .orWhere(`${userAlias}."firstName" ILIKE :likeSearch`, { likeSearch })
+                        .orWhere(`${userAlias}."lastName" ILIKE :likeSearch`, { likeSearch })
+                        .orWhere(`concat_ws(' ', ${userAlias}."firstName", ${userAlias}."lastName") ILIKE :likeSearch`, {
                             likeSearch,
                         })
-                        .orWhere('user.email ILIKE :likeSearch', { likeSearch })
-                        .orWhere('user.username ILIKE :likeSearch', { likeSearch })
-                        .orWhere('user.phone ILIKE :likeSearch', { likeSearch });
+                        .orWhere(`${userAlias}."email" ILIKE :likeSearch`, { likeSearch })
+                        .orWhere(`${userAlias}."username" ILIKE :likeSearch`, { likeSearch })
+                        .orWhere(`${userAlias}."phone" ILIKE :likeSearch`, { likeSearch });
                 }),
             );
         }
@@ -348,7 +350,7 @@ export class AdminService implements OnModuleInit {
             qb.innerJoin(
                 'subscriptions',
                 'sub',
-                'sub."userId" = user.id AND sub.status IN (:...subStatuses)',
+                `sub."userId" = ${userAlias}."id" AND sub.status IN (:...subStatuses)`,
                 { subStatuses: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PENDING_CANCELLATION, SubscriptionStatus.PAST_DUE] },
             );
             qb.leftJoin('plans', 'planEntity', 'planEntity.id = sub."planId"');
@@ -359,25 +361,25 @@ export class AdminService implements OnModuleInit {
             const now = new Date();
             if (filters.premiumState === 'premium') {
                 qb.andWhere(
-                    '(user.isPremium = true AND (user.premiumExpiryDate IS NULL OR user.premiumExpiryDate >= :premiumNow))',
+                    `(${userAlias}."isPremium" = true AND (${userAlias}."premiumExpiryDate" IS NULL OR ${userAlias}."premiumExpiryDate" >= :premiumNow))`,
                     { premiumNow: now },
                 );
             } else if (filters.premiumState === 'not_premium') {
-                qb.andWhere('(user.isPremium = false OR user.premiumExpiryDate < :premiumNow)', {
+                qb.andWhere(`(${userAlias}."isPremium" = false OR ${userAlias}."premiumExpiryDate" < :premiumNow)`, {
                     premiumNow: now,
                 });
             } else if (filters.premiumState === 'expired') {
-                qb.andWhere('user.premiumExpiryDate < :premiumNow', { premiumNow: now });
+                qb.andWhere(`${userAlias}."premiumExpiryDate" < :premiumNow`, { premiumNow: now });
             }
         }
 
         if (filters.verificationState && filters.verificationState !== 'all') {
-            const selfieUrlExpr = `NULLIF(COALESCE(user.verification->'selfie'->>'url', "user"."selfieUrl"), '')`;
-            const identityUrlExpr = `NULLIF(COALESCE(user.verification->'identity'->>'url', CASE WHEN user.verification->'marital_status'->>'url' IS NOT NULL AND "user"."documentUrl" = user.verification->'marital_status'->>'url' THEN NULL ELSE "user"."documentUrl" END), '')`;
-            const maritalUrlExpr = `NULLIF(user.verification->'marital_status'->>'url', '')`;
-            const selfieStatusExpr = `COALESCE(user.verification->'selfie'->>'status', CASE WHEN ${selfieUrlExpr} IS NOT NULL AND "user"."selfieVerified" = true THEN :approvedStatus WHEN ${selfieUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
-            const identityStatusExpr = `COALESCE(user.verification->'identity'->>'status', CASE WHEN ${identityUrlExpr} IS NOT NULL AND "user"."documentVerified" = true THEN :approvedStatus WHEN "user"."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN ${identityUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
-            const maritalStatusExpr = `COALESCE(user.verification->'marital_status'->>'status', CASE WHEN ${maritalUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
+            const selfieUrlExpr = `NULLIF(COALESCE(${verificationExpr}->'selfie'->>'url', ${userAlias}."selfieUrl"), '')`;
+            const identityUrlExpr = `NULLIF(COALESCE(${verificationExpr}->'identity'->>'url', CASE WHEN ${verificationExpr}->'marital_status'->>'url' IS NOT NULL AND ${userAlias}."documentUrl" = ${verificationExpr}->'marital_status'->>'url' THEN NULL ELSE ${userAlias}."documentUrl" END), '')`;
+            const maritalUrlExpr = `NULLIF(${verificationExpr}->'marital_status'->>'url', '')`;
+            const selfieStatusExpr = `COALESCE(${verificationExpr}->'selfie'->>'status', CASE WHEN ${selfieUrlExpr} IS NOT NULL AND ${userAlias}."selfieVerified" = true THEN :approvedStatus WHEN ${selfieUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
+            const identityStatusExpr = `COALESCE(${verificationExpr}->'identity'->>'status', CASE WHEN ${identityUrlExpr} IS NOT NULL AND ${userAlias}."documentVerified" = true THEN :approvedStatus WHEN ${userAlias}."documentRejectionReason" IS NOT NULL THEN :rejectedStatus WHEN ${identityUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
+            const maritalStatusExpr = `COALESCE(${verificationExpr}->'marital_status'->>'status', CASE WHEN ${maritalUrlExpr} IS NOT NULL THEN :pendingStatus ELSE :notSubmittedStatus END)`;
             qb.setParameters({
                 approvedStatus: VerificationStatus.APPROVED,
                 pendingStatus: VerificationStatus.PENDING,
@@ -395,16 +397,16 @@ export class AdminService implements OnModuleInit {
         }
 
         if (filters.dateFrom) {
-            qb.andWhere('user.createdAt >= :dateFrom', { dateFrom: filters.dateFrom });
+            qb.andWhere(`${userAlias}."createdAt" >= :dateFrom`, { dateFrom: filters.dateFrom });
         }
         if (filters.dateTo) {
-            qb.andWhere('user.createdAt <= :dateTo', { dateTo: this.endOfDay(filters.dateTo) });
+            qb.andWhere(`${userAlias}."createdAt" <= :dateTo`, { dateTo: this.endOfDay(filters.dateTo) });
         }
 
         const sortColumn = this.resolveSortColumn(
             filters.sortBy,
             AdminService.USER_SORT_COLUMNS,
-            'user.createdAt',
+            `${userAlias}."createdAt"`,
         );
         const sortOrder = this.resolveSortOrder(filters.sortOrder);
 
