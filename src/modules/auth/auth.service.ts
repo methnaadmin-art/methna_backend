@@ -12,7 +12,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { createPublicKey, randomUUID, randomInt, verify as verifySignature } from 'crypto';
+import { randomUUID, randomInt } from 'crypto';
 import { User, UserStatus } from '../../database/entities/user.entity';
 import {
     RegisterDto,
@@ -24,13 +24,13 @@ import {
     ResetPasswordDto,
     ChangePasswordDto,
     GoogleSignInDto,
-    AppleSignInDto,
 } from './dto/auth.dto';
 import { RedisService } from '../redis/redis.service';
 import { MailService } from '../mail/mail.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { UsersService } from '../users/users.service';
 import { PaymentsService } from '../payments/payments.service';
+
 type GoogleTokenInfo = {
     aud?: string;
     email?: string;
@@ -42,17 +42,11 @@ type GoogleTokenInfo = {
     error?: string;
     error_description?: string;
 };
-type AppleIdentityTokenPayload = {
-    iss?: string;
-    aud?: string | string[];
-    exp?: number;
-    sub?: string;
-    email?: string;
-    email_verified?: boolean | string;
-};
+
 @Injectable()
 export class AuthService {
     private readonly logger = new Logger(AuthService.name);
+
     constructor(
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
@@ -64,26 +58,1243 @@ export class AuthService {
         private readonly usersService: UsersService,
         private readonly paymentsService: PaymentsService,
     ) {}
-    private normalizeNamePart(value: string | null | undefined): string {
-        const trimmed = value?.trim() ?? '';
-        if (!trimmed) {
-            return '';
-        }
-        return trimmed
-            .split(/\s+/)
-            .filter(Boolean)
-            .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
-            .join(' ');
-    }
+
     // ─── REGISTRATION WITH OTP ──────────────────────────────
+
     async register(registerDto: RegisterDto) {
         const { email, password, firstName, lastName, phone, username, agreeToTerms, agreeToPrivacyPolicy } =
             registerDto;
-        const normalizedFirstName = this.normalizeNamePart(firstName);
-        const normalizedLastName = this.normalizeNamePart(lastName);
+
         if (!agreeToTerms || !agreeToPrivacyPolicy) {
             throw new BadRequestException('You must agree to the Terms of Service and Privacy Policy');
         }
+
         this.logger.log(`[OTP] Register request for ${email}`);
+
         const existingUser = await this.userRepository.findOne({
             where: { email },
+            select: ['id', 'email', 'status', 'emailVerified'],
+        });
+        if (existingUser) {
+            // Allow re-registration if user never verified their email
+            if (existingUser.status === UserStatus.PENDING_VERIFICATION && !existingUser.emailVerified) {
+                const salt = await bcrypt.genSalt(12);
+                const hashedPassword = await bcrypt.hash(password, salt);
+                const otp = this.generateOtp();
+                this.logger.log(`[OTP] Generated OTP for re-register ${email}: ${otp}`);
+                const hashedOtp = await bcrypt.hash(otp, 10);
+                const otpExpiry = new Date(
+                    Date.now() + this.configService.get<number>('otp.expirySeconds', 300) * 1000,
+                );
+
+                existingUser.password = hashedPassword;
+                existingUser.firstName = firstName;
+                existingUser.lastName = lastName;
+                if (phone !== undefined) existingUser.phone = phone;
+                if (username !== undefined) existingUser.username = username.toLowerCase();
+                existingUser.otpCode = hashedOtp;
+                existingUser.otpExpiresAt = otpExpiry;
+                existingUser.otpAttempts = 0;
+
+                await this.userRepository.save(existingUser);
+                this.logger.log(`[OTP] Hashed OTP saved for ${email}, expiry=${otpExpiry.toISOString()}`);
+
+                // Await email send so errors propagate
+                let emailSent = false;
+                try {
+                    await this.mailService.sendOtpEmail(email, otp, firstName);
+                    emailSent = true;
+                    this.logger.log(`[OTP] ✅ Email sent successfully for ${email}`);
+                } catch (err) {
+                    this.logger.error(`[OTP] ❌ Email FAILED for ${email}: ${err?.message || err}`);
+                }
+
+                const agreementEmailScheduled =
+                    emailSent && this.mailService.scheduleAgreementConfirmationEmail(email, firstName);
+                if (agreementEmailScheduled) {
+                    this.logger.log(`[AGREEMENT-MAIL] Scheduled terms/privacy PDF send for ${email}`);
+                }
+
+                return {
+                    message: 'Registration successful. Please verify your email with the OTP sent.',
+                    email,
+                    emailSent,
+                    agreementEmailScheduled,
+                };
+            }
+            throw new ConflictException('Email already registered');
+        }
+
+        if (username) {
+            const existingUsername = await this.userRepository.findOne({
+                where: { username: username.toLowerCase() },
+                select: ['id', 'username', 'status', 'emailVerified'],
+            });
+            if (
+                existingUsername &&
+                (existingUsername.status !== UserStatus.PENDING_VERIFICATION || existingUsername.emailVerified)
+            ) {
+                throw new ConflictException('Username already taken');
+            }
+            // If the existing username belongs to an unverified user, release it
+            if (
+                existingUsername &&
+                existingUsername.status === UserStatus.PENDING_VERIFICATION &&
+                !existingUsername.emailVerified
+            ) {
+                await this.userRepository.update(existingUsername.id, {
+                    username: () => 'NULL',
+                } as any);
+                this.logger.log(
+                    `[OTP] Released stale username '${username}' from unverified user ${existingUsername.id}`,
+                );
+            }
+        }
+
+        const salt = await bcrypt.genSalt(12);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        const otp = this.generateOtp();
+        this.logger.log(`[OTP] Generated OTP for new user ${email}: ${otp}`);
+        const hashedOtp = await bcrypt.hash(otp, 10);
+        const otpExpiry = new Date(Date.now() + this.configService.get<number>('otp.expirySeconds', 300) * 1000);
+
+        const user = this.userRepository.create({
+            email,
+            password: hashedPassword,
+            firstName,
+            lastName,
+            phone,
+            username: username?.toLowerCase(),
+            status: UserStatus.PENDING_VERIFICATION,
+            otpCode: hashedOtp,
+            otpExpiresAt: otpExpiry,
+            otpAttempts: 0,
+            notificationsEnabled: true,
+            matchNotifications: true,
+            messageNotifications: true,
+            likeNotifications: true,
+            profileVisitorNotifications: true,
+            eventsNotifications: true,
+            safetyAlertNotifications: true,
+            promotionsNotifications: true,
+            inAppRecommendationNotifications: true,
+            weeklySummaryNotifications: true,
+            connectionRequestNotifications: true,
+            surveyNotifications: true,
+        });
+
+        try {
+            await this.userRepository.save(user);
+        } catch (dbError) {
+            // Handle PostgreSQL unique constraint violation (code 23505)
+            if (dbError?.code === '23505' || dbError?.driverError?.code === '23505') {
+                const detail = dbError?.driverError?.detail || dbError?.detail || '';
+                this.logger.warn(`[OTP] Duplicate key violation: ${detail}`);
+                if (detail.includes('username')) {
+                    throw new ConflictException('Username already taken');
+                }
+                throw new ConflictException('Email already registered');
+            }
+            throw dbError;
+        }
+        this.logger.log(`[OTP] User created & hashed OTP saved for ${email}, expiry=${otpExpiry.toISOString()}`);
+
+        // Await email send so errors propagate
+        let emailSent = false;
+        try {
+            await this.mailService.sendOtpEmail(email, otp, firstName);
+            emailSent = true;
+            this.logger.log(`[OTP] ✅ Email sent successfully for ${email}`);
+        } catch (err) {
+            this.logger.error(`[OTP] ❌ Email FAILED for ${email}: ${err?.message || err}`);
+        }
+
+        const agreementEmailScheduled =
+            emailSent && this.mailService.scheduleAgreementConfirmationEmail(email, firstName);
+        if (agreementEmailScheduled) {
+            this.logger.log(`[AGREEMENT-MAIL] Scheduled terms/privacy PDF send for ${email}`);
+        }
+
+        return {
+            message: 'Registration successful. Please verify your email with the OTP sent.',
+            email,
+            emailSent,
+            agreementEmailScheduled,
+        };
+    }
+
+    async verifyOtp(dto: VerifyOtpDto) {
+        const { email, otp } = dto;
+        this.logger.log(`[OTP] Verify request for ${email}, code=${otp}`);
+
+        // Anti-bruteforce: rate limit OTP verifications
+        const rateLimitKey = `otp_verify:${email}`;
+        const allowed = await this.redisService.checkRateLimit(rateLimitKey, 10, 300);
+        if (!allowed) {
+            this.logger.warn(`[OTP] Rate limited: ${email}`);
+            throw new HttpException(
+                'Too many OTP verification attempts. Try again later.',
+                HttpStatus.TOO_MANY_REQUESTS,
+            );
+        }
+
+        const user = await this.userRepository.findOne({
+            where: { email },
+            select: [
+                'id',
+                'email',
+                'firstName',
+                'lastName',
+                'role',
+                'status',
+                'otpCode',
+                'otpExpiresAt',
+                'otpAttempts',
+                'emailVerified',
+            ],
+        });
+
+        if (!user) {
+            this.logger.warn(`[OTP] User not found: ${email}`);
+            throw new BadRequestException('User not found');
+        }
+
+        this.logger.log(
+            `[OTP] User found: ${email}, status=${user.status}, emailVerified=${user.emailVerified}, hasOtp=${!!user.otpCode}, otpExpiry=${user.otpExpiresAt}, attempts=${user.otpAttempts}`,
+        );
+
+        if (user.status === UserStatus.ACTIVE && user.emailVerified) {
+            throw new BadRequestException('Email already verified');
+        }
+
+        // Check max attempts
+        const maxAttempts = this.configService.get<number>('otp.maxAttempts', 5);
+        if (user.otpAttempts >= maxAttempts) {
+            this.logger.warn(`[OTP] Max attempts exceeded for ${email}: ${user.otpAttempts}/${maxAttempts}`);
+            throw new HttpException('Maximum OTP attempts exceeded. Request a new OTP.', HttpStatus.TOO_MANY_REQUESTS);
+        }
+
+        // Check OTP expiry
+        if (!user.otpCode || !user.otpExpiresAt || new Date() > user.otpExpiresAt) {
+            this.logger.warn(
+                `[OTP] Expired for ${email}: otpExpiresAt=${user.otpExpiresAt}, now=${new Date().toISOString()}`,
+            );
+            throw new BadRequestException('OTP has expired. Request a new one.');
+        }
+
+        // Verify OTP using bcrypt compare (OTP is hashed in DB)
+        const isMatch = await bcrypt.compare(otp, user.otpCode);
+        this.logger.log(`[OTP] bcrypt.compare result for ${email}: ${isMatch}`);
+
+        if (!isMatch) {
+            await this.userRepository.update(user.id, {
+                otpAttempts: user.otpAttempts + 1,
+            });
+            this.logger.warn(`[OTP] Invalid code for ${email}. Attempts: ${user.otpAttempts + 1}/${maxAttempts}`);
+            throw new BadRequestException('Invalid OTP code');
+        }
+
+        // Mark as verified
+        await this.userRepository.update(user.id, {
+            emailVerified: true,
+            status: UserStatus.ACTIVE,
+            otpExpiresAt: null as any,
+            otpAttempts: 0,
+        });
+
+        await this.tryGrantTrialIfEnabled(user.id, email, 3, 'otp_verification');
+
+        // Generate tokens
+        user.status = UserStatus.ACTIVE;
+        const tokens = await this.generateTokens(user);
+        await this.updateRefreshToken(user.id, tokens.refreshToken);
+
+        this.logger.log(`[OTP] ✅ Email verified successfully: ${email}`);
+
+        return {
+            message: 'Email verified successfully',
+            user: this.sanitizeUser(await this.usersService.getMe(user.id)),
+            ...tokens,
+        };
+    }
+
+    async resendOtp(dto: ResendOtpDto) {
+        const { email } = dto;
+        this.logger.log(`[OTP] Resend request for ${email}`);
+
+        // Anti-bruteforce: rate limit resend
+        const rateLimitKey = `otp_resend:${email}`;
+        const allowed = await this.redisService.checkRateLimit(rateLimitKey, 3, 300);
+        if (!allowed) {
+            throw new HttpException('Too many OTP resend requests. Try again later.', HttpStatus.TOO_MANY_REQUESTS);
+        }
+
+        const user = await this.userRepository.findOne({
+            where: { email },
+            select: ['id', 'email', 'firstName', 'status', 'otpCooldownUntil'],
+        });
+
+        if (!user) {
+            throw new BadRequestException('User not found');
+        }
+
+        if (user.status === UserStatus.ACTIVE) {
+            throw new BadRequestException('Email already verified');
+        }
+
+        // Check cooldown
+        const cooldownSeconds = this.configService.get<number>('otp.cooldownSeconds', 60);
+        if (user.otpCooldownUntil && new Date() < user.otpCooldownUntil) {
+            const remaining = Math.ceil((user.otpCooldownUntil.getTime() - Date.now()) / 1000);
+            throw new BadRequestException(`Please wait ${remaining} seconds before requesting a new OTP`);
+        }
+
+        const otp = this.generateOtp();
+        this.logger.log(`[OTP] Generated new OTP for resend ${email}: ${otp}`);
+        const hashedOtp = await bcrypt.hash(otp, 10);
+        const otpExpiry = new Date(Date.now() + this.configService.get<number>('otp.expirySeconds', 300) * 1000);
+        const cooldownUntil = new Date(Date.now() + cooldownSeconds * 1000);
+
+        await this.userRepository.update(user.id, {
+            otpCode: hashedOtp,
+            otpExpiresAt: otpExpiry,
+            otpAttempts: 0,
+            otpCooldownUntil: cooldownUntil,
+        });
+        this.logger.log(`[OTP] Hashed OTP saved for resend ${email}, expiry=${otpExpiry.toISOString()}`);
+
+        // Await email send
+        let emailSent = false;
+        try {
+            await this.mailService.sendOtpEmail(email, otp, user.firstName);
+            emailSent = true;
+            this.logger.log(`[OTP] ✅ Resend email sent to ${email}`);
+        } catch (err) {
+            this.logger.error(`[OTP] ❌ Resend email FAILED for ${email}: ${err?.message || err}`);
+        }
+
+        const agreementEmailScheduled =
+            emailSent && this.mailService.scheduleAgreementConfirmationEmail(email, user.firstName);
+        if (agreementEmailScheduled) {
+            this.logger.log(`[AGREEMENT-MAIL] Scheduled terms/privacy PDF send for ${email} after OTP resend`);
+        }
+
+        return {
+            message: 'New OTP sent to your email',
+            emailSent,
+            agreementEmailScheduled,
+        };
+    }
+
+    // ─── LOGIN ──────────────────────────────────────────────
+
+    async login(loginDto: LoginDto, clientIp?: string, userAgent?: string) {
+        const identifier = (loginDto.identifier || loginDto.email || '').trim();
+        const normalizedIdentifier = identifier.toLowerCase();
+        const normalizedPhone = identifier.replace(/\s+/g, '');
+        const { password } = loginDto;
+
+        if (!identifier) {
+            throw new UnauthorizedException('Invalid credentials');
+        }
+
+        // Anti-bruteforce: rate limit per email AND per IP
+        const emailRateKey = `login:${normalizedIdentifier || normalizedPhone}`;
+        const emailAllowed = await this.redisService.checkRateLimit(emailRateKey, 5, 300);
+        if (!emailAllowed) {
+            this.redisService
+                .appendAuditLog({
+                    type: 'suspicious',
+                    action: 'login_rate_limit_email',
+                    email: identifier,
+                    ip: clientIp,
+                })
+                .catch(() => {});
+            throw new HttpException('Too many login attempts. Try again in 5 minutes.', HttpStatus.TOO_MANY_REQUESTS);
+        }
+
+        if (clientIp) {
+            const ipRateKey = `login_ip:${clientIp}`;
+            const ipAllowed = await this.redisService.checkRateLimit(ipRateKey, 20, 300);
+            if (!ipAllowed) {
+                this.redisService
+                    .appendAuditLog({
+                        type: 'suspicious',
+                        action: 'login_rate_limit_ip',
+                        ip: clientIp,
+                    })
+                    .catch(() => {});
+                throw new HttpException(
+                    'Too many login attempts from this IP. Try again later.',
+                    HttpStatus.TOO_MANY_REQUESTS,
+                );
+            }
+        }
+
+        const user = await this.userRepository.findOne({
+            where: [
+                { email: normalizedIdentifier },
+                { username: normalizedIdentifier },
+                { phone: identifier },
+                { phone: normalizedPhone },
+            ],
+            select: [
+                'id',
+                'email',
+                'password',
+                'firstName',
+                'lastName',
+                'role',
+                'status',
+                'emailVerified',
+                'statusReason',
+                'moderationReasonCode',
+                'moderationReasonText',
+                'actionRequired',
+                'supportMessage',
+                'isUserVisible',
+                'moderationExpiresAt',
+                'internalAdminNote',
+            ],
+        });
+
+        if (!user) {
+            this.redisService
+                .appendAuditLog({
+                    type: 'suspicious',
+                    action: 'login_failed_unknown_email',
+                    email: identifier,
+                    ip: clientIp,
+                })
+                .catch(() => {});
+            throw new UnauthorizedException('Invalid credentials');
+        }
+
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            this.redisService
+                .appendAuditLog({
+                    type: 'suspicious',
+                    action: 'login_failed_bad_password',
+                    userId: user.id,
+                    email: identifier,
+                    ip: clientIp,
+                })
+                .catch(() => {});
+            throw new UnauthorizedException('Invalid credentials');
+        }
+
+        if (!user.emailVerified && user.status === UserStatus.PENDING_VERIFICATION) {
+            this.throwAuthStatusException(user, 'Please verify your email first', HttpStatus.UNAUTHORIZED);
+        }
+
+        if (user.status === UserStatus.DEACTIVATED) {
+            await this.reactivateUserOnLogin(user);
+        }
+
+        const blockedLoginMessage = this.getBlockedLoginMessage(user.status);
+        if (blockedLoginMessage) {
+            this.throwAuthStatusException(user, blockedLoginMessage, HttpStatus.FORBIDDEN);
+        }
+
+        await this.subscriptionsService.syncUserPremiumState(user.id);
+
+        const tokens = await this.generateTokens(user);
+        await this.updateRefreshToken(user.id, tokens.refreshToken, tokens.familyId);
+        await this.userRepository.update(user.id, {
+            lastLoginAt: new Date(),
+            lastKnownIp: clientIp || undefined,
+        });
+
+        // Audit log — successful login with device fingerprint
+        this.redisService
+            .appendAuditLog({
+                type: 'login',
+                userId: user.id,
+                email: user.email,
+                action: 'login_success',
+                familyId: tokens.familyId,
+                ip: clientIp,
+                userAgent,
+            })
+            .catch(() => {});
+
+        this.logger.log(`User logged in: ${identifier} from ${clientIp}`);
+
+        return {
+            status: this.getAuthResponseStatus(user.status),
+            message: 'Login successful',
+            user: this.sanitizeUser(await this.usersService.getMe(user.id)),
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+        };
+    }
+
+    // ─── GOOGLE SIGN-IN ──────────────────────────────────────
+
+    private async verifyGoogleIdToken(idToken: string, expectedEmail: string): Promise<GoogleTokenInfo> {
+        const trimmedToken = idToken?.trim();
+        if (!trimmedToken) {
+            throw new UnauthorizedException('Missing Google ID token');
+        }
+
+        const expectedClientId =
+            this.configService.get<string>('google.webClientId') ||
+            process.env.GOOGLE_WEB_CLIENT_ID ||
+            process.env.GOOGLE_CLIENT_ID ||
+            '';
+        if (!expectedClientId.trim()) {
+            throw new UnauthorizedException('Google Sign-In is not configured on the server');
+        }
+
+        const response = await fetch(
+            `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(trimmedToken)}`,
+        );
+        const payload = (await response.json().catch(() => ({}))) as GoogleTokenInfo;
+        if (!response.ok || payload.error) {
+            throw new UnauthorizedException(payload.error_description || 'Invalid Google token');
+        }
+
+        if (payload.aud !== expectedClientId.trim()) {
+            throw new UnauthorizedException('Invalid Google token audience');
+        }
+
+        const verifiedEmail = payload.email?.trim().toLowerCase();
+        if (!verifiedEmail || verifiedEmail !== expectedEmail.trim().toLowerCase()) {
+            throw new UnauthorizedException('Google token email does not match the requested account');
+        }
+
+        if (payload.email_verified === false || payload.email_verified === 'false') {
+            throw new UnauthorizedException('Google account email is not verified');
+        }
+
+        return payload;
+    }
+
+    async googleSignIn(dto: GoogleSignInDto, clientIp?: string, userAgent?: string) {
+        const verifiedGoogle = await this.verifyGoogleIdToken(dto.idToken, dto.email);
+        const email = verifiedGoogle.email!.toLowerCase();
+        const displayName = dto.displayName?.trim() || verifiedGoogle.name;
+        this.logger.log(`[GoogleSignIn] Processing for email=${email}`);
+
+        // Check if user already exists
+        let user = await this.userRepository.findOne({
+            where: { email: email.toLowerCase() },
+            select: ['id', 'email', 'firstName', 'lastName', 'role', 'status', 'emailVerified'],
+        });
+
+        if (user) {
+            if (user.status === UserStatus.PENDING_VERIFICATION && !user.emailVerified) {
+                await this.userRepository.update(user.id, {
+                    status: UserStatus.ACTIVE,
+                    emailVerified: true,
+                });
+                user.status = UserStatus.ACTIVE;
+                user.emailVerified = true;
+            }
+
+            if (user.status === UserStatus.DEACTIVATED) {
+                await this.reactivateUserOnLogin(user);
+            }
+
+            const blockedLoginMessage = this.getBlockedLoginMessage(user.status);
+            if (blockedLoginMessage) {
+                this.throwAuthStatusException(user, blockedLoginMessage, HttpStatus.FORBIDDEN);
+            }
+
+            this.logger.log(`[GoogleSignIn] Existing user found: ${user.id}`);
+        } else {
+            // New user - create account
+            const names = displayName?.split(' ') || ['User'];
+            const firstName = names[0] || 'User';
+            const lastName = names.slice(1).join(' ') || '';
+
+            // Generate a random password (user won't use it, they'll use Google)
+            const randomPassword = randomUUID();
+            const hashedPassword = await bcrypt.hash(randomPassword, 12);
+
+            // Generate unique username from email
+            let baseUsername = email
+                .split('@')[0]
+                .toLowerCase()
+                .replace(/[^a-z0-9_]/g, '');
+            let username = baseUsername;
+            let counter = 1;
+            while (
+                await this.userRepository.findOne({
+                    where: { username },
+                    select: ['id'],
+                })
+            ) {
+                username = `${baseUsername}${counter}`;
+                counter++;
+            }
+
+            user = this.userRepository.create({
+                email: email.toLowerCase(),
+                password: hashedPassword,
+                firstName,
+                lastName,
+                username,
+                status: UserStatus.ACTIVE,
+                emailVerified: true,
+                lastKnownIp: clientIp,
+                notificationsEnabled: true,
+                matchNotifications: true,
+                messageNotifications: true,
+                likeNotifications: true,
+                profileVisitorNotifications: true,
+                eventsNotifications: true,
+                safetyAlertNotifications: true,
+                promotionsNotifications: true,
+                inAppRecommendationNotifications: true,
+                weeklySummaryNotifications: true,
+                connectionRequestNotifications: true,
+                surveyNotifications: true,
+            });
+
+            await this.userRepository.save(user);
+            this.logger.log(`[GoogleSignIn] New user created: ${user.id}`);
+
+            await this.tryGrantTrialIfEnabled(user.id, email, undefined, 'google_signup');
+
+        }
+
+        await this.subscriptionsService.syncUserPremiumState(user.id);
+
+        // Generate tokens
+        const tokens = await this.generateTokens(user);
+        await this.updateRefreshToken(user.id, tokens.refreshToken, tokens.familyId);
+        await this.userRepository.update(user.id, {
+            lastLoginAt: new Date(),
+            lastKnownIp: clientIp || undefined,
+        });
+
+        // Audit log
+        this.redisService
+            .appendAuditLog({
+                type: 'login',
+                userId: user.id,
+                email: user.email,
+                action: 'google_signin_success',
+                familyId: tokens.familyId,
+                ip: clientIp,
+                userAgent,
+            })
+            .catch(() => {});
+
+        this.logger.log(`[GoogleSignIn] User authenticated: ${email} from ${clientIp}`);
+
+        return {
+            status: this.getAuthResponseStatus(user.status),
+            message: 'Login successful',
+            user: this.sanitizeUser(await this.usersService.getMe(user.id)),
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+        };
+    }
+
+    // ─── FORGOT PASSWORD ────────────────────────────────────
+
+    async forgotPassword(dto: ForgotPasswordDto) {
+        const { email } = dto;
+        this.logger.log(`[OTP] Forgot password request for ${email}`);
+
+        // Rate limit
+        const rateLimitKey = `forgot_pwd:${email}`;
+        const allowed = await this.redisService.checkRateLimit(rateLimitKey, 3, 300);
+        if (!allowed) {
+            throw new HttpException('Too many reset requests. Try again later.', HttpStatus.TOO_MANY_REQUESTS);
+        }
+
+        const user = await this.userRepository.findOne({
+            where: { email },
+            select: ['id', 'email', 'firstName'],
+        });
+
+        // Always return success to prevent email enumeration
+        if (!user) {
+            this.logger.warn(`[OTP] Forgot password — email not found: ${email}`);
+            return { message: 'If this email exists, a reset code has been sent' };
+        }
+
+        const otp = this.generateOtp();
+        this.logger.log(`[OTP] Generated reset OTP for ${email}: ${otp}`);
+        const hashedOtp = await bcrypt.hash(otp, 10);
+        const otpExpiry = new Date(Date.now() + this.configService.get<number>('otp.expirySeconds', 300) * 1000);
+
+        await this.userRepository.update(user.id, {
+            resetOtpCode: hashedOtp,
+            resetOtpExpiresAt: otpExpiry,
+            resetOtpAttempts: 0,
+        });
+        this.logger.log(`[OTP] Hashed reset OTP saved for ${email}, expiry=${otpExpiry.toISOString()}`);
+
+        try {
+            await this.mailService.sendPasswordResetOtp(email, otp, user.firstName);
+            this.logger.log(`[OTP] ✅ Reset email sent to ${email}`);
+        } catch (err) {
+            this.logger.error(`[OTP] ❌ Reset email FAILED for ${email}: ${err?.message || err}`);
+        }
+
+        return { message: 'If this email exists, a reset code has been sent' };
+    }
+
+    async verifyResetOtp(dto: VerifyResetOtpDto) {
+        const { email, otp } = dto;
+        this.logger.log(`[OTP] Verify reset OTP for ${email}`);
+
+        const rateLimitKey = `reset_verify:${email}`;
+        const allowed = await this.redisService.checkRateLimit(rateLimitKey, 10, 300);
+        if (!allowed) {
+            throw new HttpException('Too many attempts. Try again later.', HttpStatus.TOO_MANY_REQUESTS);
+        }
+
+        const user = await this.userRepository.findOne({
+            where: { email },
+            select: ['id', 'resetOtpCode', 'resetOtpExpiresAt', 'resetOtpAttempts'],
+        });
+
+        if (!user) {
+            throw new BadRequestException('Invalid request');
+        }
+
+        const maxAttempts = this.configService.get<number>('otp.maxAttempts', 5);
+        if (user.resetOtpAttempts >= maxAttempts) {
+            this.logger.warn(`[OTP] Reset max attempts exceeded for ${email}`);
+            throw new HttpException('Maximum attempts exceeded. Request a new code.', HttpStatus.TOO_MANY_REQUESTS);
+        }
+
+        if (!user.resetOtpCode || !user.resetOtpExpiresAt || new Date() > user.resetOtpExpiresAt) {
+            this.logger.warn(`[OTP] Reset OTP expired for ${email}`);
+            throw new BadRequestException('Reset code has expired');
+        }
+
+        const isMatch = await bcrypt.compare(otp, user.resetOtpCode);
+        this.logger.log(`[OTP] Reset bcrypt.compare for ${email}: ${isMatch}`);
+
+        if (!isMatch) {
+            await this.userRepository.update(user.id, {
+                resetOtpAttempts: user.resetOtpAttempts + 1,
+            });
+            throw new BadRequestException('Invalid reset code');
+        }
+
+        this.logger.log(`[OTP] ✅ Reset OTP verified for ${email}`);
+        return {
+            message: 'OTP verified. You may now reset your password.',
+            verified: true,
+        };
+    }
+
+    async resetPassword(dto: ResetPasswordDto) {
+        const { email, otp, newPassword } = dto;
+        this.logger.log(`[OTP] Reset password request for ${email}`);
+
+        // Rate limit to prevent OTP brute-force via this endpoint
+        const rateLimitKey = `reset_password:${email}`;
+        const allowed = await this.redisService.checkRateLimit(rateLimitKey, 10, 300);
+        if (!allowed) {
+            throw new HttpException('Too many attempts. Try again later.', HttpStatus.TOO_MANY_REQUESTS);
+        }
+
+        const user = await this.userRepository.findOne({
+            where: { email },
+            select: ['id', 'resetOtpCode', 'resetOtpExpiresAt', 'resetOtpAttempts'],
+        });
+
+        if (!user) {
+            throw new BadRequestException('Invalid request');
+        }
+
+        const maxAttempts = this.configService.get<number>('otp.maxAttempts', 5);
+        if (user.resetOtpAttempts >= maxAttempts) {
+            throw new HttpException('Maximum attempts exceeded. Request a new code.', HttpStatus.TOO_MANY_REQUESTS);
+        }
+
+        if (!user.resetOtpCode || !user.resetOtpExpiresAt || new Date() > user.resetOtpExpiresAt) {
+            throw new BadRequestException('Reset code has expired');
+        }
+
+        const isMatch = await bcrypt.compare(otp, user.resetOtpCode);
+        if (!isMatch) {
+            await this.userRepository.update(user.id, {
+                resetOtpAttempts: user.resetOtpAttempts + 1,
+            });
+            throw new BadRequestException('Invalid reset code');
+        }
+
+        const salt = await bcrypt.genSalt(12);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        await this.userRepository.update(user.id, {
+            password: hashedPassword,
+            resetOtpCode: null as any,
+            resetOtpExpiresAt: null as any,
+            resetOtpAttempts: 0,
+            refreshToken: null as any,
+        });
+
+        this.logger.log(`[OTP] ✅ Password reset completed for: ${email}`);
+
+        return {
+            message: 'Password reset successfully. Please login with your new password.',
+        };
+    }
+
+    // ─── TOKEN MANAGEMENT ───────────────────────────────────
+
+    async changePassword(userId: string, dto: ChangePasswordDto) {
+        const { oldPassword, newPassword } = dto;
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: ['id', 'password'],
+        });
+
+        if (!user) {
+            throw new BadRequestException('User not found');
+        }
+
+        const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
+        if (!isPasswordValid) {
+            throw new BadRequestException({
+                message: 'Current password is incorrect',
+                code: 'CURRENT_PASSWORD_INCORRECT',
+            });
+        }
+
+        if (oldPassword === newPassword) {
+            throw new BadRequestException({
+                message: 'New password must be different from the current password',
+                code: 'PASSWORD_UNCHANGED',
+            });
+        }
+
+        const salt = await bcrypt.genSalt(12);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        await this.userRepository.update(userId, {
+            password: hashedPassword,
+            refreshToken: null as any,
+        });
+
+        await this.redisService.invalidateAllUserSessions(userId);
+
+        this.redisService
+            .appendAuditLog({
+                type: 'login',
+                userId,
+                action: 'password_changed',
+            })
+            .catch(() => {});
+
+        return {
+            success: true,
+            message: 'Password changed successfully. Active sessions were revoked for your security.',
+            sessionsRevoked: true,
+        };
+    }
+
+    async refreshTokens(refreshToken: string) {
+        let payload: any;
+        try {
+            payload = this.jwtService.verify(refreshToken, {
+                secret: this.configService.get<string>('jwt.refreshSecret'),
+            });
+        } catch {
+            throw new UnauthorizedException('Invalid refresh token');
+        }
+
+        const user = await this.userRepository.findOne({
+            where: { id: payload.sub },
+            select: [
+                'id',
+                'email',
+                'firstName',
+                'lastName',
+                'role',
+                'refreshToken',
+                'status',
+                'emailVerified',
+                'statusReason',
+                'moderationReasonCode',
+                'moderationReasonText',
+                'actionRequired',
+                'supportMessage',
+                'isUserVisible',
+                'moderationExpiresAt',
+                'internalAdminNote',
+            ],
+        });
+
+        if (!user || !user.refreshToken) {
+            throw new UnauthorizedException('Invalid refresh token');
+        }
+
+        // Validate the refresh token hash
+        const isRefreshValid = await bcrypt.compare(refreshToken, user.refreshToken);
+        if (!isRefreshValid) {
+            // ROTATION ATTACK DETECTED: someone is reusing an old refresh token.
+            // This means the token family was compromised. Invalidate ALL sessions.
+            this.logger.error(`SECURITY: Refresh token reuse detected for user ${user.id}. Invalidating all sessions.`);
+            await this.redisService.invalidateAllUserSessions(user.id);
+            await this.userRepository.update(user.id, { refreshToken: null as any });
+
+            // Audit: suspicious activity
+            this.redisService
+                .appendAuditLog({
+                    type: 'suspicious',
+                    userId: user.id,
+                    email: user.email,
+                    action: 'refresh_token_reuse',
+                    detail: 'Possible token theft — all sessions invalidated',
+                    oldFamilyId: payload.familyId,
+                })
+                .catch(() => {});
+
+            throw new UnauthorizedException('Session compromised. All sessions have been revoked.');
+        }
+
+        if (!user.emailVerified && user.status === UserStatus.PENDING_VERIFICATION) {
+            this.throwAuthStatusException(user, 'Please verify your email first', HttpStatus.UNAUTHORIZED);
+        }
+
+        const blockedLoginMessage = this.getBlockedLoginMessage(user.status);
+        if (blockedLoginMessage) {
+            this.throwAuthStatusException(user, blockedLoginMessage, HttpStatus.FORBIDDEN);
+        }
+
+        await this.subscriptionsService.syncUserPremiumState(user.id);
+
+        // Token family validation (if family tracking is present)
+        if (payload.familyId) {
+            const familyValid = await this.redisService.isTokenFamilyValid(user.id, payload.familyId);
+            if (!familyValid) {
+                this.logger.error(`SECURITY: Invalid token family ${payload.familyId} for user ${user.id}`);
+                await this.redisService.invalidateAllUserSessions(user.id);
+                await this.userRepository.update(user.id, {
+                    refreshToken: null as any,
+                });
+                throw new UnauthorizedException('Session has been revoked.');
+            }
+        }
+
+        // Issue new tokens (same family for rotation tracking)
+        const tokens = await this.generateTokens(user, payload.familyId);
+        await this.updateRefreshToken(user.id, tokens.refreshToken, tokens.familyId);
+
+        // Audit log
+        this.redisService
+            .appendAuditLog({
+                type: 'login',
+                userId: user.id,
+                action: 'token_refresh',
+                familyId: tokens.familyId,
+            })
+            .catch(() => {});
+
+        return {
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+        };
+    }
+
+    async logout(userId: string, accessTokenJti?: string) {
+        await this.userRepository.update(userId, { refreshToken: null as any });
+        await this.redisService.setUserOffline(userId);
+
+        // Blacklist the current access token so it can't be used anymore
+        if (accessTokenJti) {
+            // Blacklist for remaining TTL of access token (max 15 min)
+            await this.redisService.blacklistToken(accessTokenJti, 900);
+        }
+
+        // Audit log
+        this.redisService
+            .appendAuditLog({
+                type: 'login',
+                userId,
+                action: 'logout',
+            })
+            .catch(() => {});
+
+        return { message: 'Logged out successfully' };
+    }
+
+    async revokeAllSessions(userId: string) {
+        await this.redisService.invalidateAllUserSessions(userId);
+        await this.userRepository.update(userId, { refreshToken: null as any });
+
+        this.redisService
+            .appendAuditLog({
+                type: 'login',
+                userId,
+                action: 'revoke_all_sessions',
+            })
+            .catch(() => {});
+
+        return { message: 'All sessions revoked' };
+    }
+
+    // ─── FCM TOKEN ──────────────────────────────────────────
+
+    async updateFcmToken(userId: string, fcmToken: string) {
+        await this.userRepository.update(userId, { fcmToken });
+        return { message: 'FCM token updated' };
+    }
+
+    // ─── QA TEST MODE: Fetch OTP (guarded by TEST_SECRET) ───
+
+    async getTestOtp(email: string, testSecret: string) {
+        const expectedSecret = this.configService.get<string>('TEST_SECRET');
+        if (!expectedSecret || testSecret !== expectedSecret) {
+            throw new UnauthorizedException('Invalid test secret');
+        }
+
+        const user = await this.userRepository.findOne({
+            where: { email },
+            select: ['id', 'email', 'otpCode', 'otpExpiresAt'],
+        });
+
+        if (!user || !user.otpCode) {
+            throw new BadRequestException('No pending OTP for this email');
+        }
+
+        return { email, otp: user.otpCode, expiresAt: user.otpExpiresAt };
+    }
+
+    async checkUsernameAvailable(username: string): Promise<boolean> {
+        return this.usersService.isUsernameAvailable(username);
+    }
+
+    // ─── PRIVATE HELPERS ────────────────────────────────────
+
+    private generateOtp(): string {
+        return randomInt(100000, 999999).toString();
+    }
+
+    private isAutoTrialEnabled(): boolean {
+        const rawValue =
+            this.configService.get<string>('features.autoTrialOnSignup') ||
+            this.configService.get<string>('features.autoTrialEnabled') ||
+            process.env.ENABLE_AUTO_TRIAL_ON_SIGNUP ||
+            process.env.AUTO_TRIAL_ENABLED ||
+            'false';
+
+        return ['1', 'true', 'yes', 'on'].includes(rawValue.trim().toLowerCase());
+    }
+
+    private async tryGrantTrialIfEnabled(
+        userId: string,
+        email: string,
+        trialDays?: number,
+        source: 'otp_verification' | 'google_signup' = 'otp_verification',
+    ): Promise<void> {
+        if (!this.isAutoTrialEnabled()) {
+            this.logger.log(`[Trial] Auto trial disabled. Skipping for ${source}: ${email}`);
+            return;
+        }
+
+        try {
+            if (typeof trialDays === 'number') {
+                await this.subscriptionsService.createTrialSubscription(userId, trialDays);
+            } else {
+                await this.subscriptionsService.createTrialSubscription(userId);
+            }
+            this.logger.log(`[Trial] Auto trial granted for ${source}: ${email}`);
+        } catch (error) {
+            this.logger.warn(
+                `[Trial] Auto trial grant failed for ${source}: ${email} - ${(error as Error).message}`,
+            );
+        }
+    }
+
+    private async generateTokens(user: User, existingFamilyId?: string) {
+        const familyId = existingFamilyId || randomUUID();
+        const accessJti = randomUUID();
+        const refreshJti = randomUUID();
+
+        const basePayload = {
+            sub: user.id,
+            email: user.email,
+            role: user.role,
+            familyId,
+        };
+
+        const [accessToken, refreshToken] = await Promise.all([
+            this.jwtService.signAsync({ ...basePayload, jti: accessJti }),
+            this.jwtService.signAsync(
+                { ...basePayload, jti: refreshJti },
+                {
+                    secret: this.configService.get<string>('jwt.refreshSecret'),
+                    expiresIn: this.configService.get<string>('jwt.refreshExpiration'),
+                },
+            ),
+        ]);
+
+        // Store token family in Redis (TTL = refresh token TTL, ~7 days)
+        await this.redisService.storeTokenFamily(user.id, familyId, 86400 * 7);
+
+        return { accessToken, refreshToken, familyId };
+    }
+
+    private async updateRefreshToken(userId: string, refreshToken: string, familyId?: string) {
+        const salt = await bcrypt.genSalt(10);
+        const hashedRefreshToken = await bcrypt.hash(refreshToken, salt);
+        await this.userRepository.update(userId, {
+            refreshToken: hashedRefreshToken,
+        });
+    }
+
+    private sanitizeUser(user: any) {
+        const {
+            password,
+            refreshToken,
+            otpCode,
+            otpExpiresAt,
+            otpAttempts,
+            otpCooldownUntil,
+            resetOtpCode,
+            resetOtpExpiresAt,
+            resetOtpAttempts,
+            ...sanitized
+        } = user;
+        return sanitized;
+    }
+
+    private async reactivateUserOnLogin(
+        user: Pick<User, 'id' | 'status'>,
+    ): Promise<void> {
+        if (user.status !== UserStatus.DEACTIVATED) {
+            return;
+        }
+
+        await this.userRepository.update(user.id, {
+            status: UserStatus.ACTIVE,
+            statusReason: 'Account reactivated after login',
+            supportMessage: null,
+            moderationReasonCode: null,
+            moderationReasonText: null,
+            actionRequired: null,
+            isUserVisible: true,
+            moderationExpiresAt: null,
+            internalAdminNote: null,
+            updatedByAdminId: null,
+        });
+
+        user.status = UserStatus.ACTIVE;
+    }
+
+    private getBlockedLoginMessage(status: UserStatus): string | null {
+        switch (status) {
+            case UserStatus.PENDING_VERIFICATION:
+                return 'Your account is pending verification approval.';
+            case UserStatus.REJECTED:
+                return 'Your verification was rejected. Please resubmit your verification details.';
+            // BANNED and SUSPENDED users can authenticate and are routed in-app.
+            case UserStatus.BANNED:
+            case UserStatus.SUSPENDED:
+                return null;
+            case UserStatus.DEACTIVATED:
+                return 'Your account is deactivated. Please contact support.';
+            case UserStatus.CLOSED:
+                return 'Your account is closed. Contact support if you need to restore access.';
+            // LIMITED and SHADOW_SUSPENDED users CAN log in
+            case UserStatus.LIMITED:
+            case UserStatus.SHADOW_SUSPENDED:
+            case UserStatus.ACTIVE:
+            default:
+                return null;
+        }
+    }
+
+    private throwAuthStatusException(
+        userOrStatus:
+            | UserStatus
+            | Pick<
+                  User,
+                  | 'status'
+                  | 'statusReason'
+                  | 'moderationReasonCode'
+                  | 'moderationReasonText'
+                  | 'actionRequired'
+                  | 'supportMessage'
+                  | 'isUserVisible'
+                  | 'moderationExpiresAt'
+                  | 'internalAdminNote'
+              >,
+        message: string,
+        httpStatus: HttpStatus,
+    ): never {
+        const status =
+            typeof userOrStatus === 'string' ? userOrStatus : userOrStatus.status;
+        const moderationMeta =
+            typeof userOrStatus === 'string' ? null : userOrStatus;
+        const normalizedStatus = this.getAuthResponseStatus(status);
+        const supportMessage = moderationMeta?.supportMessage || null;
+        const moderationReasonText = moderationMeta?.moderationReasonText || null;
+        const statusReason =
+            moderationMeta?.statusReason ||
+            supportMessage ||
+            moderationReasonText ||
+            this.getStatusReason(normalizedStatus);
+
+        this.logger.warn(
+            `Login blocked: status=${normalizedStatus}, reason=${statusReason}`,
+        );
+        this.redisService
+            .appendAuditLog({
+                type: 'login',
+                action: 'login_blocked',
+                status: normalizedStatus,
+                detail: statusReason,
+            })
+            .catch(() => {});
+
+        throw new HttpException(
+            {
+                success: false,
+                status: normalizedStatus,
+                message,
+                reason: statusReason,
+                statusReason,
+                moderationReasonCode: moderationMeta?.moderationReasonCode || null,
+                moderationReasonText,
+                actionRequired: moderationMeta?.actionRequired || null,
+                supportMessage,
+                staffMessage: moderationMeta?.internalAdminNote || null,
+                isUserVisible: moderationMeta?.isUserVisible ?? true,
+                expiresAt: moderationMeta?.moderationExpiresAt?.toISOString() || null,
+            },
+            httpStatus,
+        );
+    }
+
+    private getStatusReason(status: UserStatus): string {
+        switch (status) {
+            case UserStatus.PENDING_VERIFICATION:
+                return 'Your account verification is under review. You will be notified once approved.';
+            case UserStatus.REJECTED:
+                return 'Your verification was rejected. Please update your profile and try again.';
+            case UserStatus.BANNED:
+                return 'Your account has been permanently banned for violating our terms of service.';
+            case UserStatus.SUSPENDED:
+                return 'Your account has been temporarily suspended. Please contact support for more information.';
+            case UserStatus.DEACTIVATED:
+                return 'Your account is currently deactivated. Please contact support to restore access.';
+            case UserStatus.CLOSED:
+                return 'Your account has been closed and is no longer active.';
+            default:
+                return 'Account access is restricted.';
+        }
+    }
+
+    private getAuthResponseStatus(status: UserStatus): UserStatus {
+        if (status === UserStatus.DEACTIVATED) {
+            return UserStatus.SUSPENDED;
+        }
+
+        return status;
+    }
+}
