@@ -4,6 +4,7 @@ import {
     BadRequestException,
     NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
     Repository,
@@ -11,6 +12,7 @@ import {
     MoreThan,
     In,
 } from 'typeorm';
+import Stripe from 'stripe';
 import {
     ConsumableProduct,
     ConsumableType,
@@ -82,6 +84,7 @@ export interface ConsumeBalanceDto {
 export class ConsumableService {
     private readonly logger = new Logger(ConsumableService.name);
     private static readonly MAX_DAILY_PURCHASES = 10;
+    private stripeClient: Stripe | null | undefined = undefined;
     private static readonly DEFAULT_PRODUCTS: Array<CreateConsumableProductDto> = [
         {
             code: 'methna_likes_50',
@@ -148,6 +151,7 @@ export class ConsumableService {
         private readonly boostRepo: Repository<Boost>,
         private readonly redisService: RedisService,
         private readonly dataSource: DataSource,
+        private readonly configService: ConfigService,
     ) {}
 
     // ─── PRODUCT CATALOG (public) ──────────────────────────
@@ -202,6 +206,7 @@ export class ConsumableService {
 
         const existing = await this.productRepo.findOne({ where: { code: dto.code } });
         if (existing) throw new BadRequestException(`Product code '${dto.code}' already exists`);
+        const stripeCatalog = await this.syncStripeCatalogForConsumable(dto);
 
         const product = this.productRepo.create({
             code: dto.code,
@@ -215,8 +220,8 @@ export class ConsumableService {
             sortOrder: dto.sortOrder || 0,
             googleProductId: dto.googleProductId || dto.androidProductId || null,
             iosProductId: dto.iosProductId || dto.appleProductId || null,
-            stripePriceId: dto.stripePriceId || null,
-            stripeProductId: dto.stripeProductId || null,
+            stripePriceId: stripeCatalog.stripePriceId,
+            stripeProductId: stripeCatalog.stripeProductId,
             isActive: true,
             isArchived: false,
         });
@@ -227,6 +232,9 @@ export class ConsumableService {
     async updateProduct(id: string, dto: UpdateConsumableProductDto): Promise<ConsumableProduct> {
         const product = await this.productRepo.findOne({ where: { id } });
         if (!product) throw new NotFoundException('Product not found');
+        const originalProduct = {
+            ...product,
+        } as ConsumableProduct;
 
         if (dto.title !== undefined) product.title = dto.title;
         if (dto.description !== undefined) product.description = dto.description;
@@ -245,6 +253,10 @@ export class ConsumableService {
         if (dto.stripeProductId !== undefined) product.stripeProductId = dto.stripeProductId;
         if (dto.isActive !== undefined) product.isActive = dto.isActive;
         if (dto.isArchived !== undefined) product.isArchived = dto.isArchived;
+
+        const stripeCatalog = await this.syncStripeCatalogForConsumable(product, originalProduct);
+        product.stripePriceId = stripeCatalog.stripePriceId;
+        product.stripeProductId = stripeCatalog.stripeProductId;
 
         return this.productRepo.save(product);
     }
@@ -596,6 +608,96 @@ export class ConsumableService {
         }
     }
 
+    private async syncStripeCatalogForConsumable(
+        dto: Partial<ConsumableProduct> | CreateConsumableProductDto,
+        existingProduct?: ConsumableProduct,
+    ): Promise<{ stripeProductId: string | null; stripePriceId: string | null }> {
+        const merged = { ...existingProduct, ...dto } as Partial<ConsumableProduct>;
+        const price = Number(merged.price ?? 0);
+
+        if (!Number.isFinite(price) || price <= 0) {
+            return {
+                stripeProductId: this.normalizeStripeId(merged.stripeProductId),
+                stripePriceId: this.normalizeStripeId(merged.stripePriceId),
+            };
+        }
+
+        const stripe = this.getStripeClient();
+        if (!stripe) {
+            throw new BadRequestException(
+                'Stripe is not configured on this server. Paid products need STRIPE_SECRET_KEY so price IDs can be created automatically.',
+            );
+        }
+
+        const code = (merged.code || existingProduct?.code || '').trim();
+        const title = (merged.title || existingProduct?.title || code || 'Methna product').trim();
+        const description =
+            (merged.description || existingProduct?.description || `${title} purchase`).trim();
+        const currency = (merged.currency || existingProduct?.currency || 'usd').trim().toLowerCase();
+        const quantity = Number(merged.quantity ?? existingProduct?.quantity ?? 1);
+
+        let stripeProductId = this.normalizeStripeId(merged.stripeProductId);
+        if (stripeProductId) {
+            await stripe.products.update(stripeProductId, {
+                name: title,
+                description,
+                metadata: {
+                    internalProductCode: code,
+                    quantity: String(quantity),
+                    type: String(merged.type || existingProduct?.type || ''),
+                    source: 'methna_admin_consumable',
+                },
+            });
+        } else {
+            const product = await stripe.products.create({
+                name: title,
+                description,
+                metadata: {
+                    internalProductCode: code,
+                    quantity: String(quantity),
+                    type: String(merged.type || existingProduct?.type || ''),
+                    source: 'methna_admin_consumable',
+                },
+            });
+            stripeProductId = product.id;
+        }
+
+        const existingCurrency = (existingProduct?.currency || '').trim().toLowerCase();
+        const needsFreshPrice =
+            !this.normalizeStripeId(merged.stripePriceId) ||
+            !existingProduct ||
+            Number(existingProduct.price ?? 0) !== price ||
+            existingCurrency !== currency;
+
+        if (!needsFreshPrice) {
+            return {
+                stripeProductId,
+                stripePriceId: this.normalizeStripeId(merged.stripePriceId),
+            };
+        }
+
+        const stripePrice = await stripe.prices.create({
+            unit_amount: Math.round(price * 100),
+            currency,
+            product: stripeProductId,
+            nickname: `${title} one-time`,
+            metadata: {
+                internalProductCode: code,
+                quantity: String(quantity),
+                source: 'methna_admin_consumable',
+            },
+        });
+
+        await stripe.products.update(stripeProductId, {
+            default_price: stripePrice.id,
+        });
+
+        return {
+            stripeProductId,
+            stripePriceId: stripePrice.id,
+        };
+    }
+
     private getProviderProductId(product: ConsumableProduct, provider: PurchaseProvider): string {
         switch (provider) {
             case PurchaseProvider.GOOGLE_PLAY: return product.googleProductId || product.code;
@@ -664,6 +766,33 @@ export class ConsumableService {
             compliments: user.complimentsBalance ?? 0,
             boosts: user.boostsBalance ?? 0,
         };
+    }
+
+    private getStripeClient(): Stripe | null {
+        if (this.stripeClient !== undefined) {
+            return this.stripeClient;
+        }
+
+        const secretKey = (
+            this.configService.get<string>('stripe.secretKey') ||
+            this.configService.get<string>('STRIPE_SECRET_KEY') ||
+            ''
+        ).trim();
+
+        if (!secretKey) {
+            this.stripeClient = null;
+            return this.stripeClient;
+        }
+
+        this.stripeClient = new Stripe(secretKey, {
+            apiVersion: '2026-03-25.dahlia',
+        });
+        return this.stripeClient;
+    }
+
+    private normalizeStripeId(value?: string | null): string | null {
+        const normalized = (value || '').trim();
+        return normalized.length > 0 ? normalized : null;
     }
 }
 

@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import Stripe from 'stripe';
 import {
     Plan,
     PlanEntitlements,
@@ -16,6 +18,7 @@ import { RedisService } from '../redis/redis.service';
 export class PlansService {
     private readonly logger = new Logger(PlansService.name);
     private hasLoggedMissingPlanCodeColumn = false;
+    private stripeClient: Stripe | null | undefined = undefined;
 
     constructor(
         @InjectRepository(Plan)
@@ -25,6 +28,7 @@ export class PlansService {
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
         private readonly redisService: RedisService,
+        private readonly configService: ConfigService,
     ) {}
 
     // PUBLIC ENDPOINTS
@@ -138,6 +142,8 @@ export class PlansService {
         }
 
         await this.assertGooglePlayPlanMapping(dto);
+        const stripeCatalog = await this.syncStripeCatalogForPlan(dto);
+        Object.assign(dto, stripeCatalog);
 
         // Sync entitlements -> legacy columns for backward compat
         const plan = this.planRepository.create(dto);
@@ -165,8 +171,10 @@ export class PlansService {
         }
 
         await this.assertGooglePlayPlanMapping(dto, id, plan);
+        const stripeCatalog = await this.syncStripeCatalogForPlan(dto, plan);
 
         Object.assign(plan, dto);
+        Object.assign(plan, stripeCatalog);
         this.syncEntitlementsToLegacy(plan);
 
         const saved = await this.planRepository.save(plan);
@@ -844,5 +852,138 @@ export class PlansService {
             message.includes('Subscription__Subscription_planEntity.code') ||
             message.includes('column "code" of relation "plans" does not exist')
         );
+    }
+
+    private async syncStripeCatalogForPlan(
+        dto: Partial<Plan>,
+        existingPlan?: Plan,
+    ): Promise<Pick<Plan, 'stripeProductId' | 'stripePriceId'>> {
+        const mergedPlan = { ...existingPlan, ...dto } as Partial<Plan>;
+        const price = Number(mergedPlan.price ?? 0);
+
+        if (!Number.isFinite(price) || price <= 0) {
+            return {
+                stripeProductId: this.normalizeStripeId(mergedPlan.stripeProductId),
+                stripePriceId: this.normalizeStripeId(mergedPlan.stripePriceId),
+            };
+        }
+
+        const stripe = this.getStripeClient();
+        if (!stripe) {
+            throw new BadRequestException(
+                'Stripe is not configured on this server. Paid plans need STRIPE_SECRET_KEY so price IDs can be created automatically.',
+            );
+        }
+
+        const code = (mergedPlan.code || existingPlan?.code || '').trim();
+        const name = (mergedPlan.name || existingPlan?.name || code || 'Methna Premium').trim();
+        const description =
+            (mergedPlan.description || existingPlan?.description || `${name} subscription`).trim();
+        const currency = (mergedPlan.currency || existingPlan?.currency || 'usd').trim().toLowerCase();
+        const billingCycle = mergedPlan.billingCycle || existingPlan?.billingCycle || BillingCycle.MONTHLY;
+
+        let stripeProductId = this.normalizeStripeId(mergedPlan.stripeProductId);
+        if (stripeProductId) {
+            await stripe.products.update(stripeProductId, {
+                name,
+                description,
+                metadata: {
+                    internalPlanCode: code,
+                    billingCycle,
+                    source: 'methna_admin_plan',
+                },
+            });
+        } else {
+            const product = await stripe.products.create({
+                name,
+                description,
+                metadata: {
+                    internalPlanCode: code,
+                    billingCycle,
+                    source: 'methna_admin_plan',
+                },
+            });
+            stripeProductId = product.id;
+        }
+
+        const needsFreshPrice =
+            !this.normalizeStripeId(mergedPlan.stripePriceId) ||
+            !existingPlan ||
+            dto.price !== undefined ||
+            dto.currency !== undefined ||
+            dto.billingCycle !== undefined;
+
+        if (!needsFreshPrice) {
+            return {
+                stripeProductId,
+                stripePriceId: this.normalizeStripeId(mergedPlan.stripePriceId),
+            };
+        }
+
+        const stripePrice = await stripe.prices.create({
+            unit_amount: Math.round(price * 100),
+            currency,
+            product: stripeProductId,
+            nickname: `${name} ${billingCycle}`,
+            recurring:
+                billingCycle === BillingCycle.ONE_TIME
+                    ? undefined
+                    : { interval: this.toStripeInterval(billingCycle) },
+            metadata: {
+                internalPlanCode: code,
+                billingCycle,
+                source: 'methna_admin_plan',
+            },
+        });
+
+        await stripe.products.update(stripeProductId, {
+            default_price: stripePrice.id,
+        });
+
+        return {
+            stripeProductId,
+            stripePriceId: stripePrice.id,
+        };
+    }
+
+    private getStripeClient(): Stripe | null {
+        if (this.stripeClient !== undefined) {
+            return this.stripeClient;
+        }
+
+        const secretKey = (
+            this.configService.get<string>('stripe.secretKey') ||
+            this.configService.get<string>('STRIPE_SECRET_KEY') ||
+            ''
+        ).trim();
+
+        if (!secretKey) {
+            this.stripeClient = null;
+            return this.stripeClient;
+        }
+
+        this.stripeClient = new Stripe(secretKey, {
+            apiVersion: '2026-03-25.dahlia',
+        });
+        return this.stripeClient;
+    }
+
+    private normalizeStripeId(value?: string | null): string | null {
+        const normalized = (value || '').trim();
+        return normalized.length > 0 ? normalized : null;
+    }
+
+    private toStripeInterval(
+        billingCycle: BillingCycle,
+    ): Stripe.PriceCreateParams.Recurring.Interval {
+        switch (billingCycle) {
+            case BillingCycle.WEEKLY:
+                return 'week';
+            case BillingCycle.YEARLY:
+                return 'year';
+            case BillingCycle.MONTHLY:
+            default:
+                return 'month';
+        }
     }
 }
