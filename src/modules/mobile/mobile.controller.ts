@@ -246,6 +246,14 @@ export class MobileController {
         // Resolve consumable product by Google Play product ID
         const product = await this.consumableService.findByGoogleProductId(dto.productId);
         if (!product) {
+            const plans = await this.plansService.getPublicPlans();
+            const matchingPlan = plans.find((plan) => plan.googleProductId === dto.productId);
+            if (matchingPlan) {
+                throw new BadRequestException(
+                    `Google Play ID '${dto.productId}' belongs to subscription plan '${matchingPlan.code}', not a consumable pack`,
+                );
+            }
+
             throw new BadRequestException(
                 `No active consumable product mapped to Google Play ID '${dto.productId}'`,
             );
