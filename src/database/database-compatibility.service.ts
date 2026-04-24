@@ -106,6 +106,39 @@ export class DatabaseCompatibilityService implements OnModuleInit {
                     WHEN undefined_object THEN NULL;
                 END $$;`,
             },
+            {
+                label: 'profiles_skincomplexion_enum',
+                sql: `DO $$ BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_type WHERE typname = 'profiles_skincomplexion_enum'
+                    ) THEN
+                        CREATE TYPE "profiles_skincomplexion_enum" AS ENUM (
+                            'very_fair',
+                            'fair',
+                            'medium',
+                            'olive',
+                            'dark',
+                            'prefer_not_to_say'
+                        );
+                    END IF;
+                END $$;`,
+            },
+            {
+                label: 'profiles_build_enum',
+                sql: `DO $$ BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_type WHERE typname = 'profiles_build_enum'
+                    ) THEN
+                        CREATE TYPE "profiles_build_enum" AS ENUM (
+                            'slim',
+                            'average',
+                            'athletic',
+                            'curvy',
+                            'prefer_not_to_say'
+                        );
+                    END IF;
+                END $$;`,
+            },
         ];
 
         const tableStatements = [
@@ -213,6 +246,14 @@ export class DatabaseCompatibilityService implements OnModuleInit {
             { label: 'users.likesBalance', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "likesBalance" integer DEFAULT 0' },
             { label: 'users.complimentsBalance', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "complimentsBalance" integer DEFAULT 0' },
             { label: 'users.boostsBalance', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "boostsBalance" integer DEFAULT 0' },
+            { label: 'users.agreedToTerms', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "agreedToTerms" boolean DEFAULT false' },
+            { label: 'users.agreedToTermsAt', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "agreedToTermsAt" timestamptz' },
+            { label: 'users.agreedToPrivacyPolicy', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "agreedToPrivacyPolicy" boolean DEFAULT false' },
+            { label: 'users.agreedToPrivacyPolicyAt', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "agreedToPrivacyPolicyAt" timestamptz' },
+            { label: 'users.oathAccepted', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "oathAccepted" boolean DEFAULT false' },
+            { label: 'users.oathAcceptedAt', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "oathAcceptedAt" timestamptz' },
+            { label: 'profiles.skinComplexion', sql: 'ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "skinComplexion" "profiles_skincomplexion_enum"' },
+            { label: 'profiles.build', sql: 'ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "build" "profiles_build_enum"' },
             { label: 'subscriptions.planId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "planId" character varying' },
             { label: 'subscriptions.plan', sql: `ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "plan" character varying DEFAULT 'free'` },
             { label: 'subscriptions.status', sql: `ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "status" character varying DEFAULT 'active'` },

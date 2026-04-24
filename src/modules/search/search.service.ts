@@ -2445,13 +2445,16 @@ export class SearchService {
         viewer: User | undefined,
     ): SearchFiltersDto {
         const passport = this.extractPassportLocation(viewer);
-        if (!passport || !passport.country) {
+        if (!passport) {
             return filters;
         }
 
+        // Passport changes the viewer's effective coordinates for discovery.
+        // It should never silently pin the search back to passport.country,
+        // otherwise "Go Global" becomes a hidden country filter and users lose
+        // relevant global results when no explicit country filter is applied.
         return {
             ...filters,
-            country: passport.country,
             goGlobal: true,
             maxDistance: undefined,
         } as SearchFiltersDto;

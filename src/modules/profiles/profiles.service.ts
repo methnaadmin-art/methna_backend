@@ -246,6 +246,16 @@ export class ProfilesService {
     ): Promise<CreateProfileDto | UpdateProfileDto> {
         const sanitized = { ...dto } as Record<string, any>;
 
+        if (
+            (typeof sanitized.aboutPartner !== 'string' ||
+                sanitized.aboutPartner.trim().length === 0) &&
+            typeof sanitized.describeIdealSpouse === 'string' &&
+            sanitized.describeIdealSpouse.trim().length > 0
+        ) {
+            sanitized.aboutPartner = sanitized.describeIdealSpouse.trim();
+        }
+        delete sanitized.describeIdealSpouse;
+
         const normalizedCommunicationStyle = this.normalizeCommunicationStyle(
             sanitized.communicationStyle,
         );

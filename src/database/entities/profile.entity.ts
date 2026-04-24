@@ -144,6 +144,23 @@ export enum HijabStatus {
     NOT_COVERED = 'not_covered',
 }
 
+export enum SkinComplexion {
+    VERY_FAIR = 'very_fair',
+    FAIR = 'fair',
+    MEDIUM = 'medium',
+    OLIVE = 'olive',
+    DARK = 'dark',
+    PREFER_NOT_TO_SAY = 'prefer_not_to_say',
+}
+
+export enum BodyBuild {
+    SLIM = 'slim',
+    AVERAGE = 'average',
+    ATHLETIC = 'athletic',
+    CURVY = 'curvy',
+    PREFER_NOT_TO_SAY = 'prefer_not_to_say',
+}
+
 @Entity('profiles')
 export class Profile {
     @PrimaryGeneratedColumn('uuid')
@@ -215,6 +232,12 @@ export class Profile {
 
     @Column({ type: 'int', nullable: true })
     weight: number; // in kg
+
+    @Column({ type: 'enum', enum: SkinComplexion, nullable: true })
+    skinComplexion: SkinComplexion;
+
+    @Column({ type: 'enum', enum: BodyBuild, nullable: true })
+    build: BodyBuild;
 
     @Index()
     @Column({ type: 'enum', enum: LivingSituation, nullable: true })

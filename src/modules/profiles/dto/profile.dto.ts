@@ -34,6 +34,8 @@ import {
     DietaryPreference,
     AlcoholUsage,
     HijabStatus,
+    SkinComplexion,
+    BodyBuild,
 } from '../../../database/entities/profile.entity';
 
 const normalizeEnumToken = (value: unknown): string =>
@@ -179,6 +181,16 @@ export class CreateProfileDto {
     @Min(30)
     @Max(300)
     weight?: number;
+
+    @ApiPropertyOptional({ enum: SkinComplexion })
+    @IsOptional()
+    @IsEnum(SkinComplexion)
+    skinComplexion?: SkinComplexion;
+
+    @ApiPropertyOptional({ enum: BodyBuild })
+    @IsOptional()
+    @IsEnum(BodyBuild)
+    build?: BodyBuild;
 
     @ApiPropertyOptional({ enum: LivingSituation })
     @IsOptional()
@@ -360,6 +372,15 @@ export class CreateProfileDto {
     @IsString()
     @MaxLength(1000)
     aboutPartner?: string;
+
+    @ApiPropertyOptional({
+        maxLength: 1000,
+        description: 'Alias for aboutPartner used by newer clients',
+    })
+    @IsOptional()
+    @IsString()
+    @MaxLength(1000)
+    describeIdealSpouse?: string;
 }
 
 export class UpdateProfileDto extends PartialType(CreateProfileDto) { }

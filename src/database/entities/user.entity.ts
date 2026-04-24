@@ -212,6 +212,24 @@ export class User {
     updatedByAdminId: string | null;
 
     @Column({ default: false })
+    agreedToTerms: boolean;
+
+    @Column({ type: 'timestamptz', nullable: true })
+    agreedToTermsAt: Date | null;
+
+    @Column({ default: false })
+    agreedToPrivacyPolicy: boolean;
+
+    @Column({ type: 'timestamptz', nullable: true })
+    agreedToPrivacyPolicyAt: Date | null;
+
+    @Column({ default: false })
+    oathAccepted: boolean;
+
+    @Column({ type: 'timestamptz', nullable: true })
+    oathAcceptedAt: Date | null;
+
+    @Column({ default: false })
     isPremium: boolean;
 
     @Column({ type: 'timestamptz', nullable: true })

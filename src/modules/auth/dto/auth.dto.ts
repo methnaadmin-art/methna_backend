@@ -76,6 +76,18 @@ export class RegisterDto {
     @IsBoolean()
     @Equals(true, { message: 'You must agree to the Privacy Policy' })
     agreeToPrivacyPolicy: boolean;
+
+    @ApiProperty({
+        example: true,
+        description:
+            'Must be true to confirm the user oath about truthful details and halal intent',
+    })
+    @IsBoolean()
+    @Equals(true, {
+        message:
+            'You must confirm the oath about truthful details and halal intent',
+    })
+    oathAccepted: boolean;
 }
 
 export class VerifyOtpDto {

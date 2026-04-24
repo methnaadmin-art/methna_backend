@@ -62,12 +62,26 @@ export class AuthService {
     // ─── REGISTRATION WITH OTP ──────────────────────────────
 
     async register(registerDto: RegisterDto) {
-        const { email, password, firstName, lastName, phone, username, agreeToTerms, agreeToPrivacyPolicy } =
+        const {
+            email,
+            password,
+            firstName,
+            lastName,
+            phone,
+            username,
+            agreeToTerms,
+            agreeToPrivacyPolicy,
+            oathAccepted,
+        } =
             registerDto;
 
-        if (!agreeToTerms || !agreeToPrivacyPolicy) {
-            throw new BadRequestException('You must agree to the Terms of Service and Privacy Policy');
+        if (!agreeToTerms || !agreeToPrivacyPolicy || !oathAccepted) {
+            throw new BadRequestException(
+                'You must agree to the Terms of Service, Privacy Policy, and registration oath',
+            );
         }
+
+        const consentTimestamp = new Date();
 
         this.logger.log(`[OTP] Register request for ${email}`);
 
@@ -92,6 +106,12 @@ export class AuthService {
                 existingUser.lastName = lastName;
                 if (phone !== undefined) existingUser.phone = phone;
                 if (username !== undefined) existingUser.username = username.toLowerCase();
+                existingUser.agreedToTerms = true;
+                existingUser.agreedToTermsAt = consentTimestamp;
+                existingUser.agreedToPrivacyPolicy = true;
+                existingUser.agreedToPrivacyPolicyAt = consentTimestamp;
+                existingUser.oathAccepted = true;
+                existingUser.oathAcceptedAt = consentTimestamp;
                 existingUser.otpCode = hashedOtp;
                 existingUser.otpExpiresAt = otpExpiry;
                 existingUser.otpAttempts = 0;
@@ -167,6 +187,12 @@ export class AuthService {
             phone,
             username: username?.toLowerCase(),
             status: UserStatus.PENDING_VERIFICATION,
+            agreedToTerms: true,
+            agreedToTermsAt: consentTimestamp,
+            agreedToPrivacyPolicy: true,
+            agreedToPrivacyPolicyAt: consentTimestamp,
+            oathAccepted: true,
+            oathAcceptedAt: consentTimestamp,
             otpCode: hashedOtp,
             otpExpiresAt: otpExpiry,
             otpAttempts: 0,
