@@ -45,6 +45,10 @@ export class StripeService {
         this.initStripe();
     }
 
+    getPublicStripePriceId(plan: Pick<Plan, 'code' | 'name' | 'stripePriceId'>): string | null {
+        return this.resolveEffectiveStripePriceId(plan.code, plan.name, plan.stripePriceId);
+    }
+
     // ─── Public API ──────────────────────────────────────────
 
     /** Create a Stripe Checkout session for a given plan. */
@@ -629,13 +633,61 @@ export class StripeService {
             throw new BadRequestException(`No active plan found with code '${planCode}'.`);
         }
 
-        if (!plan.stripePriceId) {
+        const effectiveStripePriceId = this.getPublicStripePriceId(plan);
+
+        if (!effectiveStripePriceId) {
             throw new BadRequestException(
                 `Plan '${planCode}' does not have a Stripe price ID configured. Contact support.`,
             );
         }
 
-        return plan;
+        if (effectiveStripePriceId === plan.stripePriceId) {
+            return plan;
+        }
+
+        return {
+            ...plan,
+            stripePriceId: effectiveStripePriceId,
+        } as Plan;
+    }
+
+    private resolveEffectiveStripePriceId(
+        planCode: string,
+        planName?: string | null,
+        currentStripePriceId?: string | null,
+    ): string | null {
+        const normalizedStoredPriceId = (currentStripePriceId || '').trim();
+        if (normalizedStoredPriceId) {
+            return normalizedStoredPriceId;
+        }
+
+        const normalizedTokens = `${planCode} ${planName ?? ''}`.trim().toLowerCase();
+        const premiumPriceId = this.readStripePriceConfig('stripe.pricePremium', 'STRIPE_PRICE_PREMIUM');
+        const goldPriceId = this.readStripePriceConfig('stripe.priceGold', 'STRIPE_PRICE_GOLD');
+
+        if (normalizedTokens.includes('gold') || normalizedTokens.includes('week')) {
+            return goldPriceId || premiumPriceId;
+        }
+
+        if (
+            normalizedTokens.includes('premium') ||
+            normalizedTokens.includes('month') ||
+            normalizedTokens.includes('year')
+        ) {
+            return premiumPriceId || goldPriceId;
+        }
+
+        return premiumPriceId || goldPriceId || null;
+    }
+
+    private readStripePriceConfig(configKey: string, envKey: string): string | null {
+        const value =
+            this.configService.get<string>(configKey) ||
+            this.configService.get<string>(envKey) ||
+            '';
+
+        const normalized = value.trim();
+        return normalized.length > 0 ? normalized : null;
     }
 
     private async activateSubscription(

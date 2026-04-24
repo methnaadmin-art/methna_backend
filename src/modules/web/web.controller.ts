@@ -49,24 +49,28 @@ export class WebController {
     async getWebPlans() {
         const plans = await this.plansService.getPublicPlans();
         return plans
-            .filter((plan) => !!plan.stripePriceId)
-            .map((plan) => ({
-                id: plan.id,
-                code: plan.code,
-                name: plan.name,
-                description: plan.description,
-                price: Number(plan.price),
-                currency: plan.currency,
-                billingCycle: plan.billingCycle,
-                durationDays: plan.durationDays,
-                stripePriceId: plan.stripePriceId,
-                stripeProductId: plan.stripeProductId,
-                features: plan.featureFlags || {},
-                limits: plan.limits || {},
-                entitlements: plan.entitlements || {},
-                isActive: plan.isActive,
-                sortOrder: plan.sortOrder,
-            }));
+            .filter((plan) => plan.code !== 'free')
+            .map((plan) => {
+                const stripePriceId = this.stripeService.getPublicStripePriceId(plan);
+
+                return {
+                    id: plan.id,
+                    code: plan.code,
+                    name: plan.name,
+                    description: plan.description,
+                    price: Number(plan.price),
+                    currency: plan.currency,
+                    billingCycle: plan.billingCycle,
+                    durationDays: plan.durationDays,
+                    stripePriceId,
+                    stripeProductId: plan.stripeProductId,
+                    features: plan.featureFlags || {},
+                    limits: plan.limits || {},
+                    entitlements: plan.entitlements || {},
+                    isActive: plan.isActive,
+                    sortOrder: plan.sortOrder,
+                };
+            });
     }
 
     // ─── Email check (public) ────────────────────────────────
