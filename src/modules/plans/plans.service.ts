@@ -127,6 +127,8 @@ export class PlansService {
     }
 
     async createPlan(dto: Partial<Plan>): Promise<Plan> {
+        this.normalizeStoreProductAliases(dto);
+
         // Validate unique code
         if (dto.code) {
             const existing = await this.planRepository.findOne({
@@ -149,6 +151,8 @@ export class PlansService {
     }
 
     async updatePlan(id: string, dto: Partial<Plan>): Promise<Plan> {
+        this.normalizeStoreProductAliases(dto);
+
         const plan = await this.planRepository.findOne({ where: { id } });
         if (!plan) throw new NotFoundException('Plan not found');
 
@@ -262,6 +266,7 @@ export class PlansService {
                 stripeProductId: null,
                 googleProductId: null,
                 googleBasePlanId: null,
+                iosProductId: null,
                 durationDays: 0,
                 isActive: true,
                 isVisible: true,
@@ -507,8 +512,37 @@ export class PlansService {
             );
         }
 
+        const iosProductId =
+            this.normalizeNullableString(dto.iosProductId) || currentPlan?.iosProductId || null;
+        if (iosProductId) {
+            const iosCollision = await this.planRepository.findOne({ where: { iosProductId } });
+            if (iosCollision && iosCollision.id !== currentPlanId) {
+                throw new BadRequestException(
+                    `iosProductId '${iosProductId}' is already mapped to another plan`,
+                );
+            }
+            dto.iosProductId = iosProductId;
+        }
+
         dto.googleProductId = googleProductId;
         dto.googleBasePlanId = googleBasePlanId;
+    }
+
+    private normalizeStoreProductAliases(dto: Partial<Plan>): void {
+        const mutable = dto as Partial<Plan> & {
+            androidProductId?: string | null;
+            appleProductId?: string | null;
+        };
+
+        if (mutable.googleProductId === undefined && mutable.androidProductId !== undefined) {
+            mutable.googleProductId = mutable.androidProductId;
+        }
+        if (mutable.iosProductId === undefined && mutable.appleProductId !== undefined) {
+            mutable.iosProductId = mutable.appleProductId;
+        }
+
+        delete mutable.androidProductId;
+        delete mutable.appleProductId;
     }
 
     private normalizeNullableString(value?: string | null): string | null {

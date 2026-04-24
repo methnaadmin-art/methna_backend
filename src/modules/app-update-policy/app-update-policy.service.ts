@@ -36,8 +36,14 @@ export class AppUpdatePolicyService {
         const existing = await this.findLatestPolicy();
 
         const target = existing ?? this.policyRepository.create(this.defaultPolicy());
-        const merged = this.policyRepository.merge(target, {
+        const normalizedPatch = {
             ...patch,
+            ...(patch.storeUrliOS !== undefined
+                ? { storeUrliOS: this.normalizeIosStoreUrl(patch.storeUrliOS) }
+                : {}),
+        };
+        const merged = this.policyRepository.merge(target, {
+            ...normalizedPatch,
             updatedById: adminId ?? target.updatedById ?? null,
         });
 
@@ -53,23 +59,24 @@ export class AppUpdatePolicyService {
         const currentVersion = input.version?.trim() || '';
         const minimumSupportedVersion = policy.minimumSupportedVersion?.trim() || '';
         const latestVersion = policy.latestVersion?.trim() || '';
+        const iosStoreUrl = this.normalizeIosStoreUrl(policy.storeUrliOS);
+        const androidStoreUrl = policy.storeUrlAndroid?.trim() || null;
+        const storeUrl = platform === 'ios' ? iosStoreUrl : androidStoreUrl;
+        const canOpenStore = platform !== 'ios' || !!iosStoreUrl;
 
         const hardRequired =
             policy.isActive &&
+            canOpenStore &&
             minimumSupportedVersion.length > 0 &&
             currentVersion.length > 0 &&
             this.compareVersions(currentVersion, minimumSupportedVersion) < 0;
 
         const softUpdateAvailable =
             policy.isActive &&
+            canOpenStore &&
             latestVersion.length > 0 &&
             currentVersion.length > 0 &&
             this.compareVersions(currentVersion, latestVersion) < 0;
-
-        const storeUrl =
-            platform === 'ios'
-                ? (policy.storeUrliOS?.trim() || null)
-                : (policy.storeUrlAndroid?.trim() || null);
 
         return {
             isActive: policy.isActive,
@@ -86,8 +93,8 @@ export class AppUpdatePolicyService {
             hardUpdateMessage: policy.hardUpdateMessage?.trim() || null,
             softUpdateMessage: policy.softUpdateMessage?.trim() || null,
             storeUrl,
-            storeUrlAndroid: policy.storeUrlAndroid?.trim() || null,
-            storeUrliOS: policy.storeUrliOS?.trim() || null,
+            storeUrlAndroid: androidStoreUrl,
+            storeUrliOS: iosStoreUrl,
             updatedAt: policy.updatedAt ?? null,
         };
     }
@@ -111,14 +118,21 @@ export class AppUpdatePolicyService {
             softUpdateMessage: 'A newer version of Methna is available.',
             storeUrlAndroid:
                 'https://play.google.com/store/apps/details?id=com.methnapp.app',
-            storeUrliOS:
-                'https://apps.apple.com/app/id0000000000',
+            storeUrliOS: process.env.IOS_APP_STORE_URL?.trim() || null,
         };
     }
 
     private normalizePlatform(platform?: string): SupportedPlatform {
         const normalized = platform?.trim().toLowerCase();
         return normalized === 'ios' ? 'ios' : 'android';
+    }
+
+    private normalizeIosStoreUrl(value?: string | null): string | null {
+        const url = value?.trim() || '';
+        if (!url || url.includes('id0000000000')) {
+            return null;
+        }
+        return url;
     }
 
     private compareVersions(left: string, right: string): number {

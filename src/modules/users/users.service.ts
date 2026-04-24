@@ -164,6 +164,33 @@ export class UsersService {
         return this.normalizeUserState(user);
     }
 
+    private normalizeNamePart(value: string | null | undefined): string | null {
+        const trimmed = value?.trim();
+        if (!trimmed) {
+            return null;
+        }
+
+        return trimmed
+            .split(/\s+/)
+            .filter(Boolean)
+            .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
+            .join(' ');
+    }
+
+    private async hasActiveMatchBetween(userA: string, userB: string): Promise<boolean> {
+        const match = await this.matchRepository.findOne({
+            where: [
+                { user1Id: userA, user2Id: userB, status: MatchStatus.ACTIVE },
+                { user1Id: userB, user2Id: userA, status: MatchStatus.ACTIVE },
+            ],
+            select: {
+                id: true,
+            },
+        });
+
+        return !!match;
+    }
+
     async getMe(userId: string) {
         const user = await this.findById(userId);
 
@@ -212,9 +239,17 @@ export class UsersService {
         const safeData: Record<string, any> = {};
         for (const [key, value] of Object.entries(updateData)) {
             if (UsersService.ALLOWED_UPDATE_FIELDS.has(key)) {
-                safeData[key] = key === 'username' && typeof value === 'string'
-                    ? value.trim().toLowerCase()
-                    : value;
+                if (key === 'username' && typeof value === 'string') {
+                    safeData[key] = value.trim().toLowerCase();
+                    continue;
+                }
+
+                if ((key === 'firstName' || key === 'lastName') && typeof value === 'string') {
+                    safeData[key] = this.normalizeNamePart(value);
+                    continue;
+                }
+
+                safeData[key] = value;
             }
         }
 
@@ -519,10 +554,15 @@ export class UsersService {
             !!viewerId &&
             viewerId !== userId &&
             !viewerSelfieVerified;
+        const viewerHasActiveMatch =
+            !!viewerId &&
+            viewerId !== userId &&
+            await this.hasActiveMatchBetween(userId, viewerId);
         const shouldMaskGhostProfile =
             !!viewerId &&
             viewerId !== userId &&
-            user.isGhostModeEnabled === true;
+            user.isGhostModeEnabled === true &&
+            !viewerHasActiveMatch;
         const canViewAllPhotos = !shouldRestrictGallery;
         const targetHasActivePremium = this.hasActivePremiumEntitlement(user);
 
@@ -558,8 +598,12 @@ export class UsersService {
             }
             : null;
 
-        const publicFirstName = shouldMaskGhostProfile ? 'Ghost' : user.firstName;
-        const publicLastName = shouldMaskGhostProfile ? 'Member' : user.lastName;
+        const publicFirstName = shouldMaskGhostProfile
+            ? 'Ghost'
+            : this.normalizeNamePart(user.firstName) ?? user.firstName;
+        const publicLastName = shouldMaskGhostProfile
+            ? 'Member'
+            : this.normalizeNamePart(user.lastName) ?? user.lastName;
         const publicUsername = shouldMaskGhostProfile ? null : user.username;
         const publicPhotos = shouldMaskGhostProfile
             ? this.applyGhostPhotoMask(serializedPhotos, userId)

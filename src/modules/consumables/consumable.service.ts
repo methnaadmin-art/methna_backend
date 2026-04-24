@@ -38,6 +38,9 @@ export interface CreateConsumableProductDto {
     platformAvailability?: PlatformAvailability;
     sortOrder?: number;
     googleProductId?: string;
+    androidProductId?: string;
+    iosProductId?: string;
+    appleProductId?: string;
     stripePriceId?: string;
     stripeProductId?: string;
 }
@@ -51,6 +54,9 @@ export interface UpdateConsumableProductDto {
     platformAvailability?: PlatformAvailability;
     sortOrder?: number;
     googleProductId?: string;
+    androidProductId?: string;
+    iosProductId?: string;
+    appleProductId?: string;
     stripePriceId?: string;
     stripeProductId?: string;
     isActive?: boolean;
@@ -60,8 +66,8 @@ export interface UpdateConsumableProductDto {
 export interface VerifyConsumablePurchaseDto {
     productId: string; // Google Play product ID or Stripe price ID
     purchaseToken: string;
-    platform: 'android' | 'web';
-    provider: 'google_play' | 'stripe';
+    platform: 'android' | 'ios' | 'web';
+    provider: 'google_play' | 'apple' | 'stripe';
     orderId?: string;
     transactionDate?: string;
 }
@@ -88,6 +94,7 @@ export class ConsumableService {
             platformAvailability: PlatformAvailability.ALL,
             sortOrder: 10,
             googleProductId: 'methna_likes_50',
+            iosProductId: 'methna_likes_50',
         },
         {
             code: 'methna_compliments_3',
@@ -100,6 +107,7 @@ export class ConsumableService {
             platformAvailability: PlatformAvailability.ALL,
             sortOrder: 20,
             googleProductId: 'methna_compliments_3',
+            iosProductId: 'methna_compliments_3',
         },
         {
             code: 'methna_compliments_10',
@@ -112,6 +120,7 @@ export class ConsumableService {
             platformAvailability: PlatformAvailability.ALL,
             sortOrder: 21,
             googleProductId: 'methna_compliments_10',
+            iosProductId: 'methna_compliments_10',
         },
         {
             code: 'methna_compliments_20',
@@ -124,6 +133,7 @@ export class ConsumableService {
             platformAvailability: PlatformAvailability.ALL,
             sortOrder: 22,
             googleProductId: 'methna_compliments_20',
+            iosProductId: 'methna_compliments_20',
         },
     ];
 
@@ -203,7 +213,8 @@ export class ConsumableService {
             currency: dto.currency || 'usd',
             platformAvailability: dto.platformAvailability || PlatformAvailability.ALL,
             sortOrder: dto.sortOrder || 0,
-            googleProductId: dto.googleProductId || null,
+            googleProductId: dto.googleProductId || dto.androidProductId || null,
+            iosProductId: dto.iosProductId || dto.appleProductId || null,
             stripePriceId: dto.stripePriceId || null,
             stripeProductId: dto.stripeProductId || null,
             isActive: true,
@@ -224,7 +235,12 @@ export class ConsumableService {
         if (dto.currency !== undefined) product.currency = dto.currency;
         if (dto.platformAvailability !== undefined) product.platformAvailability = dto.platformAvailability;
         if (dto.sortOrder !== undefined) product.sortOrder = dto.sortOrder;
-        if (dto.googleProductId !== undefined) product.googleProductId = dto.googleProductId;
+        if (dto.googleProductId !== undefined || dto.androidProductId !== undefined) {
+            product.googleProductId = dto.googleProductId ?? dto.androidProductId ?? null;
+        }
+        if (dto.iosProductId !== undefined || dto.appleProductId !== undefined) {
+            product.iosProductId = dto.iosProductId ?? dto.appleProductId ?? null;
+        }
         if (dto.stripePriceId !== undefined) product.stripePriceId = dto.stripePriceId;
         if (dto.stripeProductId !== undefined) product.stripeProductId = dto.stripeProductId;
         if (dto.isActive !== undefined) product.isActive = dto.isActive;
@@ -305,6 +321,7 @@ export class ConsumableService {
                 userId,
                 consumableProductId: product.id,
                 provider,
+                platform: provider === PurchaseProvider.APPLE ? 'ios' : provider === PurchaseProvider.GOOGLE_PLAY ? 'android' : 'web',
                 purchaseToken,
                 productId: this.getProviderProductId(product, provider),
                 orderId: orderId || null,
@@ -321,6 +338,7 @@ export class ConsumableService {
             }
 
             purchase.status = PurchaseStatus.VERIFIED;
+            purchase.platform = provider === PurchaseProvider.APPLE ? 'ios' : provider === PurchaseProvider.GOOGLE_PLAY ? 'android' : 'web';
             purchase.rawVerification = {
                 ...(purchase.rawVerification || {}),
                 grantedAt: new Date().toISOString(),
@@ -539,6 +557,13 @@ export class ConsumableService {
         });
     }
 
+    /** Find a consumable product by Apple App Store product ID */
+    async findByAppleProductId(iosProductId: string): Promise<ConsumableProduct | null> {
+        return this.productRepo.findOne({
+            where: { iosProductId, isActive: true, isArchived: false },
+        });
+    }
+
     /** Find a consumable product by Stripe price ID */
     async findByStripePriceId(stripePriceId: string): Promise<ConsumableProduct | null> {
         return this.productRepo.findOne({
@@ -574,6 +599,7 @@ export class ConsumableService {
     private getProviderProductId(product: ConsumableProduct, provider: PurchaseProvider): string {
         switch (provider) {
             case PurchaseProvider.GOOGLE_PLAY: return product.googleProductId || product.code;
+            case PurchaseProvider.APPLE: return product.iosProductId || product.code;
             case PurchaseProvider.STRIPE: return product.stripePriceId || product.code;
             default: return product.code;
         }
@@ -594,6 +620,7 @@ export class ConsumableService {
                 platformAvailability: productData.platformAvailability || PlatformAvailability.ALL,
                 sortOrder: productData.sortOrder || 0,
                 googleProductId: productData.googleProductId || productData.code,
+                iosProductId: productData.iosProductId || productData.appleProductId || productData.code,
                 stripePriceId: productData.stripePriceId || null,
                 stripeProductId: productData.stripeProductId || null,
                 isActive: true,

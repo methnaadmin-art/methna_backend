@@ -182,6 +182,7 @@ export class DatabaseCompatibilityService implements OnModuleInit {
         ];
 
         const columnStatements = [
+            { label: 'users.appleSubject', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "appleSubject" character varying' },
             { label: 'users.statusReason', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "statusReason" text' },
             { label: 'users.moderationReasonCode', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "moderationReasonCode" character varying' },
             { label: 'users.moderationReasonText', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "moderationReasonText" text' },
@@ -223,6 +224,9 @@ export class DatabaseCompatibilityService implements OnModuleInit {
             { label: 'subscriptions.googleProductId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "googleProductId" character varying' },
             { label: 'subscriptions.googlePurchaseToken', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "googlePurchaseToken" character varying' },
             { label: 'subscriptions.googleOrderId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "googleOrderId" character varying' },
+            { label: 'subscriptions.appleProductId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "appleProductId" character varying' },
+            { label: 'subscriptions.appleTransactionId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "appleTransactionId" character varying' },
+            { label: 'subscriptions.appleOriginalTransactionId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "appleOriginalTransactionId" character varying' },
             { label: 'subscriptions.stripeSubscriptionId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "stripeSubscriptionId" character varying' },
             { label: 'subscriptions.stripeCheckoutSessionId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "stripeCheckoutSessionId" character varying' },
             { label: 'subscriptions.stripeCustomerId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "stripeCustomerId" character varying' },
@@ -239,6 +243,7 @@ export class DatabaseCompatibilityService implements OnModuleInit {
             { label: 'plans.stripeProductId', sql: 'ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "stripeProductId" character varying' },
             { label: 'plans.googleProductId', sql: 'ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "googleProductId" character varying' },
             { label: 'plans.googleBasePlanId', sql: 'ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "googleBasePlanId" character varying' },
+            { label: 'plans.iosProductId', sql: 'ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "iosProductId" character varying' },
             { label: 'plans.durationDays', sql: 'ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "durationDays" integer DEFAULT 30' },
             { label: 'plans.isActive', sql: 'ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "isActive" boolean DEFAULT true' },
             { label: 'plans.isVisible', sql: 'ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "isVisible" boolean DEFAULT true' },
@@ -297,12 +302,14 @@ export class DatabaseCompatibilityService implements OnModuleInit {
             { label: 'consumable_products.platformAvailability', sql: `ALTER TABLE "consumable_products" ADD COLUMN IF NOT EXISTS "platformAvailability" character varying DEFAULT 'all'` },
             { label: 'consumable_products.sortOrder', sql: 'ALTER TABLE "consumable_products" ADD COLUMN IF NOT EXISTS "sortOrder" integer DEFAULT 0' },
             { label: 'consumable_products.googleProductId', sql: 'ALTER TABLE "consumable_products" ADD COLUMN IF NOT EXISTS "googleProductId" character varying' },
+            { label: 'consumable_products.iosProductId', sql: 'ALTER TABLE "consumable_products" ADD COLUMN IF NOT EXISTS "iosProductId" character varying' },
             { label: 'consumable_products.stripePriceId', sql: 'ALTER TABLE "consumable_products" ADD COLUMN IF NOT EXISTS "stripePriceId" character varying' },
             { label: 'consumable_products.stripeProductId', sql: 'ALTER TABLE "consumable_products" ADD COLUMN IF NOT EXISTS "stripeProductId" character varying' },
             { label: 'consumable_products.createdAt', sql: 'ALTER TABLE "consumable_products" ADD COLUMN IF NOT EXISTS "createdAt" timestamp DEFAULT now()' },
             { label: 'consumable_products.updatedAt', sql: 'ALTER TABLE "consumable_products" ADD COLUMN IF NOT EXISTS "updatedAt" timestamp DEFAULT now()' },
             { label: 'purchase_transactions.consumableProductId', sql: 'ALTER TABLE "purchase_transactions" ADD COLUMN IF NOT EXISTS "consumableProductId" uuid' },
             { label: 'purchase_transactions.provider', sql: 'ALTER TABLE "purchase_transactions" ADD COLUMN IF NOT EXISTS "provider" character varying' },
+            { label: 'purchase_transactions.platform', sql: 'ALTER TABLE "purchase_transactions" ADD COLUMN IF NOT EXISTS "platform" character varying' },
             { label: 'purchase_transactions.purchaseToken', sql: 'ALTER TABLE "purchase_transactions" ADD COLUMN IF NOT EXISTS "purchaseToken" character varying' },
             { label: 'purchase_transactions.productId', sql: 'ALTER TABLE "purchase_transactions" ADD COLUMN IF NOT EXISTS "productId" character varying' },
             { label: 'purchase_transactions.orderId', sql: 'ALTER TABLE "purchase_transactions" ADD COLUMN IF NOT EXISTS "orderId" character varying' },
@@ -388,6 +395,13 @@ export class DatabaseCompatibilityService implements OnModuleInit {
         );
 
         await this.runStatement(
+            'users.appleSubject unique index',
+            `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_users_appleSubject_unique"
+             ON "users" ("appleSubject")
+             WHERE "appleSubject" IS NOT NULL`,
+        );
+
+        await this.runStatement(
             'users.isGhostModeEnabled index',
             `CREATE INDEX IF NOT EXISTS "IDX_users_isGhostModeEnabled"
              ON "users" ("isGhostModeEnabled")`,
@@ -413,6 +427,12 @@ export class DatabaseCompatibilityService implements OnModuleInit {
         );
 
         await this.runStatement(
+            'subscriptions.appleTransactionId index',
+            `CREATE INDEX IF NOT EXISTS "IDX_subscriptions_appleTransactionId"
+             ON "subscriptions" ("appleTransactionId")`,
+        );
+
+        await this.runStatement(
             'subscriptions.stripeCustomerId index',
             `CREATE INDEX IF NOT EXISTS "IDX_subscriptions_stripeCustomerId"
              ON "subscriptions" ("stripeCustomerId")`,
@@ -428,6 +448,24 @@ export class DatabaseCompatibilityService implements OnModuleInit {
             'plans.googleBasePlanId index',
             `CREATE INDEX IF NOT EXISTS "IDX_plans_googleBasePlanId"
              ON "plans" ("googleBasePlanId")`,
+        );
+
+        await this.runStatement(
+            'plans.iosProductId index',
+            `CREATE INDEX IF NOT EXISTS "IDX_plans_iosProductId"
+             ON "plans" ("iosProductId")`,
+        );
+
+        await this.runStatement(
+            'consumable_products.iosProductId index',
+            `CREATE INDEX IF NOT EXISTS "IDX_consumable_products_iosProductId"
+             ON "consumable_products" ("iosProductId")`,
+        );
+
+        await this.runStatement(
+            'purchase_transactions.platform index',
+            `CREATE INDEX IF NOT EXISTS "IDX_purchase_transactions_platform"
+             ON "purchase_transactions" ("platform")`,
         );
 
         await this.runStatement(

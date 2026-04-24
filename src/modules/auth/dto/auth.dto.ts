@@ -216,3 +216,38 @@ export class GoogleSignInDto {
     @IsString()
     photoUrl?: string;
 }
+
+export class AppleSignInDto {
+    @ApiProperty({ description: 'Apple identity token from Sign in with Apple' })
+    @IsString()
+    identityToken: string;
+
+    @ApiProperty({ description: 'Apple authorization code from Sign in with Apple' })
+    @IsString()
+    authorizationCode: string;
+
+    @ApiPropertyOptional({ description: 'Apple stable user identifier' })
+    @IsOptional()
+    @IsString()
+    userIdentifier?: string;
+
+    @ApiPropertyOptional({ example: 'user@privaterelay.appleid.com' })
+    @IsOptional()
+    @IsEmail()
+    email?: string;
+
+    @ApiPropertyOptional({ example: 'John' })
+    @IsOptional()
+    @IsString()
+    firstName?: string;
+
+    @ApiPropertyOptional({ example: 'Doe' })
+    @IsOptional()
+    @IsString()
+    lastName?: string;
+
+    @ApiPropertyOptional({ example: 'John Doe' })
+    @IsOptional()
+    @IsString()
+    displayName?: string;
+}

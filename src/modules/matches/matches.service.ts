@@ -90,20 +90,19 @@ export class MatchesService {
             const otherUserId = match.user1Id === userId ? match.user2Id : match.user1Id;
             const otherUser = match.user1Id === userId ? match.user2 : match.user1;
             const hasActivePremium = this.hasActivePremiumEntitlement(otherUser);
-            const maskedByGhost = otherUser?.isGhostModeEnabled === true;
             const photoSet = photoMap.get(otherUserId);
             return {
                 id: match.id,
                 matchedAt: match.matchedAt,
                 user: {
                     id: otherUser.id,
-                    firstName: maskedByGhost ? 'Ghost' : otherUser.firstName,
-                    lastName: maskedByGhost ? 'Member' : otherUser.lastName,
-                    photo: maskedByGhost ? null : (photoSet?.thumbnailUrl || null),
-                    photoCard: maskedByGhost ? null : (photoSet?.cardUrl || null),
-                    photoProfile: maskedByGhost ? null : (photoSet?.profileUrl || null),
-                    photoFullscreen: maskedByGhost ? null : (photoSet?.fullscreenUrl || null),
-                    isGhostModeEnabled: maskedByGhost,
+                    firstName: otherUser.firstName,
+                    lastName: otherUser.lastName,
+                    photo: photoSet?.thumbnailUrl || null,
+                    photoCard: photoSet?.cardUrl || null,
+                    photoProfile: photoSet?.profileUrl || null,
+                    photoFullscreen: photoSet?.fullscreenUrl || null,
+                    isGhostModeEnabled: otherUser?.isGhostModeEnabled === true,
                     isPremium: hasActivePremium,
                     premiumStartDate: otherUser.premiumStartDate ?? null,
                     premiumExpiryDate: otherUser.premiumExpiryDate ?? null,

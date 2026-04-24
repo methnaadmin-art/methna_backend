@@ -10,6 +10,7 @@ import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
 import { GooglePlayBillingService } from './google-play-billing.service';
 import { GooglePlayBillingController } from './google-play-billing.controller';
+import { AppleBillingService } from './apple-billing.service';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { RedisModule } from '../redis/redis.module';
 import { ConsumablesModule } from '../consumables/consumable.module';
@@ -23,7 +24,7 @@ import { ConsumablesModule } from '../consumables/consumable.module';
         ConsumablesModule,
     ],
     controllers: [PaymentsController, GooglePlayBillingController],
-    providers: [PaymentsService, GooglePlayBillingService],
-    exports: [PaymentsService, GooglePlayBillingService],
+    providers: [PaymentsService, GooglePlayBillingService, AppleBillingService],
+    exports: [PaymentsService, GooglePlayBillingService, AppleBillingService],
 })
 export class PaymentsModule { }

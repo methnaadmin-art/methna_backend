@@ -58,6 +58,10 @@ export class PurchaseTransaction {
     @Column({ type: 'enum', enum: PurchaseProvider })
     provider: PurchaseProvider;
 
+    @Index()
+    @Column({ type: 'varchar', nullable: true })
+    platform: string | null;
+
     /** Google Play: purchaseToken. Stripe: checkout session ID. */
     @Index({ unique: true })
     @Column({ type: 'varchar', nullable: true })

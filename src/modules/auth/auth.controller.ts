@@ -26,6 +26,7 @@ import {
     ChangePasswordDto,
     UpdateFcmTokenDto,
     GoogleSignInDto,
+    AppleSignInDto,
 } from './dto/auth.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -115,6 +116,24 @@ export class AuthController {
             return result;
         } catch (error) {
             this.logger.error(`[GoogleSignIn] FAILED for email=${dto.email}: ${error.message}`, error.stack);
+            throw error;
+        }
+    }
+
+    @Public()
+    @Post('apple')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Sign in or register with Apple' })
+    @ApiResponse({ status: 200, description: 'Apple sign-in successful' })
+    @ApiResponse({ status: 401, description: 'Invalid Apple token' })
+    async appleSignIn(@Body() dto: AppleSignInDto, @Req() req: any) {
+        this.logger.log(`[AppleSignIn] Attempt for appleSub=${dto.userIdentifier || 'token'}`);
+        try {
+            const result = await this.authService.appleSignIn(dto, req.ip, req.headers['user-agent']);
+            this.logger.log(`[AppleSignIn] Success for appleSub=${dto.userIdentifier || 'token'}`);
+            return result;
+        } catch (error) {
+            this.logger.error(`[AppleSignIn] FAILED: ${error.message}`, error.stack);
             throw error;
         }
     }

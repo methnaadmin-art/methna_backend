@@ -81,6 +81,16 @@ export class Subscription {
     googleOrderId: string | null;
 
     @Column({ type: 'varchar', nullable: true })
+    appleProductId: string | null;
+
+    @Index()
+    @Column({ type: 'varchar', nullable: true })
+    appleTransactionId: string | null;
+
+    @Column({ type: 'varchar', nullable: true })
+    appleOriginalTransactionId: string | null;
+
+    @Column({ type: 'varchar', nullable: true })
     stripeSubscriptionId: string | null;
 
     @Column({ type: 'varchar', nullable: true })

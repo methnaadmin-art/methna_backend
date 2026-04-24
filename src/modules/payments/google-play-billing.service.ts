@@ -180,6 +180,7 @@ export class GooglePlayBillingService {
                 userId,
                 planId: plan.id,
                 provider: PurchaseProvider.GOOGLE_PLAY,
+                platform: 'android',
                 purchaseToken,
                 productId,
                 orderId: dto.purchaseId || verification.orderId,
@@ -193,6 +194,7 @@ export class GooglePlayBillingService {
             purchase.userId = userId;
             purchase.planId = plan.id;
             purchase.provider = PurchaseProvider.GOOGLE_PLAY;
+            purchase.platform = 'android';
             purchase.purchaseToken = purchaseToken;
             purchase.productId = productId;
             purchase.orderId = dto.purchaseId || verification.orderId;
@@ -265,6 +267,9 @@ export class GooglePlayBillingService {
                 googleProductId: productId,
                 googlePurchaseToken: purchaseToken,
                 googleOrderId: dto.purchaseId || verification.orderId,
+                appleProductId: null,
+                appleTransactionId: null,
+                appleOriginalTransactionId: null,
                 stripeSubscriptionId: null,
                 stripeCheckoutSessionId: null,
                 stripeCustomerId: null,
@@ -799,6 +804,7 @@ export class GooglePlayBillingService {
             userId,
             planId: plan?.id ?? null,
             provider: PurchaseProvider.GOOGLE_PLAY,
+            platform: 'android',
             purchaseToken: dto.purchaseToken,
             productId: dto.productId,
             orderId: dto.purchaseId || null,
@@ -812,6 +818,7 @@ export class GooglePlayBillingService {
         purchase.userId = userId;
         purchase.planId = plan?.id ?? null;
         purchase.provider = PurchaseProvider.GOOGLE_PLAY;
+        purchase.platform = 'android';
         purchase.purchaseToken = dto.purchaseToken;
         purchase.productId = dto.productId;
         purchase.orderId = dto.purchaseId || null;

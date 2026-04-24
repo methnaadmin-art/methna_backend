@@ -130,6 +130,11 @@ export class Plan {
     @Column({ type: 'varchar', nullable: true })
     googleBasePlanId: string | null;
 
+    /** Apple App Store product ID for iOS subscriptions. */
+    @Index()
+    @Column({ type: 'varchar', nullable: true })
+    iosProductId: string | null;
+
     @Column({ default: 30 })
     durationDays: number;
 

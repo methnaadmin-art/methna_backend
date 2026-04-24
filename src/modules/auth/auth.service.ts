@@ -12,7 +12,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { randomUUID, randomInt } from 'crypto';
+import { createPublicKey, randomUUID, randomInt, verify as verifySignature } from 'crypto';
 import { User, UserStatus } from '../../database/entities/user.entity';
 import {
     RegisterDto,
@@ -24,6 +24,7 @@ import {
     ResetPasswordDto,
     ChangePasswordDto,
     GoogleSignInDto,
+    AppleSignInDto,
 } from './dto/auth.dto';
 import { RedisService } from '../redis/redis.service';
 import { MailService } from '../mail/mail.service';
@@ -43,6 +44,15 @@ type GoogleTokenInfo = {
     error_description?: string;
 };
 
+type AppleIdentityTokenPayload = {
+    iss?: string;
+    aud?: string | string[];
+    exp?: number;
+    sub?: string;
+    email?: string;
+    email_verified?: boolean | string;
+};
+
 @Injectable()
 export class AuthService {
     private readonly logger = new Logger(AuthService.name);
@@ -59,11 +69,26 @@ export class AuthService {
         private readonly paymentsService: PaymentsService,
     ) {}
 
+    private normalizeNamePart(value: string | null | undefined): string {
+        const trimmed = value?.trim() ?? '';
+        if (!trimmed) {
+            return '';
+        }
+
+        return trimmed
+            .split(/\s+/)
+            .filter(Boolean)
+            .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
+            .join(' ');
+    }
+
     // ─── REGISTRATION WITH OTP ──────────────────────────────
 
     async register(registerDto: RegisterDto) {
         const { email, password, firstName, lastName, phone, username, agreeToTerms, agreeToPrivacyPolicy } =
             registerDto;
+        const normalizedFirstName = this.normalizeNamePart(firstName);
+        const normalizedLastName = this.normalizeNamePart(lastName);
 
         if (!agreeToTerms || !agreeToPrivacyPolicy) {
             throw new BadRequestException('You must agree to the Terms of Service and Privacy Policy');
@@ -88,8 +113,8 @@ export class AuthService {
                 );
 
                 existingUser.password = hashedPassword;
-                existingUser.firstName = firstName;
-                existingUser.lastName = lastName;
+                existingUser.firstName = normalizedFirstName;
+                existingUser.lastName = normalizedLastName;
                 if (phone !== undefined) existingUser.phone = phone;
                 if (username !== undefined) existingUser.username = username.toLowerCase();
                 existingUser.otpCode = hashedOtp;
@@ -102,7 +127,7 @@ export class AuthService {
                 // Await email send so errors propagate
                 let emailSent = false;
                 try {
-                    await this.mailService.sendOtpEmail(email, otp, firstName);
+                    await this.mailService.sendOtpEmail(email, otp, normalizedFirstName);
                     emailSent = true;
                     this.logger.log(`[OTP] ✅ Email sent successfully for ${email}`);
                 } catch (err) {
@@ -162,8 +187,8 @@ export class AuthService {
         const user = this.userRepository.create({
             email,
             password: hashedPassword,
-            firstName,
-            lastName,
+            firstName: normalizedFirstName,
+            lastName: normalizedLastName,
             phone,
             username: username?.toLowerCase(),
             status: UserStatus.PENDING_VERIFICATION,
@@ -203,7 +228,7 @@ export class AuthService {
         // Await email send so errors propagate
         let emailSent = false;
         try {
-            await this.mailService.sendOtpEmail(email, otp, firstName);
+            await this.mailService.sendOtpEmail(email, otp, normalizedFirstName);
             emailSent = true;
             this.logger.log(`[OTP] ✅ Email sent successfully for ${email}`);
         } catch (err) {
@@ -607,8 +632,8 @@ export class AuthService {
         } else {
             // New user - create account
             const names = displayName?.split(' ') || ['User'];
-            const firstName = names[0] || 'User';
-            const lastName = names.slice(1).join(' ') || '';
+            const firstName = this.normalizeNamePart(names[0] || 'User');
+            const lastName = this.normalizeNamePart(names.slice(1).join(' ') || '');
 
             // Generate a random password (user won't use it, they'll use Google)
             const randomPassword = randomUUID();
@@ -685,6 +710,220 @@ export class AuthService {
             .catch(() => {});
 
         this.logger.log(`[GoogleSignIn] User authenticated: ${email} from ${clientIp}`);
+
+        return {
+            status: this.getAuthResponseStatus(user.status),
+            message: 'Login successful',
+            user: this.sanitizeUser(await this.usersService.getMe(user.id)),
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+        };
+    }
+
+    private base64UrlDecode(input: string): Buffer {
+        const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
+        const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+        return Buffer.from(padded, 'base64');
+    }
+
+    private resolveAppleAudience(): string {
+        const expectedAudience =
+            this.configService.get<string>('apple.clientId') ||
+            this.configService.get<string>('apple.bundleId') ||
+            process.env.APPLE_CLIENT_ID ||
+            process.env.APPLE_BUNDLE_ID ||
+            process.env.IOS_BUNDLE_ID ||
+            'com.methna.app';
+        return expectedAudience.trim();
+    }
+
+    private async verifyAppleIdentityToken(identityToken: string): Promise<AppleIdentityTokenPayload> {
+        const token = String(identityToken || '').trim();
+        const parts = token.split('.');
+        if (parts.length !== 3) {
+            throw new UnauthorizedException('Invalid Apple identity token');
+        }
+
+        let header: any;
+        let payload: AppleIdentityTokenPayload;
+        try {
+            header = JSON.parse(this.base64UrlDecode(parts[0]).toString('utf8'));
+            payload = JSON.parse(this.base64UrlDecode(parts[1]).toString('utf8'));
+        } catch {
+            throw new UnauthorizedException('Invalid Apple identity token');
+        }
+
+        if (header.alg !== 'RS256' || !header.kid) {
+            throw new UnauthorizedException('Invalid Apple identity token header');
+        }
+
+        const keysResponse = await fetch('https://appleid.apple.com/auth/keys').catch(() => null);
+        if (!keysResponse?.ok) {
+            throw new UnauthorizedException('Could not verify Apple identity token');
+        }
+        const keysPayload = (await keysResponse.json().catch(() => ({}))) as { keys?: any[] };
+        const jwk = keysPayload.keys?.find((key) => key.kid === header.kid);
+        if (!jwk) {
+            throw new UnauthorizedException('Apple identity key not found');
+        }
+
+        const publicKey = createPublicKey({ key: jwk, format: 'jwk' });
+        const verified = verifySignature(
+            'RSA-SHA256',
+            Buffer.from(`${parts[0]}.${parts[1]}`),
+            publicKey,
+            this.base64UrlDecode(parts[2]),
+        );
+        if (!verified) {
+            throw new UnauthorizedException('Invalid Apple identity token signature');
+        }
+
+        const expectedAudience = this.resolveAppleAudience();
+        const audiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+        if (!audiences.includes(expectedAudience)) {
+            throw new UnauthorizedException('Invalid Apple token audience');
+        }
+
+        if (payload.iss !== 'https://appleid.apple.com') {
+            throw new UnauthorizedException('Invalid Apple token issuer');
+        }
+
+        if (!payload.sub) {
+            throw new UnauthorizedException('Apple token subject is missing');
+        }
+
+        if (!payload.exp || payload.exp * 1000 <= Date.now()) {
+            throw new UnauthorizedException('Apple identity token is expired');
+        }
+
+        return payload;
+    }
+
+    async appleSignIn(dto: AppleSignInDto, clientIp?: string, userAgent?: string) {
+        const verifiedApple = await this.verifyAppleIdentityToken(dto.identityToken);
+        const appleSubject = verifiedApple.sub!.trim();
+        const tokenEmail = verifiedApple.email?.trim().toLowerCase();
+        const requestedEmail = dto.email?.trim().toLowerCase();
+        const email = tokenEmail || requestedEmail || '';
+
+        if (tokenEmail && requestedEmail && tokenEmail !== requestedEmail) {
+            throw new UnauthorizedException('Apple token email does not match the requested account');
+        }
+
+        let user = await this.userRepository.findOne({
+            where: { appleSubject },
+            select: ['id', 'email', 'firstName', 'lastName', 'role', 'status', 'emailVerified', 'appleSubject'],
+        });
+
+        if (!user && email) {
+            user = await this.userRepository.findOne({
+                where: { email },
+                select: ['id', 'email', 'firstName', 'lastName', 'role', 'status', 'emailVerified', 'appleSubject'],
+            });
+        }
+
+        if (!user && !email) {
+            throw new BadRequestException('Apple did not provide an email for this account. Please retry Apple Sign-In.');
+        }
+
+        if (user) {
+            if (!user.appleSubject) {
+                await this.userRepository.update(user.id, { appleSubject });
+                user.appleSubject = appleSubject;
+            }
+            if (user.status === UserStatus.PENDING_VERIFICATION && !user.emailVerified) {
+                await this.userRepository.update(user.id, {
+                    status: UserStatus.ACTIVE,
+                    emailVerified: true,
+                });
+                user.status = UserStatus.ACTIVE;
+                user.emailVerified = true;
+            }
+            if (user.status === UserStatus.DEACTIVATED) {
+                await this.reactivateUserOnLogin(user);
+            }
+
+            const blockedLoginMessage = this.getBlockedLoginMessage(user.status);
+            if (blockedLoginMessage) {
+                this.throwAuthStatusException(user, blockedLoginMessage, HttpStatus.FORBIDDEN);
+            }
+        } else {
+            const displayName = dto.displayName?.trim();
+            const names = displayName?.split(/\s+/) || [];
+            const firstName = this.normalizeNamePart(dto.firstName?.trim() || names[0] || 'Apple');
+            const lastName = this.normalizeNamePart(
+                dto.lastName?.trim() || names.slice(1).join(' ') || 'User',
+            );
+            const randomPassword = randomUUID();
+            const hashedPassword = await bcrypt.hash(randomPassword, 12);
+
+            let baseUsername = email
+                .split('@')[0]
+                .toLowerCase()
+                .replace(/[^a-z0-9_]/g, '');
+            if (baseUsername.length < 3) baseUsername = `apple_${randomInt(1000, 9999)}`;
+            let username = baseUsername;
+            let counter = 1;
+            while (
+                await this.userRepository.findOne({
+                    where: { username },
+                    select: ['id'],
+                })
+            ) {
+                username = `${baseUsername}${counter}`;
+                counter++;
+            }
+
+            user = this.userRepository.create({
+                email,
+                appleSubject,
+                password: hashedPassword,
+                firstName,
+                lastName,
+                username,
+                status: UserStatus.ACTIVE,
+                emailVerified: true,
+                lastKnownIp: clientIp,
+                notificationsEnabled: true,
+                matchNotifications: true,
+                messageNotifications: true,
+                likeNotifications: true,
+                profileVisitorNotifications: true,
+                eventsNotifications: true,
+                safetyAlertNotifications: true,
+                promotionsNotifications: true,
+                inAppRecommendationNotifications: true,
+                weeklySummaryNotifications: true,
+                connectionRequestNotifications: true,
+                surveyNotifications: true,
+            });
+
+            await this.userRepository.save(user);
+            await this.tryGrantTrialIfEnabled(user.id, email, undefined, 'apple_signup');
+        }
+
+        await this.subscriptionsService.syncUserPremiumState(user.id);
+
+        const tokens = await this.generateTokens(user);
+        await this.updateRefreshToken(user.id, tokens.refreshToken, tokens.familyId);
+        await this.userRepository.update(user.id, {
+            lastLoginAt: new Date(),
+            lastKnownIp: clientIp || undefined,
+        });
+
+        this.redisService
+            .appendAuditLog({
+                type: 'login',
+                userId: user.id,
+                email: user.email,
+                action: 'apple_signin_success',
+                familyId: tokens.familyId,
+                ip: clientIp,
+                userAgent,
+            })
+            .catch(() => {});
+
+        this.logger.log(`[AppleSignIn] User authenticated: ${user.email} from ${clientIp}`);
 
         return {
             status: this.getAuthResponseStatus(user.status),
@@ -1089,7 +1328,7 @@ export class AuthService {
         userId: string,
         email: string,
         trialDays?: number,
-        source: 'otp_verification' | 'google_signup' = 'otp_verification',
+        source: 'otp_verification' | 'google_signup' | 'apple_signup' = 'otp_verification',
     ): Promise<void> {
         if (!this.isAutoTrialEnabled()) {
             this.logger.log(`[Trial] Auto trial disabled. Skipping for ${source}: ${email}`);

@@ -19,6 +19,10 @@ import {
     VerifyPurchaseDto,
     RestorePurchaseDto,
 } from '../payments/google-play-billing.service';
+import {
+    AppleBillingService,
+    VerifyApplePurchaseDto,
+} from '../payments/apple-billing.service';
 import { ConsumableService } from '../consumables/consumable.service';
 import { AppUpdatePolicyService } from '../app-update-policy/app-update-policy.service';
 
@@ -42,6 +46,7 @@ export class MobileController {
         private readonly plansService: PlansService,
         private readonly subscriptionsService: SubscriptionsService,
         private readonly googlePlayBillingService: GooglePlayBillingService,
+        private readonly appleBillingService: AppleBillingService,
         private readonly consumableService: ConsumableService,
         private readonly appUpdatePolicyService: AppUpdatePolicyService,
     ) {}
@@ -71,7 +76,10 @@ export class MobileController {
             billingCycle: plan.billingCycle,
             durationDays: plan.durationDays,
             googleProductId: plan.googleProductId,
+            androidProductId: plan.googleProductId,
             googleBasePlanId: plan.googleBasePlanId,
+            iosProductId: plan.iosProductId,
+            appleProductId: plan.iosProductId,
             features: plan.featureFlags || {},
             limits: plan.limits || {},
             entitlements: plan.entitlements || {},
@@ -105,6 +113,9 @@ export class MobileController {
             paymentProvider: subscription.paymentProvider,
             googleProductId: subscription.googleProductId,
             googleOrderId: subscription.googleOrderId,
+            appleProductId: subscription.appleProductId,
+            appleTransactionId: subscription.appleTransactionId,
+            appleOriginalTransactionId: subscription.appleOriginalTransactionId,
             billingCycle: subscription.billingCycle,
             isPremium: premiumState.isPremium,
             entitlements: entitlementData.entitlements,
@@ -186,6 +197,36 @@ export class MobileController {
         return this.googlePlayBillingService.restorePurchase(userId, dto);
     }
 
+    @Post('payments/apple/verify')
+    @ApiBearerAuth()
+    @UseGuards(JwtAuthGuard)
+    @HttpCode(200)
+    @ApiOperation({ summary: 'Verify an Apple App Store purchase (mobile only)' })
+    async verifyApplePurchase(
+        @CurrentUser('sub') userId: string,
+        @Body() dto: VerifyApplePurchaseDto,
+    ) {
+        this.logger.log(
+            `[PAYMENT] Mobile Apple verify called user=${userId} productId=${dto.productId}`,
+        );
+        return this.appleBillingService.verifyAndActivatePurchase(userId, dto);
+    }
+
+    @Post('payments/apple/restore')
+    @ApiBearerAuth()
+    @UseGuards(JwtAuthGuard)
+    @HttpCode(200)
+    @ApiOperation({ summary: 'Restore an Apple App Store purchase (mobile only)' })
+    async restoreApplePurchase(
+        @CurrentUser('sub') userId: string,
+        @Body() dto: VerifyApplePurchaseDto,
+    ) {
+        this.logger.log(
+            `[PAYMENT] Mobile Apple restore called user=${userId} productId=${dto.productId}`,
+        );
+        return this.appleBillingService.restorePurchase(userId, dto);
+    }
+
     // ─── Consumable Products (public, no auth) ────────────────
 
     @Get('consumables')
@@ -202,6 +243,9 @@ export class MobileController {
             price: Number(p.price),
             currency: p.currency,
             googleProductId: p.googleProductId,
+            androidProductId: p.googleProductId,
+            iosProductId: p.iosProductId,
+            appleProductId: p.iosProductId,
             sortOrder: p.sortOrder,
         }));
     }
@@ -288,6 +332,21 @@ export class MobileController {
             },
             balances,
         };
+    }
+
+    @Post('consumables/apple/verify')
+    @ApiBearerAuth()
+    @UseGuards(JwtAuthGuard)
+    @HttpCode(200)
+    @ApiOperation({ summary: 'Verify an Apple consumable purchase and grant balance' })
+    async verifyAppleConsumablePurchase(
+        @CurrentUser('sub') userId: string,
+        @Body() dto: VerifyApplePurchaseDto,
+    ) {
+        this.logger.log(
+            `[PAYMENT] Mobile Apple consumable verify called user=${userId} productId=${dto.productId}`,
+        );
+        return this.appleBillingService.verifyAndActivateConsumablePurchase(userId, dto);
     }
 
     // ─── Consumable Purchase History (authenticated) ─────────
