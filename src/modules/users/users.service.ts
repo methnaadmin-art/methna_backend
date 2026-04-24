@@ -519,10 +519,15 @@ export class UsersService {
             !!viewerId &&
             viewerId !== userId &&
             !viewerSelfieVerified;
+        const hasActiveMatch =
+            !!viewerId &&
+            viewerId !== userId &&
+            (await this.hasActiveMatchBetweenUsers(viewerId, userId));
         const shouldMaskGhostProfile =
             !!viewerId &&
             viewerId !== userId &&
-            user.isGhostModeEnabled === true;
+            user.isGhostModeEnabled === true &&
+            !hasActiveMatch;
         const canViewAllPhotos = !shouldRestrictGallery;
         const targetHasActivePremium = this.hasActivePremiumEntitlement(user);
 
@@ -584,7 +589,7 @@ export class UsersService {
             premiumStartDate: user.premiumStartDate ?? null,
             premiumExpiryDate: user.premiumExpiryDate ?? null,
             subscriptionPlanId: user.subscriptionPlanId ?? null,
-            isGhostModeEnabled: user.isGhostModeEnabled === true,
+            isGhostModeEnabled: shouldMaskGhostProfile,
             isPassportActive: effectiveLocation.isPassportActive,
             canViewAllPhotos,
             createdAt: user.createdAt,
@@ -934,6 +939,32 @@ export class UsersService {
             lockReason: 'This member is using Ghost Mode',
             unlockCta: 'Ghost mode keeps identity private until mutual trust is built',
         }));
+    }
+
+    private async hasActiveMatchBetweenUsers(
+        viewerId: string,
+        targetUserId: string,
+    ): Promise<boolean> {
+        if (!viewerId || !targetUserId || viewerId === targetUserId) {
+            return false;
+        }
+
+        const matchCount = await this.matchRepository.count({
+            where: [
+                {
+                    user1Id: viewerId,
+                    user2Id: targetUserId,
+                    status: MatchStatus.ACTIVE,
+                },
+                {
+                    user1Id: targetUserId,
+                    user2Id: viewerId,
+                    status: MatchStatus.ACTIVE,
+                },
+            ],
+        });
+
+        return matchCount > 0;
     }
 
     private resolveEffectiveLocation(

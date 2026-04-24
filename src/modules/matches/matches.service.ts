@@ -90,7 +90,8 @@ export class MatchesService {
             const otherUserId = match.user1Id === userId ? match.user2Id : match.user1Id;
             const otherUser = match.user1Id === userId ? match.user2 : match.user1;
             const hasActivePremium = this.hasActivePremiumEntitlement(otherUser);
-            const maskedByGhost = otherUser?.isGhostModeEnabled === true;
+            // Active matches always bypass Ghost Mode masking.
+            const maskedByGhost = false;
             const photoSet = photoMap.get(otherUserId);
             return {
                 id: match.id,
@@ -406,11 +407,17 @@ export class MatchesService {
             });
         }
 
+        const activeMatchedUserIds = await this.getActiveMatchedUserIds(
+            viewerId,
+            profiles.map((profile) => profile.userId),
+        );
+
         return profiles.map((p) => {
             const effectiveProfile = this.resolveEffectiveProfileLocation(p);
             const maskedByGhost = this.shouldMaskGhostProfile(
                 p.user as User | undefined,
                 viewerId,
+                activeMatchedUserIds,
             );
             const candidatePhotos = this.applyViewerPhotoAccessPolicy(
                 photosMap.get(p.userId) ?? [],
@@ -442,7 +449,7 @@ export class MatchesService {
                 flagCount: p.user?.flagCount ?? 0,
                 deviceCount: p.user?.deviceCount ?? 0,
                 notificationsEnabled: p.user?.notificationsEnabled ?? true,
-                isGhostModeEnabled: p.user?.isGhostModeEnabled ?? false,
+                isGhostModeEnabled: maskedByGhost,
                 isPassportActive:
                     p.user?.isPassportActive === true &&
                     this.extractPassportLocation(p.user as User | undefined) != null,
@@ -538,9 +545,16 @@ export class MatchesService {
     private shouldMaskGhostProfile(
         user: Pick<User, 'id' | 'isGhostModeEnabled'> | undefined,
         viewerId: string,
+        activeMatchedUserIds?: ReadonlySet<string>,
     ): boolean {
         if (!user) return false;
-        return user.isGhostModeEnabled === true && user.id !== viewerId;
+        if (!user.id || user.id === viewerId) {
+            return false;
+        }
+        if (activeMatchedUserIds?.has(user.id)) {
+            return false;
+        }
+        return user.isGhostModeEnabled === true;
     }
 
     private applyGhostPhotoMask(photos: any[], targetUserId: string): any[] {
@@ -715,6 +729,45 @@ export class MatchesService {
         const excludeIds = [...new Set([userId, ...blockedIds, ...swipedIds, ...matchedIds])];
         await this.redisService.setJson(cacheKey, excludeIds, 60);
         return excludeIds;
+    }
+
+    private async getActiveMatchedUserIds(
+        viewerId: string,
+        candidateUserIds: string[],
+    ): Promise<Set<string>> {
+        const normalizedCandidateUserIds = [
+            ...new Set(
+                candidateUserIds.filter(
+                    (candidateUserId): candidateUserId is string =>
+                        !!candidateUserId && candidateUserId !== viewerId,
+                ),
+            ),
+        ];
+
+        if (normalizedCandidateUserIds.length === 0) {
+            return new Set<string>();
+        }
+
+        const activeMatches = await this.matchRepository.find({
+            where: [
+                {
+                    user1Id: viewerId,
+                    user2Id: In(normalizedCandidateUserIds),
+                    status: MatchStatus.ACTIVE,
+                },
+                {
+                    user1Id: In(normalizedCandidateUserIds),
+                    user2Id: viewerId,
+                    status: MatchStatus.ACTIVE,
+                },
+            ],
+        });
+
+        return new Set(
+            activeMatches.map((match) =>
+                match.user1Id === viewerId ? match.user2Id : match.user1Id,
+            ),
+        );
     }
 
     private async invalidateDiscoveryCaches(...userIds: string[]): Promise<void> {

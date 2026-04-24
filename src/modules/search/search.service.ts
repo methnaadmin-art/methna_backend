@@ -1,6 +1,6 @@
 ﻿import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { In, Repository, SelectQueryBuilder } from 'typeorm';
 import {
     Profile,
     Gender,
@@ -610,7 +610,7 @@ export class SearchService {
             currentProfile,
         );
 
-        const preSortedCandidates = candidateProfiles
+        const filteredCandidates = candidateProfiles
             .filter((candidate) =>
                 this.matchesPreference(
                     currentPreference,
@@ -628,12 +628,20 @@ export class SearchService {
                     effectiveViewerProfile,
                     this.resolveEffectiveProfileLocation(candidate),
                 );
-            })
+            });
+
+        const activeMatchedUserIds = await this.getActiveMatchedUserIds(
+            userId,
+            filteredCandidates.map((candidate) => candidate.userId),
+        );
+
+        const preSortedCandidates = filteredCandidates
             .map((candidate) => {
                 const effectiveCandidateProfile = this.resolveEffectiveProfileLocation(candidate);
                 const maskedByGhost = this.shouldMaskGhostProfile(
                     candidate.user as User | undefined,
                     userId,
+                    activeMatchedUserIds,
                 );
                 const shouldComputeCompatibility =
                     effectiveSortBy === SearchSortBy.COMPATIBILITY;
@@ -861,10 +869,7 @@ export class SearchService {
                     flagCount: profile.user?.flagCount ?? 0,
                     deviceCount: profile.user?.deviceCount ?? 0,
                     notificationsEnabled: profile.user?.notificationsEnabled ?? true,
-                    isGhostModeEnabled: this.readBooleanFlag(
-                        profile.user as unknown as Record<string, unknown> | undefined,
-                        'isGhostModeEnabled',
-                    ),
+                    isGhostModeEnabled: maskedByGhost,
                     isPassportActive:
                         this.readBooleanFlag(
                             profile.user as unknown as Record<string, unknown> | undefined,
@@ -2217,6 +2222,10 @@ export class SearchService {
             });
         }
         const onlineUserSet = new Set(onlineUsers);
+        const activeMatchedUserIds = await this.getActiveMatchedUserIds(
+            viewerId,
+            entries.map((entry) => entry.userId),
+        );
 
         return entries
             .map((entry) => {
@@ -2229,6 +2238,7 @@ export class SearchService {
                 const maskedByGhost = this.shouldMaskGhostProfile(
                     profile.user as User | undefined,
                     viewerId,
+                    activeMatchedUserIds,
                 );
 
                 const candidatePhotos = this.applyViewerPhotoAccessPolicy(
@@ -2260,10 +2270,7 @@ export class SearchService {
                     flagCount: profile.user?.flagCount ?? 0,
                     deviceCount: profile.user?.deviceCount ?? 0,
                     notificationsEnabled: profile.user?.notificationsEnabled ?? true,
-                    isGhostModeEnabled: this.readBooleanFlag(
-                        profile.user as unknown as Record<string, unknown> | undefined,
-                        'isGhostModeEnabled',
-                    ),
+                    isGhostModeEnabled: maskedByGhost,
                     isPassportActive:
                         this.readBooleanFlag(
                             profile.user as unknown as Record<string, unknown> | undefined,
@@ -2541,9 +2548,55 @@ export class SearchService {
               }
             | undefined,
         viewerId: string,
+        activeMatchedUserIds?: ReadonlySet<string>,
     ): boolean {
         if (!user) return false;
-        return user.isGhostModeEnabled === true && user.id !== viewerId;
+        if (!user.id || user.id === viewerId) {
+            return false;
+        }
+        if (activeMatchedUserIds?.has(user.id)) {
+            return false;
+        }
+        return user.isGhostModeEnabled === true;
+    }
+
+    private async getActiveMatchedUserIds(
+        viewerId: string,
+        candidateUserIds: string[],
+    ): Promise<Set<string>> {
+        const normalizedCandidateUserIds = [
+            ...new Set(
+                candidateUserIds.filter(
+                    (candidateUserId): candidateUserId is string =>
+                        !!candidateUserId && candidateUserId !== viewerId,
+                ),
+            ),
+        ];
+
+        if (normalizedCandidateUserIds.length === 0) {
+            return new Set<string>();
+        }
+
+        const activeMatches = await this.matchRepository.find({
+            where: [
+                {
+                    user1Id: viewerId,
+                    user2Id: In(normalizedCandidateUserIds),
+                    status: MatchStatus.ACTIVE,
+                },
+                {
+                    user1Id: In(normalizedCandidateUserIds),
+                    user2Id: viewerId,
+                    status: MatchStatus.ACTIVE,
+                },
+            ],
+        });
+
+        return new Set(
+            activeMatches.map((match) =>
+                match.user1Id === viewerId ? match.user2Id : match.user1Id,
+            ),
+        );
     }
 
     private resolvePhotoVariants(originalUrl: string): {
