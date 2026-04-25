@@ -17,6 +17,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { RedisService } from '../redis/redis.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminGuard } from '../../common/guards/admin.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -52,6 +53,10 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { VerificationStatus } from '../../database/entities/user.entity';
 import { AppUpdatePolicyService } from '../app-update-policy/app-update-policy.service';
+import {
+    ACCEPTED_USER_ROLE_INPUTS,
+    normalizeUserRoleInput,
+} from '../../common/auth/user-role.util';
 
 const normalizeLowercaseValue = (value: unknown): string | undefined => {
     if (typeof value !== 'string') {
@@ -70,23 +75,6 @@ const normalizeReportStatusValue = (value: unknown): ReportStatus | undefined =>
 
     if (Object.values(ReportStatus).includes(normalized as ReportStatus)) {
         return normalized as ReportStatus;
-    }
-
-    return undefined;
-};
-
-const normalizeUserRoleValue = (value: unknown): UserRole | undefined => {
-    const normalized = normalizeLowercaseValue(value);
-    if (!normalized) {
-        return undefined;
-    }
-
-    if (normalized === 'staff') {
-        return UserRole.MODERATOR;
-    }
-
-    if (Object.values(UserRole).includes(normalized as UserRole)) {
-        return normalized as UserRole;
     }
 
     return undefined;
@@ -168,9 +156,9 @@ class CreateUserDto {
     @ApiProperty() @IsString() firstName!: string;
     @ApiProperty() @IsString() lastName!: string;
     @ApiPropertyOptional() @IsOptional() @IsString() username?: string;
-    @ApiPropertyOptional({ enum: [...Object.values(UserRole), 'staff'] })
+    @ApiPropertyOptional({ enum: ACCEPTED_USER_ROLE_INPUTS })
     @IsOptional()
-    @Transform(({ value }) => normalizeUserRoleValue(value) ?? value)
+    @Transform(({ value }) => normalizeUserRoleInput(value) ?? value)
     @IsEnum(UserRole)
     role?: UserRole;
     @ApiPropertyOptional({ enum: UserStatus }) @IsOptional() @IsEnum(UserStatus) status?: UserStatus;
@@ -292,8 +280,9 @@ class AdminUsersQueryDto extends PaginationDto {
     @IsEnum(UserStatus)
     status?: UserStatus;
 
-    @ApiPropertyOptional({ enum: UserRole })
+    @ApiPropertyOptional({ enum: ACCEPTED_USER_ROLE_INPUTS })
     @IsOptional()
+    @Transform(({ value }) => normalizeUserRoleInput(value) ?? value)
     @IsEnum(UserRole)
     role?: UserRole;
 
@@ -583,14 +572,17 @@ export class AdminController {
         });
     }
 
-    @Roles(UserRole.ADMIN)
+    @UseGuards(AdminGuard)
     @Post('users')
     @ApiOperation({ summary: 'Create a new user (admin)' })
-    async createUser(@Body() dto: CreateUserDto) {
+    async createUser(
+        @CurrentUser('role') actingRole: string,
+        @Body() dto: CreateUserDto,
+    ) {
         return this.adminService.createUser({
             ...dto,
             role: this.normalizeRoleInput(dto.role),
-        });
+        }, actingRole);
     }
 
     @Get('users/:id')
@@ -638,7 +630,6 @@ export class AdminController {
         return this.adminService.updateUser(userId, dto);
     }
 
-    @Roles(UserRole.ADMIN)
     @Patch('users/:id/status')
     @ApiOperation({ summary: 'Update user status (ban/suspend/activate)' })
     async updateUserStatus(
@@ -1247,19 +1238,7 @@ export class AdminController {
     }
 
     private normalizeRoleInput(role?: string | UserRole): UserRole | undefined {
-        if (!role) {
-            return undefined;
-        }
-
-        const normalized = role.toString().trim().toLowerCase();
-        if (normalized === 'staff') {
-            return UserRole.MODERATOR;
-        }
-        if (Object.values(UserRole).includes(normalized as UserRole)) {
-            return normalized as UserRole;
-        }
-
-        return undefined;
+        return normalizeUserRoleInput(role);
     }
 }
 

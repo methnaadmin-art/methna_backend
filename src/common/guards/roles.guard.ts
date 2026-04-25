@@ -6,6 +6,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { UserRole } from '../../database/entities/user.entity';
+import { normalizeUserRoleInput } from '../auth/user-role.util';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -22,6 +23,8 @@ export class RolesGuard implements CanActivate {
         }
 
         const { user } = context.switchToHttp().getRequest();
-        return requiredRoles.some((role) => user?.role === role);
+        const normalizedRole = normalizeUserRoleInput(user?.role);
+
+        return normalizedRole ? requiredRoles.includes(normalizedRole) : false;
     }
 }

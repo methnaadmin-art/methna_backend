@@ -1,6 +1,7 @@
 ﻿import { Injectable, NotFoundException, BadRequestException, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConflictException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { Repository, ILike, Not, IsNull, Brackets, In } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import {
@@ -33,6 +34,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { PlansService } from '../plans/plans.service';
 import { ChatService } from '../chat/chat.service';
+import { normalizeUserRoleInput } from '../../common/auth/user-role.util';
 
 type SortOrder = 'asc' | 'desc';
 
@@ -599,10 +601,14 @@ export class AdminService implements OnModuleInit {
     async createUser(dto: {
         email: string; password: string; firstName: string; lastName: string;
         username?: string; role?: UserRole | string; status?: UserStatus;
-    }) {
+    }, actingRole?: UserRole | string | null) {
+        if (normalizeUserRoleInput(actingRole) !== UserRole.ADMIN) {
+            throw new ForbiddenException('Only admins can create users.');
+        }
+
         const normalizedEmail = dto.email.trim().toLowerCase();
         const normalizedUsername = dto.username?.trim().toLowerCase() || null;
-        const normalizedRole = this.normalizeUserRole(dto.role);
+        const normalizedRole = normalizeUserRoleInput(dto.role);
 
         if (dto.role !== undefined && !normalizedRole) {
             throw new BadRequestException('Invalid role. Use user, admin, moderator, or staff.');
@@ -676,7 +682,7 @@ export class AdminService implements OnModuleInit {
         delete incoming.expiryDate;
 
         if (incoming.role !== undefined) {
-            const normalizedRole = this.normalizeUserRole(incoming.role);
+            const normalizedRole = normalizeUserRoleInput(incoming.role);
             if (!normalizedRole) {
                 throw new BadRequestException('Invalid role. Use user, admin, moderator, or staff.');
             }
@@ -2549,14 +2555,14 @@ export class AdminService implements OnModuleInit {
         if (statusOrFilters && typeof statusOrFilters === 'object') {
             return {
                 ...statusOrFilters,
-                role: this.normalizeUserRole(statusOrFilters.role),
+                role: normalizeUserRoleInput(statusOrFilters.role),
             };
         }
 
         return {
             status: statusOrFilters as UserStatus | undefined,
             search,
-            role: this.normalizeUserRole(role),
+            role: normalizeUserRoleInput(role),
             plan,
         };
     }
@@ -2701,22 +2707,6 @@ export class AdminService implements OnModuleInit {
         }
 
         return true;
-    }
-
-    private normalizeUserRole(value?: UserRole | string | null): UserRole | undefined {
-        if (!value) {
-            return undefined;
-        }
-
-        const normalized = value.toString().trim().toLowerCase();
-        if (normalized === 'staff') {
-            return UserRole.MODERATOR;
-        }
-        if (Object.values(UserRole).includes(normalized as UserRole)) {
-            return normalized as UserRole;
-        }
-
-        return undefined;
     }
 
     private parseDateInput(value: unknown, fallback: Date | null): Date | null {
