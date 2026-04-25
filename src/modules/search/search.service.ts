@@ -523,13 +523,19 @@ export class SearchService {
 
         this.applyGenderFilter(query, effectiveFilters, effectiveViewerProfile, currentPreference);
         this.applyExplicitFilters(query, effectiveFilters, effectiveViewerProfile, hasUserLocation);
-        this.applySavedPreferenceFilters(
-            query,
-            currentPreference,
-            effectiveViewerProfile,
-            hasUserLocation,
-            effectiveFilters,
-        );
+        // The mobile discovery deck sends its visible filter state explicitly.
+        // Do not stack hidden saved-preference filters on top of those deck
+        // requests, otherwise the filter screen appears broken because users
+        // disappear for reasons they cannot see or control.
+        if (effectiveFilters.includeDeckMeta !== true) {
+            this.applySavedPreferenceFilters(
+                query,
+                currentPreference,
+                effectiveViewerProfile,
+                hasUserLocation,
+                effectiveFilters,
+            );
+        }
 
         // Always compute distance when user has location (needed for ranking + response).
         // Effective coordinates (passport-aware) are inlined in buildDistanceSql.
@@ -609,17 +615,27 @@ export class SearchService {
         const restrictGalleryForViewer = this.isViewerGalleryRestricted(
             currentProfile,
         );
+        const shouldApplySavedPreferenceMatching =
+            effectiveFilters.includeDeckMeta !== true;
 
         const filteredCandidates = candidateProfiles
-            .filter((candidate) =>
-                this.matchesPreference(
+            .filter((candidate) => {
+                if (!shouldApplySavedPreferenceMatching) {
+                    return true;
+                }
+
+                return this.matchesPreference(
                     currentPreference,
                     this.resolveEffectiveProfileLocation(candidate),
                     effectiveViewerProfile,
-                ),
-            )
+                );
+            })
             .filter((candidate) => {
                 if (!shouldApplyReciprocalPreferenceFilter) {
+                    return true;
+                }
+
+                if (!shouldApplySavedPreferenceMatching) {
                     return true;
                 }
 
@@ -2473,9 +2489,6 @@ export class SearchService {
             education: undefined,
             religiousLevel: undefined,
             prayerFrequency: undefined,
-            marriageIntention: undefined,
-            timeFrame: undefined,
-            intentMode: undefined,
             goGlobal: undefined,
             interests: undefined,
             languages: undefined,

@@ -125,6 +125,30 @@ export class ConsumableService {
             sortOrder: 22,
             googleProductId: 'methna_compliments_20',
         },
+        {
+            code: 'compliments_10_pack',
+            title: '10 compliments',
+            description: 'Send 10 thoughtful compliments.',
+            type: ConsumableType.COMPLIMENTS_PACK,
+            quantity: 10,
+            price: 3.99,
+            currency: 'usd',
+            platformAvailability: PlatformAvailability.ALL,
+            sortOrder: 23,
+            googleProductId: 'com.methna.consumable.compliments_10',
+        },
+        {
+            code: 'boosts_3_pack',
+            title: '3 boosts',
+            description: 'Boost your profile 3 times.',
+            type: ConsumableType.BOOSTS_PACK,
+            quantity: 3,
+            price: 6.99,
+            currency: 'usd',
+            platformAvailability: PlatformAvailability.ALL,
+            sortOrder: 30,
+            googleProductId: 'com.methna.consumable.boosts_3',
+        },
     ];
 
     constructor(
@@ -583,9 +607,65 @@ export class ConsumableService {
         for (const productData of ConsumableService.DEFAULT_PRODUCTS) {
             const existing = await this.productRepo.findOne({
                 where: { code: productData.code },
-                select: ['id'],
+                select: [
+                    'id',
+                    'description',
+                    'currency',
+                    'platformAvailability',
+                    'sortOrder',
+                    'googleProductId',
+                    'stripePriceId',
+                    'stripeProductId',
+                    'isActive',
+                    'isArchived',
+                ],
             });
-            if (existing) continue;
+
+            if (existing) {
+                let changed = false;
+
+                if (!existing.description && productData.description) {
+                    existing.description = productData.description;
+                    changed = true;
+                }
+                if (!existing.currency && productData.currency) {
+                    existing.currency = productData.currency;
+                    changed = true;
+                }
+                if (existing.platformAvailability !== (productData.platformAvailability || PlatformAvailability.ALL)) {
+                    existing.platformAvailability = productData.platformAvailability || PlatformAvailability.ALL;
+                    changed = true;
+                }
+                if ((existing.sortOrder ?? 0) !== (productData.sortOrder || 0)) {
+                    existing.sortOrder = productData.sortOrder || 0;
+                    changed = true;
+                }
+                if (!existing.googleProductId && productData.googleProductId) {
+                    existing.googleProductId = productData.googleProductId;
+                    changed = true;
+                }
+                if (!existing.stripePriceId && productData.stripePriceId) {
+                    existing.stripePriceId = productData.stripePriceId;
+                    changed = true;
+                }
+                if (!existing.stripeProductId && productData.stripeProductId) {
+                    existing.stripeProductId = productData.stripeProductId;
+                    changed = true;
+                }
+                if (!existing.isActive) {
+                    existing.isActive = true;
+                    changed = true;
+                }
+                if (existing.isArchived) {
+                    existing.isArchived = false;
+                    changed = true;
+                }
+
+                if (changed) {
+                    await this.productRepo.save(existing);
+                }
+                continue;
+            }
 
             await this.productRepo.save(this.productRepo.create({
                 ...productData,
