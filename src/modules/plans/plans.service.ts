@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import Stripe from 'stripe';
 import {
     Plan,
     PlanEntitlements,
@@ -16,6 +18,8 @@ import { RedisService } from '../redis/redis.service';
 export class PlansService {
     private readonly logger = new Logger(PlansService.name);
     private hasLoggedMissingPlanCodeColumn = false;
+    private stripeClient: Stripe | null = null;
+    private hasLoggedMissingStripeConfig = false;
 
     constructor(
         @InjectRepository(Plan)
@@ -25,6 +29,7 @@ export class PlansService {
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
         private readonly redisService: RedisService,
+        private readonly configService: ConfigService,
     ) {}
 
     // PUBLIC ENDPOINTS
@@ -136,6 +141,7 @@ export class PlansService {
         }
 
         await this.assertGooglePlayPlanMapping(dto);
+        await this.ensureStripeBillingForPlan(dto);
 
         // Sync entitlements -> legacy columns for backward compat
         const plan = this.planRepository.create(dto);
@@ -161,6 +167,7 @@ export class PlansService {
         }
 
         await this.assertGooglePlayPlanMapping(dto, id, plan);
+        await this.ensureStripeBillingForPlan(dto, plan);
 
         Object.assign(plan, dto);
         this.syncEntitlementsToLegacy(plan);
@@ -509,6 +516,288 @@ export class PlansService {
 
         dto.googleProductId = googleProductId;
         dto.googleBasePlanId = googleBasePlanId;
+    }
+
+    private async ensureStripeBillingForPlan(
+        dto: Partial<Plan>,
+        currentPlan?: Plan,
+    ): Promise<void> {
+        const nextPlan = this.buildStripePlanSnapshot(dto, currentPlan);
+        const isPaidPlan = nextPlan.price > 0;
+
+        if (!isPaidPlan) {
+            dto.stripePriceId = null;
+            dto.stripeProductId = null;
+            return;
+        }
+
+        const stripe = this.getStripeClient();
+        const existingStripeProductId =
+            this.normalizeNullableString(dto.stripeProductId) ||
+            currentPlan?.stripeProductId ||
+            null;
+        const existingStripePriceId =
+            this.normalizeNullableString(dto.stripePriceId) ||
+            currentPlan?.stripePriceId ||
+            null;
+
+        if (!stripe) {
+            if (existingStripeProductId && existingStripePriceId) {
+                dto.stripeProductId = existingStripeProductId;
+                dto.stripePriceId = existingStripePriceId;
+                return;
+            }
+
+            throw new BadRequestException(
+                'Stripe is not configured on this server, so paid plans cannot auto-generate Stripe billing yet.',
+            );
+        }
+
+        const stripeProductId = await this.ensureStripeProduct(nextPlan, existingStripeProductId);
+        const priceNeedsRefresh = this.shouldCreateFreshStripePrice(
+            nextPlan,
+            currentPlan,
+            existingStripePriceId,
+            stripeProductId,
+        );
+
+        let stripePriceId = existingStripePriceId;
+        if (priceNeedsRefresh) {
+            stripePriceId = await this.createStripePrice(nextPlan, stripeProductId);
+            try {
+                await stripe.products.update(stripeProductId, {
+                    default_price: stripePriceId,
+                });
+            } catch (error) {
+                this.logger.warn(
+                    `Failed to set default Stripe price for plan ${nextPlan.code}: ${(error as Error).message}`,
+                );
+            }
+        }
+
+        dto.stripeProductId = stripeProductId;
+        dto.stripePriceId = stripePriceId;
+    }
+
+    private buildStripePlanSnapshot(
+        dto: Partial<Plan>,
+        currentPlan?: Plan,
+    ): {
+        code: string;
+        name: string;
+        description: string | null;
+        price: number;
+        currency: string;
+        billingCycle: BillingCycle;
+        durationDays: number;
+        isActive: boolean;
+    } {
+        const description =
+            dto.description !== undefined
+                ? this.normalizeNullableString(dto.description)
+                : currentPlan?.description ?? null;
+
+        const billingCycle =
+            dto.billingCycle || currentPlan?.billingCycle || BillingCycle.MONTHLY;
+        const rawPrice = dto.price !== undefined ? Number(dto.price) : Number(currentPlan?.price ?? 0);
+        const price = Number.isFinite(rawPrice) ? rawPrice : 0;
+        const rawDurationDays =
+            dto.durationDays !== undefined
+                ? Number(dto.durationDays)
+                : Number(currentPlan?.durationDays ?? 30);
+        const durationDays = Number.isFinite(rawDurationDays) && rawDurationDays > 0
+            ? Math.trunc(rawDurationDays)
+            : 30;
+
+        return {
+            code: (dto.code || currentPlan?.code || '').trim(),
+            name: (dto.name || currentPlan?.name || '').trim(),
+            description,
+            price,
+            currency: (dto.currency || currentPlan?.currency || 'usd').trim().toLowerCase(),
+            billingCycle,
+            durationDays,
+            isActive: dto.isActive !== undefined ? Boolean(dto.isActive) : (currentPlan?.isActive ?? true),
+        };
+    }
+
+    private getStripeClient(): Stripe | null {
+        if (this.stripeClient) {
+            return this.stripeClient;
+        }
+
+        const secretKey =
+            this.configService.get<string>('stripe.secretKey') ||
+            this.configService.get<string>('STRIPE_SECRET_KEY') ||
+            '';
+
+        if (!secretKey) {
+            if (!this.hasLoggedMissingStripeConfig) {
+                this.logger.warn(
+                    'STRIPE_SECRET_KEY not set. Paid plan authoring cannot auto-generate Stripe products/prices.',
+                );
+                this.hasLoggedMissingStripeConfig = true;
+            }
+            return null;
+        }
+
+        this.stripeClient = new Stripe(secretKey, {
+            apiVersion: '2024-06-20' as any,
+        });
+        return this.stripeClient;
+    }
+
+    private async ensureStripeProduct(
+        plan: {
+            code: string;
+            name: string;
+            description: string | null;
+            price: number;
+            currency: string;
+            billingCycle: BillingCycle;
+            durationDays: number;
+            isActive: boolean;
+        },
+        existingProductId: string | null,
+    ): Promise<string> {
+        const stripe = this.getStripeClient();
+        if (!stripe) {
+            throw new BadRequestException('Stripe is not configured on this server.');
+        }
+
+        const metadata = this.buildStripePlanMetadata(plan);
+
+        if (existingProductId) {
+            try {
+                const updated = await stripe.products.update(existingProductId, {
+                    name: plan.name,
+                    description: plan.description || undefined,
+                    active: plan.isActive,
+                    metadata,
+                });
+                return updated.id;
+            } catch (error) {
+                this.logger.warn(
+                    `Failed to update Stripe product ${existingProductId} for plan ${plan.code}. Creating a new product instead. Error: ${(error as Error).message}`,
+                );
+            }
+        }
+
+        const created = await stripe.products.create({
+            name: plan.name,
+            description: plan.description || undefined,
+            active: plan.isActive,
+            metadata,
+        });
+        return created.id;
+    }
+
+    private async createStripePrice(
+        plan: {
+            code: string;
+            name: string;
+            description: string | null;
+            price: number;
+            currency: string;
+            billingCycle: BillingCycle;
+            durationDays: number;
+            isActive: boolean;
+        },
+        stripeProductId: string,
+    ): Promise<string> {
+        const stripe = this.getStripeClient();
+        if (!stripe) {
+            throw new BadRequestException('Stripe is not configured on this server.');
+        }
+
+        const unitAmount = this.toStripeUnitAmount(plan.price);
+        const params: Stripe.PriceCreateParams = {
+            product: stripeProductId,
+            unit_amount: unitAmount,
+            currency: plan.currency,
+            nickname: `${plan.name} (${plan.billingCycle})`,
+            metadata: this.buildStripePlanMetadata(plan),
+        };
+
+        if (plan.billingCycle !== BillingCycle.ONE_TIME) {
+            params.recurring = {
+                interval: this.mapBillingCycleToStripeInterval(plan.billingCycle),
+            };
+        }
+
+        const created = await stripe.prices.create(params);
+        return created.id;
+    }
+
+    private shouldCreateFreshStripePrice(
+        nextPlan: {
+            code: string;
+            name: string;
+            description: string | null;
+            price: number;
+            currency: string;
+            billingCycle: BillingCycle;
+            durationDays: number;
+            isActive: boolean;
+        },
+        currentPlan: Plan | undefined,
+        existingStripePriceId: string | null,
+        stripeProductId: string,
+    ): boolean {
+        if (!existingStripePriceId || !currentPlan) {
+            return true;
+        }
+
+        const currentPrice = Number(currentPlan.price ?? 0);
+        const currentCurrency = (currentPlan.currency || 'usd').trim().toLowerCase();
+
+        return (
+            stripeProductId !== (currentPlan.stripeProductId || null) ||
+            nextPlan.billingCycle !== currentPlan.billingCycle ||
+            nextPlan.currency !== currentCurrency ||
+            Math.abs(nextPlan.price - currentPrice) > 0.000001
+        );
+    }
+
+    private buildStripePlanMetadata(plan: {
+        code: string;
+        name: string;
+        description: string | null;
+        price: number;
+        currency: string;
+        billingCycle: BillingCycle;
+        durationDays: number;
+        isActive: boolean;
+    }): Record<string, string> {
+        return {
+            internalPlanCode: plan.code,
+            internalPlanName: plan.name,
+            billingCycle: plan.billingCycle,
+            durationDays: String(plan.durationDays),
+        };
+    }
+
+    private mapBillingCycleToStripeInterval(
+        billingCycle: BillingCycle,
+    ): Stripe.PriceCreateParams.Recurring.Interval {
+        switch (billingCycle) {
+            case BillingCycle.YEARLY:
+                return 'year';
+            case BillingCycle.WEEKLY:
+                return 'week';
+            case BillingCycle.MONTHLY:
+            default:
+                return 'month';
+        }
+    }
+
+    private toStripeUnitAmount(price: number): number {
+        const normalized = Number(price);
+        if (!Number.isFinite(normalized) || normalized <= 0) {
+            throw new BadRequestException('Paid plans must have a Stripe-compatible price greater than 0.');
+        }
+
+        return Math.round(normalized * 100);
     }
 
     private normalizeNullableString(value?: string | null): string | null {
