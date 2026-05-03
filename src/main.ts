@@ -159,6 +159,20 @@ async function bootstrap() {
         logger.error('Migration run failed; refusing to start with a drifted schema', err);
         throw err;
     }
+
+    // Seed the free plan AFTER migrations are done.
+    // PlansModule.onModuleInit may run before migrations, so this is the reliable seed point.
+    // Without a free plan in DB, /subscription/me and /users/me become extremely slow
+    // (falls into fallback path), which causes post-signup loading to hang.
+    try {
+        const { PlansService } = await import('./modules/plans/plans.service');
+        const plansService = app.get(PlansService);
+        await plansService.ensureFreePlanExists();
+        logger.log('✅ Free plan seed check complete');
+    } catch (err) {
+        logger.warn(`⚠️ Free plan seed failed (non-fatal): ${(err as Error)?.message}`);
+    }
+
     await app.listen(port, '0.0.0.0');
 
     logger.log(`🚀 Wafaa API running on http://0.0.0.0:${port}/${apiPrefix}`);

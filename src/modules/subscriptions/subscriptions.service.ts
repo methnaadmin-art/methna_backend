@@ -645,9 +645,57 @@ export class SubscriptionsService {
             return freeSubscription;
         }
 
-        const freePlan = await this.planRepository.findOne({
+        // Look up free plan — create it on the fly if missing.
+        // Without this, new Google-signup users get subscriptions with planId: null,
+        // causing repeated slow fallback queries on every /subscription/me call.
+        let freePlan = await this.planRepository.findOne({
             where: { code: 'free', isActive: true },
         });
+
+        if (!freePlan) {
+            this.logger.warn('Free plan missing in DB — creating it now for user ' + userId);
+            try {
+                freePlan = this.planRepository.create({
+                    code: 'free',
+                    name: 'Free',
+                    description: 'Default free plan with basic features',
+                    price: 0,
+                    currency: 'usd',
+                    billingCycle: 'monthly' as any,
+                    durationDays: 0,
+                    isActive: true,
+                    isVisible: false,
+                    sortOrder: 0,
+                    entitlements: {
+                        dailyLikes: 10,
+                        dailySuperLikes: 0,
+                        dailyCompliments: 0,
+                        weeklyBoosts: 0,
+                        monthlyRewinds: 0,
+                    } as any,
+                    featureFlags: {} as any,
+                    features: [],
+                    limits: {
+                        dailyLikes: 10,
+                        dailySuperLikes: 0,
+                        dailyCompliments: 0,
+                        weeklyBoosts: 0,
+                        monthlyRewinds: 0,
+                    } as any,
+                });
+                freePlan = await this.planRepository.save(freePlan);
+                this.logger.log('Free plan auto-created successfully');
+            } catch (seedErr: any) {
+                // Another instance may have created it concurrently
+                if (seedErr?.code === '23505') {
+                    freePlan = await this.planRepository.findOne({
+                        where: { code: 'free', isActive: true },
+                    });
+                } else {
+                    this.logger.error('Failed to auto-create free plan: ' + seedErr?.message);
+                }
+            }
+        }
 
         const createdFreeSubscription = this.subscriptionRepository.create({
             userId,
