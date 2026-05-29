@@ -1,150 +1,182 @@
+#!/usr/bin/env node
+
 /**
- * Test script for Apple Sign-In endpoint
- * 
- * Usage:
- *   node test-apple-endpoint.js <API_URL>
- * 
- * Example:
- *   node test-apple-endpoint.js https://your-api.railway.app
- *   node test-apple-endpoint.js http://localhost:3000
+ * Test Apple subscription endpoint with real product ID
  */
 
-const API_URL = process.argv[2] || 'http://localhost:3000';
-const ENDPOINT = `${API_URL}/api/v1/auth/apple`;
+const https = require('https');
 
-console.log('🧪 Testing Apple Sign-In Endpoint');
-console.log('📍 URL:', ENDPOINT);
-console.log('');
+const API_URL = 'https://web-production-afbe4.up.railway.app';
+const PRODUCT_ID = 'com.methnapp.app.premium_monthly';
 
-// Test 1: Endpoint exists (should return 401, not 404)
-async function testEndpointExists() {
-    console.log('Test 1: Checking if endpoint exists...');
-    try {
-        const response = await fetch(ENDPOINT, {
+// Test 1: Check if endpoint exists (should return 401 without auth)
+function testEndpointExists() {
+    return new Promise((resolve) => {
+        const postData = JSON.stringify({
+            productId: PRODUCT_ID,
+            purchaseToken: 'fake_token_for_testing'
+        });
+
+        const options = {
+            hostname: 'web-production-afbe4.up.railway.app',
+            port: 443,
+            path: '/mobile/payments/apple/verify',
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                identityToken: 'invalid-token-for-testing'
-            }),
+                'Content-Length': Buffer.byteLength(postData)
+            }
+        };
+
+        const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => data += chunk);
+            res.on('end', () => {
+                resolve({
+                    status: res.statusCode,
+                    body: data
+                });
+            });
         });
 
-        const data = await response.json();
-        
-        if (response.status === 404) {
-            console.log('❌ FAILED: Endpoint not found (404)');
-            console.log('   The endpoint is not deployed or API prefix is wrong');
-            return false;
-        } else if (response.status === 401) {
-            console.log('✅ PASSED: Endpoint exists (returned 401 for invalid token)');
-            console.log('   Message:', data.message);
-            return true;
-        } else if (response.status === 400) {
-            console.log('✅ PASSED: Endpoint exists (returned 400 for bad request)');
-            console.log('   Message:', data.message);
-            return true;
-        } else {
-            console.log('⚠️  UNEXPECTED: Status', response.status);
-            console.log('   Response:', data);
-            return true; // Endpoint exists but unexpected response
-        }
-    } catch (error) {
-        console.log('❌ FAILED: Network error');
-        console.log('   Error:', error.message);
-        return false;
-    }
-}
-
-// Test 2: Endpoint validates required fields
-async function testValidation() {
-    console.log('\nTest 2: Checking field validation...');
-    try {
-        const response = await fetch(ENDPOINT, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({}), // Empty body
+        req.on('error', (err) => {
+            resolve({
+                status: 0,
+                error: err.message
+            });
         });
 
-        const data = await response.json();
-        
-        if (response.status === 400) {
-            console.log('✅ PASSED: Validation works (returned 400 for missing fields)');
-            console.log('   Message:', data.message);
-            return true;
-        } else {
-            console.log('⚠️  UNEXPECTED: Status', response.status);
-            console.log('   Response:', data);
-            return false;
-        }
-    } catch (error) {
-        console.log('❌ FAILED: Network error');
-        console.log('   Error:', error.message);
-        return false;
-    }
+        req.write(postData);
+        req.end();
+    });
 }
 
-// Test 3: Check other auth endpoints for comparison
-async function testGoogleEndpoint() {
-    console.log('\nTest 3: Checking Google endpoint for comparison...');
-    try {
-        const response = await fetch(`${API_URL}/api/v1/auth/google`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                idToken: 'invalid-token'
-            }),
+// Test 2: Check plans endpoint
+function testPlansEndpoint() {
+    return new Promise((resolve) => {
+        https.get(`${API_URL}/mobile/plans`, (res) => {
+            let data = '';
+            res.on('data', (chunk) => data += chunk);
+            res.on('end', () => {
+                resolve({
+                    status: res.statusCode,
+                    body: data
+                });
+            });
+        }).on('error', (err) => {
+            resolve({
+                status: 0,
+                error: err.message
+            });
         });
-
-        const data = await response.json();
-        
-        if (response.status === 404) {
-            console.log('⚠️  Google endpoint also not found - API prefix might be wrong');
-            return false;
-        } else {
-            console.log('✅ Google endpoint exists (status:', response.status + ')');
-            return true;
-        }
-    } catch (error) {
-        console.log('⚠️  Could not test Google endpoint:', error.message);
-        return false;
-    }
+    });
 }
 
-// Run all tests
 async function runTests() {
-    const test1 = await testEndpointExists();
-    const test2 = await testValidation();
-    const test3 = await testGoogleEndpoint();
+    console.log('🧪 Testing Apple Subscription Endpoints\n');
+    console.log(`API URL: ${API_URL}`);
+    console.log(`Product ID: ${PRODUCT_ID}\n`);
+    console.log('='.repeat(70));
 
-    console.log('\n' + '='.repeat(50));
-    console.log('📊 Test Summary');
-    console.log('='.repeat(50));
-    console.log('Endpoint exists:', test1 ? '✅' : '❌');
-    console.log('Validation works:', test2 ? '✅' : '❌');
-    console.log('Google endpoint:', test3 ? '✅' : '❌');
-    console.log('');
-
-    if (test1 && test2) {
-        console.log('✅ Apple Sign-In endpoint is working correctly!');
-        console.log('');
-        console.log('Next steps:');
-        console.log('1. Test with real Apple identity token from iOS');
-        console.log('2. Verify user creation/login flow');
-        console.log('3. Check token response format');
-    } else if (!test1) {
-        console.log('❌ Apple Sign-In endpoint is NOT deployed');
-        console.log('');
-        console.log('Fix steps:');
-        console.log('1. Run: npm run build');
-        console.log('2. Deploy the latest code to production');
-        console.log('3. Verify API_PREFIX environment variable is set to "api/v1"');
-        console.log('4. Check server logs for startup errors');
+    // Test 1: Apple verify endpoint
+    console.log('\n1️⃣  Testing POST /mobile/payments/apple/verify');
+    const appleResult = await testEndpointExists();
+    
+    if (appleResult.status === 0) {
+        console.log(`   ❌ Connection error: ${appleResult.error}`);
+    } else if (appleResult.status === 401) {
+        console.log(`   ✅ Endpoint exists and requires authentication (401)`);
+        console.log(`   This is correct! Endpoint is ready.`);
+    } else if (appleResult.status === 404) {
+        console.log(`   ❌ Endpoint not found (404)`);
+        console.log(`   The route is not registered or deployed.`);
+    } else if (appleResult.status === 502) {
+        console.log(`   ⚠️  Bad Gateway (502)`);
+        console.log(`   The app is deployed but crashing or misconfigured.`);
+        try {
+            const parsed = JSON.parse(appleResult.body);
+            console.log(`   Error:`, parsed);
+        } catch {
+            console.log(`   Response:`, appleResult.body.substring(0, 200));
+        }
+    } else {
+        console.log(`   ⚠️  Status: ${appleResult.status}`);
+        try {
+            const parsed = JSON.parse(appleResult.body);
+            console.log(`   Response:`, JSON.stringify(parsed, null, 2));
+        } catch {
+            console.log(`   Response:`, appleResult.body.substring(0, 200));
+        }
     }
+
+    // Test 2: Plans endpoint
+    console.log('\n2️⃣  Testing GET /mobile/plans');
+    const plansResult = await testPlansEndpoint();
+    
+    if (plansResult.status === 0) {
+        console.log(`   ❌ Connection error: ${plansResult.error}`);
+    } else if (plansResult.status === 200) {
+        console.log(`   ✅ Plans endpoint working (200)`);
+        try {
+            const plans = JSON.parse(plansResult.body);
+            console.log(`   Found ${plans.length} plans:`);
+            plans.forEach(plan => {
+                console.log(`     - ${plan.name} (${plan.code})`);
+                if (plan.appleProductId) {
+                    console.log(`       Apple Product ID: ${plan.appleProductId}`);
+                }
+                if (plan.googleProductId) {
+                    console.log(`       Google Product ID: ${plan.googleProductId}`);
+                }
+            });
+            
+            // Check if our product ID is configured
+            const hasAppleProduct = plans.some(p => p.appleProductId === PRODUCT_ID);
+            if (hasAppleProduct) {
+                console.log(`\n   ✅ Product ID '${PRODUCT_ID}' is configured!`);
+            } else {
+                console.log(`\n   ⚠️  Product ID '${PRODUCT_ID}' not found in plans`);
+                console.log(`   You may need to update the plan in the database.`);
+            }
+        } catch (err) {
+            console.log(`   ⚠️  Could not parse response:`, plansResult.body.substring(0, 200));
+        }
+    } else if (plansResult.status === 404) {
+        console.log(`   ❌ Endpoint not found (404)`);
+    } else if (plansResult.status === 502) {
+        console.log(`   ⚠️  Bad Gateway (502)`);
+        console.log(`   The app is deployed but crashing.`);
+    } else {
+        console.log(`   ⚠️  Status: ${plansResult.status}`);
+        console.log(`   Response:`, plansResult.body.substring(0, 200));
+    }
+
+    console.log('\n' + '='.repeat(70));
+    console.log('📊 SUMMARY\n');
+    
+    const appleReady = appleResult.status === 401;
+    const plansReady = plansResult.status === 200;
+    
+    if (appleReady && plansReady) {
+        console.log('✅ ALL SYSTEMS READY!');
+        console.log('\nYou can now test from iOS app:');
+        console.log('  1. Login with: chialinouad222@icloud.com');
+        console.log('  2. Navigate to subscription screen');
+        console.log(`  3. Purchase: ${PRODUCT_ID}`);
+        console.log('  4. Complete sandbox purchase');
+        console.log('  5. Backend will verify and activate subscription');
+    } else {
+        console.log('❌ NOT READY\n');
+        if (!appleReady) {
+            console.log('⚠️  Apple verify endpoint not ready');
+        }
+        if (!plansReady) {
+            console.log('⚠️  Plans endpoint not ready');
+        }
+        console.log('\nCheck Railway logs for errors.');
+    }
+    
+    console.log('\n');
 }
 
 runTests().catch(console.error);
