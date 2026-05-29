@@ -23,15 +23,14 @@ import { ConsumableService } from '../consumables/consumable.service';
 import { AppUpdatePolicyService } from '../app-update-policy/app-update-policy.service';
 
 /**
- * Mobile API surface — Google Play Billing ONLY.
+ * Mobile API surface for store-backed mobile billing.
  *
  * This controller exposes:
- *   GET  /mobile/plans                          — active plans with Google Play fields only
+ *   GET  /mobile/plans                          — active plans with store product fields
  *   GET  /mobile/subscription/me                — current user subscription + entitlements
  *   POST /mobile/payments/google-play/verify     — verify a Google Play purchase
  *   POST /mobile/payments/google-play/restore    — restore a Google Play purchase
- *
- * No Stripe fields, no Stripe logic.
+ *   POST /mobile/payments/apple/verify           — verify an Apple App Store purchase
  */
 @ApiTags('mobile')
 @Controller('mobile')
@@ -58,7 +57,7 @@ export class MobileController {
     // ─── Plans (public, no auth) ─────────────────────────────
 
     @Get('plans')
-    @ApiOperation({ summary: 'Get active plans for mobile app (Google Play fields only)' })
+    @ApiOperation({ summary: 'Get active plans for mobile app' })
     async getMobilePlans() {
         const plans = await this.plansService.getPublicPlans();
         return plans.map((plan) => ({
@@ -72,6 +71,7 @@ export class MobileController {
             durationDays: plan.durationDays,
             googleProductId: plan.googleProductId,
             googleBasePlanId: plan.googleBasePlanId,
+            appleProductId: plan.appleProductId,
             features: plan.featureFlags || {},
             limits: plan.limits || {},
             entitlements: plan.entitlements || {},
@@ -103,8 +103,13 @@ export class MobileController {
             startDate: subscription.startDate,
             endDate: subscription.endDate,
             paymentProvider: subscription.paymentProvider,
+            paymentPlatform: subscription.paymentPlatform,
             googleProductId: subscription.googleProductId,
             googleOrderId: subscription.googleOrderId,
+            appleProductId: subscription.appleProductId,
+            appleTransactionId: subscription.appleTransactionId,
+            appleOriginalTransactionId: subscription.appleOriginalTransactionId,
+            appleEnvironment: subscription.appleEnvironment,
             billingCycle: subscription.billingCycle,
             isPremium: premiumState.isPremium,
             entitlements: entitlementData.entitlements,

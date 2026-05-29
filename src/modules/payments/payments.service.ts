@@ -113,6 +113,7 @@ export class PaymentsService {
                     durationDays: plan.durationDays,
                     googleProductId: plan.googleProductId,
                     googleBasePlanId: plan.googleBasePlanId,
+                    appleProductId: plan.appleProductId,
                     features: this.toFeatureFlags(plan, entitlements),
                     limits: this.toLimits(plan, entitlements),
                     entitlements,

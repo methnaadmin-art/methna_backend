@@ -71,6 +71,9 @@ export class Subscription {
     paymentProvider: string | null;
 
     @Column({ type: 'varchar', nullable: true })
+    paymentPlatform: string | null;
+
+    @Column({ type: 'varchar', nullable: true })
     googleProductId: string | null;
 
     @Index()
@@ -79,6 +82,19 @@ export class Subscription {
 
     @Column({ type: 'varchar', nullable: true })
     googleOrderId: string | null;
+
+    @Column({ type: 'varchar', nullable: true })
+    appleProductId: string | null;
+
+    @Column({ type: 'varchar', nullable: true })
+    appleTransactionId: string | null;
+
+    @Index()
+    @Column({ type: 'varchar', nullable: true })
+    appleOriginalTransactionId: string | null;
+
+    @Column({ type: 'varchar', nullable: true })
+    appleEnvironment: string | null;
 
     @Column({ type: 'varchar', nullable: true })
     stripeSubscriptionId: string | null;

@@ -261,9 +261,14 @@ export class DatabaseCompatibilityService implements OnModuleInit {
             { label: 'subscriptions.endDate', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "endDate" timestamp' },
             { label: 'subscriptions.paymentReference', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "paymentReference" character varying' },
             { label: 'subscriptions.paymentProvider', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "paymentProvider" character varying' },
+            { label: 'subscriptions.paymentPlatform', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "paymentPlatform" character varying' },
             { label: 'subscriptions.googleProductId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "googleProductId" character varying' },
             { label: 'subscriptions.googlePurchaseToken', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "googlePurchaseToken" character varying' },
             { label: 'subscriptions.googleOrderId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "googleOrderId" character varying' },
+            { label: 'subscriptions.appleProductId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "appleProductId" character varying' },
+            { label: 'subscriptions.appleTransactionId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "appleTransactionId" character varying' },
+            { label: 'subscriptions.appleOriginalTransactionId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "appleOriginalTransactionId" character varying' },
+            { label: 'subscriptions.appleEnvironment', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "appleEnvironment" character varying' },
             { label: 'subscriptions.stripeSubscriptionId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "stripeSubscriptionId" character varying' },
             { label: 'subscriptions.stripeCheckoutSessionId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "stripeCheckoutSessionId" character varying' },
             { label: 'subscriptions.stripeCustomerId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "stripeCustomerId" character varying' },
@@ -280,6 +285,7 @@ export class DatabaseCompatibilityService implements OnModuleInit {
             { label: 'plans.stripeProductId', sql: 'ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "stripeProductId" character varying' },
             { label: 'plans.googleProductId', sql: 'ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "googleProductId" character varying' },
             { label: 'plans.googleBasePlanId', sql: 'ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "googleBasePlanId" character varying' },
+            { label: 'plans.appleProductId', sql: 'ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "appleProductId" character varying' },
             { label: 'plans.durationDays', sql: 'ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "durationDays" integer DEFAULT 30' },
             { label: 'plans.isActive', sql: 'ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "isActive" boolean DEFAULT true' },
             { label: 'plans.isVisible', sql: 'ALTER TABLE "plans" ADD COLUMN IF NOT EXISTS "isVisible" boolean DEFAULT true' },
@@ -460,6 +466,12 @@ export class DatabaseCompatibilityService implements OnModuleInit {
         );
 
         await this.runStatement(
+            'subscriptions.appleOriginalTransactionId index',
+            `CREATE INDEX IF NOT EXISTS "IDX_subscriptions_appleOriginalTransactionId"
+             ON "subscriptions" ("appleOriginalTransactionId")`,
+        );
+
+        await this.runStatement(
             'plans.googleProductId index',
             `CREATE INDEX IF NOT EXISTS "IDX_plans_googleProductId"
              ON "plans" ("googleProductId")`,
@@ -469,6 +481,12 @@ export class DatabaseCompatibilityService implements OnModuleInit {
             'plans.googleBasePlanId index',
             `CREATE INDEX IF NOT EXISTS "IDX_plans_googleBasePlanId"
              ON "plans" ("googleBasePlanId")`,
+        );
+
+        await this.runStatement(
+            'plans.appleProductId index',
+            `CREATE INDEX IF NOT EXISTS "IDX_plans_appleProductId"
+             ON "plans" ("appleProductId")`,
         );
 
         await this.runStatement(

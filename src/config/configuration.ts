@@ -122,6 +122,18 @@ export default () => {
             ucbEligibleCountries: process.env.GOOGLE_PLAY_UCB_ELIGIBLE_COUNTRIES || 'GB',
         },
 
+        appleAppStore: {
+            issuerId: process.env.APPLE_ISSUER_ID || '',
+            keyId: process.env.APPLE_KEY_ID || '',
+            bundleId: process.env.APPLE_BUNDLE_ID || '',
+            appAppleId: process.env.APPLE_APP_APPLE_ID || '',
+            privateKey: (process.env.APPLE_PRIVATE_KEY || '')
+                .replace(/^"|"$/g, '')
+                .replace(/\\n/g, '\n'),
+            sharedSecret: process.env.APPLE_SHARED_SECRET || '',
+            environment: process.env.APPLE_APP_STORE_ENVIRONMENT || 'auto',
+        },
+
         google: {
             webClientId: process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '',
         },
