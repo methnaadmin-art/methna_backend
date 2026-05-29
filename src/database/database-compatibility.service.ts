@@ -252,6 +252,7 @@ export class DatabaseCompatibilityService implements OnModuleInit {
             { label: 'users.agreedToPrivacyPolicyAt', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "agreedToPrivacyPolicyAt" timestamptz' },
             { label: 'users.oathAccepted', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "oathAccepted" boolean DEFAULT false' },
             { label: 'users.oathAcceptedAt', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "oathAcceptedAt" timestamptz' },
+            { label: 'users.appleUserId', sql: 'ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "appleUserId" character varying' },
             { label: 'profiles.skinComplexion', sql: 'ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "skinComplexion" "profiles_skincomplexion_enum"' },
             { label: 'profiles.build', sql: 'ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "build" "profiles_build_enum"' },
             { label: 'subscriptions.planId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "planId" character varying' },
@@ -432,6 +433,13 @@ export class DatabaseCompatibilityService implements OnModuleInit {
             'users.subscriptionPlanId index',
             `CREATE INDEX IF NOT EXISTS "IDX_users_subscriptionPlanId"
              ON "users" ("subscriptionPlanId")`,
+        );
+
+        await this.runStatement(
+            'users.appleUserId unique index',
+            `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_users_appleUserId_unique"
+             ON "users" ("appleUserId")
+             WHERE "appleUserId" IS NOT NULL`,
         );
 
         await this.runStatement(

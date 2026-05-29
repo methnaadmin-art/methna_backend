@@ -1,4 +1,4 @@
-﻿import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository, SelectQueryBuilder } from 'typeorm';
 import {
@@ -1008,6 +1008,7 @@ export class SearchService {
             minTrustScore?: number;
             backgroundCheckStatus?: string;
             communicationStyles?: string[];
+            distanceUserSet?: boolean;
         };
 
         if (filters.city) {
@@ -1031,21 +1032,36 @@ export class SearchService {
             query.andWhere(
                 `(
                     LOWER(TRIM(profile.country)) = LOWER(TRIM(:countryExact))
-                    OR LOWER(profile.country) LIKE LOWER(:countryLike)
                     OR (
                         "user"."isPassportActive" = true
                         AND LOWER(TRIM(COALESCE("user"."passportLocation"->>'country', ''))) = LOWER(TRIM(:countryExact))
                     )
-                    OR (
-                        "user"."isPassportActive" = true
-                        AND LOWER(COALESCE("user"."passportLocation"->>'country', '')) LIKE LOWER(:countryLike)
-                    )
                 )`,
                 {
                     countryExact: normalizedCountry,
-                    countryLike: `%${normalizedCountry}%`,
                 },
             );
+        } else if (
+            !(filters as SearchFiltersDto & { goGlobal?: boolean }).goGlobal &&
+            currentProfile.country
+        ) {
+            // When Go Global is OFF and no explicit country filter is set,
+            // constrain discovery to the viewer's country (passport-aware via
+            // effectiveViewerProfile) to prevent free users from getting
+            // random global results.
+            const viewerCountry = currentProfile.country.trim();
+            if (viewerCountry) {
+                query.andWhere(
+                    `(
+                        LOWER(TRIM(profile.country)) = LOWER(TRIM(:implicitViewerCountry))
+                        OR (
+                            "user"."isPassportActive" = true
+                            AND LOWER(TRIM(COALESCE("user"."passportLocation"->>'country', ''))) = LOWER(TRIM(:implicitViewerCountry))
+                        )
+                    )`,
+                    { implicitViewerCountry: viewerCountry },
+                );
+            }
         }
 
         const effectiveTimeFrame = this.normalizeValue(
@@ -1245,8 +1261,18 @@ export class SearchService {
             }
         }
 
-        if (filters.maxDistance && hasUserLocation) {
-            this.applyDistanceConstraint(query, currentProfile, filters.maxDistance, 'search');
+        const shouldIgnoreImplicitDistance =
+            extendedFilters.includeDeckMeta === true &&
+            extendedFilters.distanceUserSet !== true &&
+            this.hasExplicitDeckFiltersExcludingDistance(filters);
+
+        if (filters.maxDistance && hasUserLocation && !shouldIgnoreImplicitDistance) {
+            this.applyDistanceConstraint(
+                query,
+                currentProfile,
+                filters.maxDistance,
+                'search',
+            );
         }
 
         if (filters.q) {
@@ -1385,10 +1411,12 @@ export class SearchService {
         maxDistance: number,
         prefix: string,
     ): void {
+        const boundedMaxDistance = Math.max(1, Math.min(maxDistance, 400));
         const latitude = Number(currentProfile.latitude);
         const longitude = Number(currentProfile.longitude);
-        const latDelta = maxDistance / 111;
-        const lngDelta = maxDistance / (111 * Math.cos((latitude * Math.PI) / 180));
+        const latDelta = boundedMaxDistance / 111;
+        const lngDelta =
+            boundedMaxDistance / (111 * Math.cos((latitude * Math.PI) / 180));
 
         // Stage 1: Bounding box on profile coordinates (uses indexes, fast pre-filter)
         query.andWhere(
@@ -1409,7 +1437,7 @@ export class SearchService {
             {
                 [`${prefix}UserLat`]: latitude,
                 [`${prefix}UserLng`]: longitude,
-                [`${prefix}MaxDistance`]: maxDistance,
+                [`${prefix}MaxDistance`]: boundedMaxDistance,
             },
         );
     }
@@ -2465,15 +2493,16 @@ export class SearchService {
             return filters;
         }
 
-        // Passport changes the viewer's effective coordinates for discovery.
-        // It should never silently pin the search back to passport.country,
-        // otherwise "Go Global" becomes a hidden country filter and users lose
-        // relevant global results when no explicit country filter is applied.
-        return {
-            ...filters,
-            goGlobal: true,
-            maxDistance: undefined,
-        } as SearchFiltersDto;
+        // Passport mode changes the viewer's effective coordinates via
+        // resolveEffectiveProfileLocation (lat/lng/city/country). The
+        // distance constraint naturally applies relative to the passport
+        // location, and the implicit country constraint uses the passport
+        // country from the effective profile.
+        //
+        // We do NOT force goGlobal:true or remove maxDistance here — those
+        // are explicit user choices. Passport only shifts WHERE you search
+        // from, not HOW FAR you search.
+        return filters;
     }
 
     private applyFreeTierFilterLimits(
@@ -2574,6 +2603,46 @@ export class SearchService {
             return false;
         }
         return user.isGhostModeEnabled === true;
+    }
+
+    private hasExplicitDeckFiltersExcludingDistance(
+        filters: SearchFiltersDto,
+    ): boolean {
+        if (!filters) return false;
+
+        const hasArray = (v: unknown) => Array.isArray(v) && v.length > 0;
+        const hasString = (v: unknown) =>
+            typeof v === 'string' && v.trim().length > 0;
+
+        const minAge = typeof filters.minAge === 'number' ? filters.minAge : 18;
+        const maxAge = typeof filters.maxAge === 'number' ? filters.maxAge : 90;
+
+        return Boolean(
+            hasString(filters.city) ||
+                hasString(filters.country) ||
+                filters.maritalStatus ||
+                filters.religiousLevel ||
+                hasString(filters.ethnicity) ||
+                filters.education ||
+                filters.prayerFrequency ||
+                filters.marriageIntention ||
+                filters.timeFrame ||
+                filters.intentMode ||
+                filters.livingSituation ||
+                hasArray(filters.interests) ||
+                hasArray(filters.languages) ||
+                hasArray(filters.familyValues) ||
+                hasArray(filters.nationalities) ||
+                hasArray(filters.communicationStyles) ||
+                filters.verifiedOnly ||
+                filters.onlineOnly ||
+                filters.recentlyActiveOnly ||
+                filters.withPhotosOnly ||
+                (filters.minTrustScore ?? 0) > 0 ||
+                hasString(filters.backgroundCheckStatus) ||
+                minAge > 18 ||
+                maxAge < 90,
+        );
     }
 
     private async getActiveMatchedUserIds(

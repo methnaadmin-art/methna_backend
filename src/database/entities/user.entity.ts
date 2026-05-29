@@ -165,6 +165,10 @@ export class User {
     @Column({ unique: true })
     email: string;
 
+    @Index({ unique: true })
+    @Column({ type: 'varchar', nullable: true, unique: true })
+    appleUserId: string | null;
+
     @Column({ select: false })
     password: string;
 

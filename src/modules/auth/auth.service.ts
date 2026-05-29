@@ -12,7 +12,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { randomUUID, randomInt } from 'crypto';
+import { createPublicKey, createVerify, randomUUID, randomInt } from 'crypto';
 import { User, UserStatus } from '../../database/entities/user.entity';
 import {
     RegisterDto,
@@ -24,6 +24,7 @@ import {
     ResetPasswordDto,
     ChangePasswordDto,
     GoogleSignInDto,
+    AppleSignInDto,
 } from './dto/auth.dto';
 import { RedisService } from '../redis/redis.service';
 import { MailService } from '../mail/mail.service';
@@ -43,9 +44,35 @@ type GoogleTokenInfo = {
     error_description?: string;
 };
 
+type AppleJwtHeader = {
+    alg?: string;
+    kid?: string;
+};
+
+type AppleIdentityPayload = {
+    iss?: string;
+    aud?: string;
+    exp?: number;
+    iat?: number;
+    sub?: string;
+    email?: string;
+    email_verified?: boolean | string;
+    is_private_email?: boolean | string;
+};
+
+type AppleJwk = {
+    kty: string;
+    kid: string;
+    use?: string;
+    alg?: string;
+    n: string;
+    e: string;
+};
+
 @Injectable()
 export class AuthService {
     private readonly logger = new Logger(AuthService.name);
+    private appleJwksCache: { keys: AppleJwk[]; expiresAt: number } | null = null;
 
     constructor(
         @InjectRepository(User)
@@ -723,6 +750,169 @@ export class AuthService {
 
     // ─── FORGOT PASSWORD ────────────────────────────────────
 
+    async appleSignIn(dto: AppleSignInDto, clientIp?: string, userAgent?: string) {
+        const verifiedApple = await this.verifyAppleIdentityToken(dto.identityToken);
+        const appleUserId = String(verifiedApple.sub || '').trim();
+        if (!appleUserId) {
+            throw new UnauthorizedException('Apple identity token is missing subject');
+        }
+
+        const suppliedAppleUserId = String(dto.userIdentifier || '').trim();
+        if (suppliedAppleUserId && suppliedAppleUserId !== appleUserId) {
+            throw new UnauthorizedException('Apple credential user identifier does not match the identity token');
+        }
+
+        const tokenEmail = this.normalizeEmail(verifiedApple.email);
+        const suppliedEmail = this.normalizeEmail(dto.email);
+        if (tokenEmail && suppliedEmail && tokenEmail !== suppliedEmail) {
+            throw new UnauthorizedException('Apple token email does not match the requested account');
+        }
+
+        const email = tokenEmail || suppliedEmail;
+        this.logger.log(`[AppleSignIn] Processing appleUserId=${this.maskAppleSubject(appleUserId)} email=${email || 'n/a'}`);
+
+        let user = await this.userRepository.findOne({
+            where: { appleUserId },
+            select: [
+                'id',
+                'email',
+                'appleUserId',
+                'firstName',
+                'lastName',
+                'role',
+                'status',
+                'emailVerified',
+            ] as any,
+        });
+
+        if (!user && tokenEmail) {
+            user = await this.userRepository.findOne({
+                where: { email: tokenEmail },
+                select: [
+                    'id',
+                    'email',
+                    'appleUserId',
+                    'firstName',
+                    'lastName',
+                    'role',
+                    'status',
+                    'emailVerified',
+                ] as any,
+            });
+
+            if (user && !user.appleUserId) {
+                await this.userRepository.update(user.id, { appleUserId });
+                user.appleUserId = appleUserId;
+            }
+        }
+
+        if (user) {
+            const updates: Partial<User> = {};
+            if (!user.appleUserId) {
+                updates.appleUserId = appleUserId;
+                user.appleUserId = appleUserId;
+            }
+            if (user.status === UserStatus.PENDING_VERIFICATION && !user.emailVerified) {
+                updates.status = UserStatus.ACTIVE;
+                updates.emailVerified = true;
+                user.status = UserStatus.ACTIVE;
+                user.emailVerified = true;
+            }
+            if (Object.keys(updates).length > 0) {
+                await this.userRepository.update(user.id, updates);
+            }
+
+            if (user.status === UserStatus.DEACTIVATED) {
+                await this.reactivateUserOnLogin(user);
+            }
+
+            const blockedLoginMessage = this.getBlockedLoginMessage(user.status);
+            if (blockedLoginMessage) {
+                this.throwAuthStatusException(user, blockedLoginMessage, HttpStatus.FORBIDDEN);
+            }
+
+            this.logger.log(`[AppleSignIn] Existing user found: ${user.id}`);
+        } else {
+            if (!tokenEmail) {
+                throw new BadRequestException(
+                    'Apple did not return a verified email. Retry the first Apple sign-in with email scope enabled.',
+                );
+            }
+
+            const existingEmailUser = await this.userRepository.findOne({
+                where: { email },
+                select: ['id'],
+            });
+            if (existingEmailUser && !tokenEmail) {
+                throw new BadRequestException(
+                    'Apple token did not include a verified email, so this existing account cannot be linked.',
+                );
+            }
+
+            const names = this.resolveAppleName(dto, email);
+            const hashedPassword = await bcrypt.hash(randomUUID(), 12);
+            const username = await this.generateUniqueUsername(email.split('@')[0] || `apple_${appleUserId.slice(-8)}`);
+
+            user = this.userRepository.create({
+                email,
+                appleUserId,
+                password: hashedPassword,
+                firstName: names.firstName,
+                lastName: names.lastName,
+                username,
+                status: UserStatus.ACTIVE,
+                emailVerified: true,
+                lastKnownIp: clientIp,
+                notificationsEnabled: true,
+                matchNotifications: true,
+                messageNotifications: true,
+                likeNotifications: true,
+                profileVisitorNotifications: true,
+                eventsNotifications: true,
+                safetyAlertNotifications: true,
+                promotionsNotifications: true,
+                inAppRecommendationNotifications: true,
+                weeklySummaryNotifications: true,
+                connectionRequestNotifications: true,
+                surveyNotifications: true,
+            });
+
+            await this.userRepository.save(user);
+            this.logger.log(`[AppleSignIn] New user created: ${user.id}`);
+
+            await this.tryGrantTrialIfEnabled(user.id, email, undefined, 'apple_signup');
+        }
+
+        await this.subscriptionsService.syncUserPremiumState(user.id);
+
+        const tokens = await this.generateTokens(user);
+        await this.updateRefreshToken(user.id, tokens.refreshToken, tokens.familyId);
+        await this.userRepository.update(user.id, {
+            lastLoginAt: new Date(),
+            lastKnownIp: clientIp || undefined,
+        });
+
+        this.redisService
+            .appendAuditLog({
+                type: 'login',
+                userId: user.id,
+                email: user.email,
+                action: 'apple_signin_success',
+                familyId: tokens.familyId,
+                ip: clientIp,
+                userAgent,
+            })
+            .catch(() => {});
+
+        return {
+            status: this.getAuthResponseStatus(user.status),
+            message: 'Login successful',
+            user: this.sanitizeUser(await this.usersService.getMe(user.id)),
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+        };
+    }
+
     async forgotPassword(dto: ForgotPasswordDto) {
         const { email } = dto;
         this.logger.log(`[OTP] Forgot password request for ${email}`);
@@ -1096,6 +1286,224 @@ export class AuthService {
 
     // ─── PRIVATE HELPERS ────────────────────────────────────
 
+    private async verifyAppleIdentityToken(identityToken: string): Promise<AppleIdentityPayload> {
+        const token = String(identityToken || '').trim();
+        if (!token) {
+            throw new UnauthorizedException('Missing Apple identity token');
+        }
+
+        const [encodedHeader, encodedPayload, encodedSignature] = token.split('.');
+        if (!encodedHeader || !encodedPayload || !encodedSignature) {
+            throw new UnauthorizedException('Invalid Apple identity token format');
+        }
+
+        const header = this.decodeJwtPart<AppleJwtHeader>(encodedHeader);
+        const payload = this.decodeJwtPart<AppleIdentityPayload>(encodedPayload);
+        if (header.alg !== 'RS256' || !header.kid) {
+            throw new UnauthorizedException('Unsupported Apple identity token header');
+        }
+
+        const jwk = (await this.getApplePublicKeys()).find((key) => key.kid === header.kid);
+        if (!jwk) {
+            throw new UnauthorizedException('Apple public key not found for identity token');
+        }
+
+        const verifier = createVerify('RSA-SHA256');
+        verifier.update(`${encodedHeader}.${encodedPayload}`);
+        verifier.end();
+
+        const publicKey = createPublicKey({
+            key: {
+                kty: jwk.kty,
+                kid: jwk.kid,
+                use: jwk.use,
+                alg: jwk.alg,
+                n: jwk.n,
+                e: jwk.e,
+            },
+            format: 'jwk',
+        } as any);
+        const validSignature = verifier.verify(publicKey, this.base64UrlDecode(encodedSignature));
+        if (!validSignature) {
+            throw new UnauthorizedException('Invalid Apple identity token signature');
+        }
+
+        if (payload.iss !== 'https://appleid.apple.com') {
+            throw new UnauthorizedException('Invalid Apple identity token issuer');
+        }
+
+        const now = Math.floor(Date.now() / 1000);
+        if (!payload.exp || payload.exp <= now) {
+            throw new UnauthorizedException('Apple identity token has expired');
+        }
+        if (payload.iat && payload.iat > now + 300) {
+            throw new UnauthorizedException('Apple identity token issue time is invalid');
+        }
+        if (!payload.sub) {
+            throw new UnauthorizedException('Apple identity token is missing subject');
+        }
+
+        const allowedAudiences = this.getAppleAllowedAudiences();
+        if (!payload.aud || !allowedAudiences.includes(payload.aud)) {
+            throw new UnauthorizedException('Invalid Apple identity token audience');
+        }
+
+        if (payload.email_verified === false || payload.email_verified === 'false') {
+            throw new UnauthorizedException('Apple account email is not verified');
+        }
+
+        return payload;
+    }
+
+    private async getApplePublicKeys(): Promise<AppleJwk[]> {
+        if (this.appleJwksCache && this.appleJwksCache.expiresAt > Date.now()) {
+            return this.appleJwksCache.keys;
+        }
+
+        const response = await fetch('https://appleid.apple.com/auth/keys');
+        const body = (await response.json().catch(() => ({}))) as { keys?: AppleJwk[] };
+        if (!response.ok || !Array.isArray(body.keys)) {
+            throw new UnauthorizedException('Unable to fetch Apple public keys');
+        }
+
+        this.appleJwksCache = {
+            keys: body.keys,
+            expiresAt: Date.now() + 60 * 60 * 1000,
+        };
+        return body.keys;
+    }
+
+    private getAppleAllowedAudiences(): string[] {
+        const configuredAudiences =
+            this.configService.get<string>('appleSignIn.allowedAudiences') ||
+            process.env.APPLE_SIGN_IN_ALLOWED_AUDIENCES ||
+            '';
+        const configuredClientId =
+            this.configService.get<string>('appleSignIn.clientId') ||
+            process.env.APPLE_SIGN_IN_CLIENT_ID ||
+            process.env.APPLE_CLIENT_ID ||
+            '';
+        const bundleId =
+            this.configService.get<string>('appleAppStore.bundleId') ||
+            process.env.APPLE_BUNDLE_ID ||
+            '';
+
+        const audiences = [
+            ...configuredAudiences.split(','),
+            configuredClientId,
+            bundleId,
+        ]
+            .map((value) => String(value || '').trim())
+            .filter((value, index, all) => value.length > 0 && all.indexOf(value) === index);
+
+        if (audiences.length === 0) {
+            throw new UnauthorizedException('Apple Sign-In audience is not configured');
+        }
+
+        return audiences;
+    }
+
+    private decodeJwtPart<T>(encoded: string): T {
+        try {
+            return JSON.parse(this.base64UrlDecode(encoded).toString('utf8')) as T;
+        } catch {
+            throw new UnauthorizedException('Invalid Apple identity token payload');
+        }
+    }
+
+    private base64UrlDecode(value: string): Buffer {
+        const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+        const padLength = (4 - (normalized.length % 4)) % 4;
+        return Buffer.from(`${normalized}${'='.repeat(padLength)}`, 'base64');
+    }
+
+    private normalizeEmail(email?: string | null): string {
+        return String(email || '').trim().toLowerCase();
+    }
+
+    private resolveAppleName(dto: AppleSignInDto, email: string): { firstName: string; lastName: string } {
+        const fullName = dto.fullName;
+        if (typeof fullName === 'string' && fullName.trim()) {
+            const segments = fullName.trim().split(/\s+/);
+            return {
+                firstName: segments[0] || 'Apple',
+                lastName: segments.slice(1).join(' '),
+            };
+        }
+
+        if (fullName && typeof fullName === 'object') {
+            const firstName = String(fullName.givenName || fullName.firstName || fullName.nickname || '').trim();
+            const lastName = String(fullName.familyName || fullName.lastName || '').trim();
+            if (firstName || lastName) {
+                return {
+                    firstName: firstName || 'Apple',
+                    lastName,
+                };
+            }
+        }
+
+        const suppliedFirstName = String(dto.firstName || '').trim();
+        const suppliedLastName = String(dto.lastName || '').trim();
+        if (suppliedFirstName || suppliedLastName) {
+            return {
+                firstName: suppliedFirstName || 'Apple',
+                lastName: suppliedLastName,
+            };
+        }
+
+        if (dto.displayName?.trim()) {
+            const segments = dto.displayName.trim().split(/\s+/);
+            return {
+                firstName: segments[0] || 'Apple',
+                lastName: segments.slice(1).join(' '),
+            };
+        }
+
+        const localPart = email.split('@')[0] || 'apple_user';
+        const fallbackFirstName = localPart
+            .split(/[._-]+/)
+            .filter(Boolean)
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ')
+            .trim();
+
+        return {
+            firstName: fallbackFirstName || 'Apple',
+            lastName: '',
+        };
+    }
+
+    private async generateUniqueUsername(seed: string): Promise<string> {
+        const normalizedSeed = String(seed || 'apple_user')
+            .toLowerCase()
+            .replace(/[^a-z0-9_]/g, '')
+            .slice(0, 24);
+        const baseUsername = normalizedSeed || 'apple_user';
+        let username = baseUsername;
+        let counter = 1;
+
+        while (
+            await this.userRepository.findOne({
+                where: { username },
+                select: ['id'],
+            })
+        ) {
+            const suffix = String(counter);
+            username = `${baseUsername.slice(0, Math.max(1, 30 - suffix.length))}${suffix}`;
+            counter++;
+        }
+
+        return username;
+    }
+
+    private maskAppleSubject(subject: string): string {
+        if (subject.length <= 12) {
+            return subject;
+        }
+
+        return `${subject.slice(0, 6)}...${subject.slice(-4)}`;
+    }
+
     private generateOtp(): string {
         return randomInt(100000, 999999).toString();
     }
@@ -1115,7 +1523,7 @@ export class AuthService {
         userId: string,
         email: string,
         trialDays?: number,
-        source: 'otp_verification' | 'google_signup' = 'otp_verification',
+        source: 'otp_verification' | 'google_signup' | 'apple_signup' = 'otp_verification',
     ): Promise<void> {
         if (!this.isAutoTrialEnabled()) {
             this.logger.log(`[Trial] Auto trial disabled. Skipping for ${source}: ${email}`);

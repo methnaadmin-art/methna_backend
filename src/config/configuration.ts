@@ -134,6 +134,15 @@ export default () => {
             environment: process.env.APPLE_APP_STORE_ENVIRONMENT || 'auto',
         },
 
+        appleSignIn: {
+            clientId:
+                process.env.APPLE_SIGN_IN_CLIENT_ID ||
+                process.env.APPLE_CLIENT_ID ||
+                process.env.APPLE_BUNDLE_ID ||
+                '',
+            allowedAudiences: process.env.APPLE_SIGN_IN_ALLOWED_AUDIENCES || '',
+        },
+
         google: {
             webClientId: process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '',
         },

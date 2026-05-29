@@ -235,11 +235,34 @@ export class SearchFiltersDto {
 
     @ApiPropertyOptional({ description: 'Max distance in km (requires user location)' })
     @IsOptional()
+    @Transform(({ value }) => {
+        const numericValue =
+            typeof value === 'number'
+                ? value
+                : typeof value === 'string'
+                    ? Number(value)
+                    : value;
+
+        if (!Number.isFinite(numericValue)) {
+            return value;
+        }
+
+        return Math.min(Math.max(Number(numericValue), 1), 400);
+    })
     @Type(() => Number)
     @IsNumber()
     @Min(1)
-    @Max(500)
+    @Max(400)
     maxDistance?: number;
+
+    @ApiPropertyOptional({
+        description:
+            'Whether the distance slider was explicitly changed by the user. When false, backend may ignore default local distance if other visible filters are active.',
+    })
+    @IsOptional()
+    @Type(() => Boolean)
+    @IsBoolean()
+    distanceUserSet?: boolean;
 
     @ApiPropertyOptional({ description: 'Search text in bio' })
     @IsOptional()

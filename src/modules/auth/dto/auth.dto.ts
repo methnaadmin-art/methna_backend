@@ -228,3 +228,51 @@ export class GoogleSignInDto {
     @IsString()
     photoUrl?: string;
 }
+
+export class AppleSignInDto {
+    @ApiProperty({ description: 'Apple identity token from ASAuthorizationAppleIDCredential' })
+    @IsString()
+    identityToken: string;
+
+    @ApiPropertyOptional({ description: 'Apple authorization code from ASAuthorizationAppleIDCredential' })
+    @IsOptional()
+    @IsString()
+    authorizationCode?: string;
+
+    @ApiPropertyOptional({ description: 'Apple userIdentifier from the iOS credential' })
+    @IsOptional()
+    @IsString()
+    userIdentifier?: string;
+
+    @ApiPropertyOptional({ example: 'user@privaterelay.appleid.com' })
+    @IsOptional()
+    @IsEmail()
+    email?: string;
+
+    @ApiPropertyOptional({ example: 'John' })
+    @IsOptional()
+    @IsString()
+    firstName?: string;
+
+    @ApiPropertyOptional({ example: 'Appleseed' })
+    @IsOptional()
+    @IsString()
+    lastName?: string;
+
+    @ApiPropertyOptional({ example: 'John Appleseed' })
+    @IsOptional()
+    @IsString()
+    displayName?: string;
+
+    @ApiPropertyOptional({
+        description: 'Apple fullName value from first login. May be a string or an object with givenName/familyName.',
+    })
+    @IsOptional()
+    fullName?: string | {
+        givenName?: string;
+        familyName?: string;
+        firstName?: string;
+        lastName?: string;
+        nickname?: string;
+    };
+}
