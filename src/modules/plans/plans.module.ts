@@ -26,8 +26,9 @@ export class PlansModule {
     async onModuleInit(): Promise<void> {
         try {
             await this.plansService.ensureFreePlanExists();
+            await this.plansService.ensureAppleSubscriptionMappings();
         } catch (err: any) {
-            this.logger.warn(`Failed to ensure free plan exists: ${err?.message}`);
+            this.logger.warn(`Failed to audit plan catalog at startup: ${err?.message}`);
         }
     }
 }

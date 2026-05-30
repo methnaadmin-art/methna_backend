@@ -313,15 +313,35 @@ export class AppleAppStoreService {
         const originalTransactionId = input.originalTransactionId || jwsPayload?.originalTransactionId || '';
 
         if (transactionId) {
-            return this.verifyTransactionWithAppStoreServerApi(requestedProductId, transactionId, dto);
+            try {
+                return await this.verifyTransactionWithAppStoreServerApi(requestedProductId, transactionId, dto);
+            } catch (error) {
+                if (this.canFallbackToReceiptVerification(input.serverVerificationData)) {
+                    this.logger.warn(
+                        `[PAYMENT] Apple transaction lookup failed for productId=${requestedProductId}; retrying with receipt verification`,
+                    );
+                    return this.verifyReceiptWithApple(requestedProductId, input.serverVerificationData, dto);
+                }
+                throw error;
+            }
         }
 
         if (originalTransactionId) {
-            return this.verifyOriginalTransactionWithAppStoreServerApi(
-                requestedProductId,
-                originalTransactionId,
-                dto,
-            );
+            try {
+                return await this.verifyOriginalTransactionWithAppStoreServerApi(
+                    requestedProductId,
+                    originalTransactionId,
+                    dto,
+                );
+            } catch (error) {
+                if (this.canFallbackToReceiptVerification(input.serverVerificationData)) {
+                    this.logger.warn(
+                        `[PAYMENT] Apple original transaction lookup failed for productId=${requestedProductId}; retrying with receipt verification`,
+                    );
+                    return this.verifyReceiptWithApple(requestedProductId, input.serverVerificationData, dto);
+                }
+                throw error;
+            }
         }
 
         if (input.serverVerificationData) {
@@ -349,9 +369,13 @@ export class AppleAppStoreService {
         dto: VerifyApplePurchaseDto,
     ): Promise<AppleVerificationSnapshot> {
         let lastError: any = null;
+        const environments = this.resolveEnvironmentOrder(dto.environment);
 
-        for (const environment of this.resolveEnvironmentOrder(dto.environment)) {
+        for (const [index, environment] of environments.entries()) {
             try {
+                this.logger.log(
+                    `[PAYMENT] Apple verify transaction attempt environment=${environment} productId=${requestedProductId} transactionId=${transactionId}`,
+                );
                 const transactionResponse = await this.callAppStoreServerApi(
                     `/inApps/v1/transactions/${encodeURIComponent(transactionId)}`,
                     environment,
@@ -381,9 +405,14 @@ export class AppleAppStoreService {
                 );
             } catch (error: any) {
                 lastError = error;
-                if (!this.shouldTryNextEnvironment(error)) {
+                const hasMoreEnvironments = index < environments.length - 1;
+                if (!this.shouldTryNextEnvironment(error, environment, hasMoreEnvironments)) {
                     throw this.toAppleVerificationException(error);
                 }
+
+                this.logger.warn(
+                    `[PAYMENT] Apple verify transaction fallback environment=${environment} productId=${requestedProductId} transactionId=${transactionId} reason=${this.describeAppleEnvironmentFailure(error)}`,
+                );
             }
         }
 
@@ -396,9 +425,13 @@ export class AppleAppStoreService {
         dto: VerifyApplePurchaseDto,
     ): Promise<AppleVerificationSnapshot> {
         let lastError: any = null;
+        const environments = this.resolveEnvironmentOrder(dto.environment);
 
-        for (const environment of this.resolveEnvironmentOrder(dto.environment)) {
+        for (const [index, environment] of environments.entries()) {
             try {
+                this.logger.log(
+                    `[PAYMENT] Apple verify original transaction attempt environment=${environment} productId=${requestedProductId} originalTransactionId=${originalTransactionId}`,
+                );
                 const latest = await this.fetchLatestSubscriptionTransaction(
                     originalTransactionId,
                     environment,
@@ -418,9 +451,14 @@ export class AppleAppStoreService {
                 );
             } catch (error: any) {
                 lastError = error;
-                if (!this.shouldTryNextEnvironment(error)) {
+                const hasMoreEnvironments = index < environments.length - 1;
+                if (!this.shouldTryNextEnvironment(error, environment, hasMoreEnvironments)) {
                     throw this.toAppleVerificationException(error);
                 }
+
+                this.logger.warn(
+                    `[PAYMENT] Apple verify original transaction fallback environment=${environment} productId=${requestedProductId} originalTransactionId=${originalTransactionId} reason=${this.describeAppleEnvironmentFailure(error)}`,
+                );
             }
         }
 
@@ -553,6 +591,9 @@ export class AppleAppStoreService {
 
         let lastResponse: Record<string, any> | null = null;
         for (const environment of this.resolveEnvironmentOrder(dto.environment)) {
+            this.logger.log(
+                `[PAYMENT] Apple verify receipt attempt environment=${environment} productId=${requestedProductId}`,
+            );
             const response = await this.callAppleReceiptVerification(receiptData, sharedSecret, environment);
             lastResponse = response;
 
@@ -825,10 +866,22 @@ export class AppleAppStoreService {
         return ['production', 'sandbox'];
     }
 
-    private shouldTryNextEnvironment(error: any): boolean {
+    private shouldTryNextEnvironment(
+        error: any,
+        environment: AppleEnvironment,
+        hasMoreEnvironments: boolean,
+    ): boolean {
+        if (!hasMoreEnvironments) {
+            return false;
+        }
+
         const status = Number(error?.status || error?.response?.status || 0);
         const appleErrorCode = String(error?.body?.errorCode || error?.body?.status || '');
-        return status === 404 || appleErrorCode === '21007' || appleErrorCode === '21008';
+        if (status === 404 || appleErrorCode === '21007' || appleErrorCode === '21008') {
+            return true;
+        }
+
+        return environment === 'production' && (status === 401 || status === 403);
     }
 
     private toAppleVerificationException(error: any): BadRequestException | ServiceUnavailableException {
@@ -888,6 +941,15 @@ export class AppleAppStoreService {
             retryable: false,
             message: 'Apple purchase verification failed.',
         };
+    }
+
+    private describeAppleEnvironmentFailure(error: any): string {
+        const status = Number(error?.status || error?.response?.status || 0);
+        const appleErrorCode = error?.body?.errorCode || error?.body?.status || null;
+        if (status || appleErrorCode) {
+            return `status=${status || 'n/a'} appleCode=${appleErrorCode || 'n/a'}`;
+        }
+        return error?.message || 'unknown_error';
     }
 
     private assertTransactionIsUsable(
@@ -1103,6 +1165,21 @@ export class AppleAppStoreService {
     private looksLikeTransactionId(value: string): boolean {
         const normalized = String(value || '').trim();
         return /^[0-9]{6,}$/.test(normalized);
+    }
+
+    private looksLikeJws(value: string): boolean {
+        const normalized = String(value || '').trim();
+        const parts = normalized.split('.');
+        return parts.length === 3 && parts.every((part) => part.length > 0);
+    }
+
+    private canFallbackToReceiptVerification(value: string): boolean {
+        const normalized = this.normalizeConfigValue(value);
+        if (!normalized) {
+            return false;
+        }
+
+        return !this.looksLikeTransactionId(normalized) && !this.looksLikeJws(normalized);
     }
 
     private decodeJwsPayload<T>(jws?: string | null): T | null {

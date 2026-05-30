@@ -68,7 +68,16 @@ export class PlansService {
     /** Ensure the free plan exists in DB. Call on app startup to avoid fallback warnings. */
     async ensureFreePlanExists(): Promise<void> {
         const existing = await this.planRepository.findOne({ where: { code: 'free' } });
-        if (existing) return;
+        if (existing) {
+            if (!existing.isActive) {
+                existing.isActive = true;
+                this.syncEntitlementsToLegacy(existing);
+                await this.planRepository.save(existing);
+                await this.invalidatePlansCache();
+                this.logger.log('Free plan existed but was inactive; reactivated it for entitlement fallback');
+            }
+            return;
+        }
 
         this.logger.log('Free plan not found in DB — creating default free plan');
         const freePlan = this.planRepository.create({
@@ -124,6 +133,47 @@ export class PlansService {
         this.logger.log('Default free plan created successfully');
     }
 
+    /** Ensure the Apple monthly product is mapped when the catalog has a single obvious monthly paid plan. */
+    async ensureAppleSubscriptionMappings(): Promise<void> {
+        const monthlyAppleProductId = 'com.methnapp.app.premium_monthly';
+        const existingMonthlyMapping = await this.planRepository.findOne({
+            where: { appleProductId: monthlyAppleProductId, isActive: true },
+        });
+        if (existingMonthlyMapping) {
+            return;
+        }
+
+        const monthlyPlans = await this.planRepository.find({
+            where: { billingCycle: BillingCycle.MONTHLY, isActive: true, isVisible: true },
+            order: { sortOrder: 'ASC', price: 'ASC' },
+        });
+        const paidMonthlyPlans = monthlyPlans.filter((plan) =>
+            this.normalizePlanToken(plan.code) !== 'free' && Number(plan.price) > 0,
+        );
+
+        if (paidMonthlyPlans.length === 1) {
+            const plan = paidMonthlyPlans[0];
+            plan.appleProductId = monthlyAppleProductId;
+            await this.planRepository.save(plan);
+            await this.invalidatePlansCache();
+            this.logger.log(
+                `Mapped Apple monthly product ${monthlyAppleProductId} to plan ${plan.code} during startup audit`,
+            );
+            return;
+        }
+
+        if (paidMonthlyPlans.length === 0) {
+            this.logger.warn(
+                `No active visible monthly paid plan found for Apple product ${monthlyAppleProductId}`,
+            );
+            return;
+        }
+
+        this.logger.warn(
+            `Apple monthly product ${monthlyAppleProductId} is not mapped and ${paidMonthlyPlans.length} monthly paid plans are active. Set plans.appleProductId explicitly.`,
+        );
+    }
+
     // ADMIN CRUD
 
     async getAllPlans(): Promise<Plan[]> {
@@ -142,6 +192,7 @@ export class PlansService {
         }
 
         await this.assertGooglePlayPlanMapping(dto);
+        this.normalizeAppleProductMapping(dto);
         await this.ensureStripeBillingForPlan(dto);
 
         // Sync entitlements -> legacy columns for backward compat
@@ -168,6 +219,7 @@ export class PlansService {
         }
 
         await this.assertGooglePlayPlanMapping(dto, id, plan);
+        this.normalizeAppleProductMapping(dto);
         await this.ensureStripeBillingForPlan(dto, plan);
 
         Object.assign(plan, dto);
@@ -518,6 +570,14 @@ export class PlansService {
 
         dto.googleProductId = googleProductId;
         dto.googleBasePlanId = googleBasePlanId;
+    }
+
+    private normalizeAppleProductMapping(dto: Partial<Plan>): void {
+        if (dto.appleProductId === undefined) {
+            return;
+        }
+
+        dto.appleProductId = this.normalizeNullableString(dto.appleProductId);
     }
 
     private async ensureStripeBillingForPlan(
