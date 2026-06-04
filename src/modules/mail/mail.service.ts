@@ -9,12 +9,17 @@ export class MailService {
     private readonly logger = new Logger(MailService.name);
     private resend: Resend;
     private readonly fromAddress: string;
+    private readonly verificationTemplateId: string;
     private readonly agreementTemplateId: string;
     private readonly agreementDelayMs: number;
 
     constructor(private readonly configService: ConfigService) {
         const apiKey = this.configService.get<string>('resend.apiKey');
-        this.fromAddress = this.configService.get<string>('mail.from') || 'Methna App <verify@waqti.pro>';
+        this.fromAddress =
+            this.configService.get<string>('mail.from') || 'Verify <verify@methna.com>';
+        this.verificationTemplateId =
+            this.configService.get<string>('resend.verificationTemplateId') ||
+            'email-verification';
         this.agreementTemplateId =
             this.configService.get<string>('resend.agreementTemplateId') ||
             'agreement-confirmation';
@@ -55,6 +60,16 @@ export class MailService {
                         <p style="color: #999; font-size: 12px;">Methna - Halal Matchmaking Platform</p>
                     </div>
                 `,
+                tags: [
+                    {
+                        name: 'template_id',
+                        value: this.verificationTemplateId,
+                    },
+                    {
+                        name: 'flow',
+                        value: 'email_verification',
+                    },
+                ],
             });
 
             if (error) {
@@ -95,6 +110,16 @@ export class MailService {
                         <p style="color: #999; font-size: 12px;">Methna - Halal Matchmaking Platform</p>
                     </div>
                 `,
+                tags: [
+                    {
+                        name: 'template_id',
+                        value: this.verificationTemplateId,
+                    },
+                    {
+                        name: 'flow',
+                        value: 'password_reset',
+                    },
+                ],
             });
 
             if (error) {

@@ -76,11 +76,13 @@ export default () => {
             port: parseInt(process.env.MAIL_PORT || '587', 10),
             user: process.env.MAIL_USER || '',
             pass: process.env.MAIL_PASS || '',
-            from: process.env.MAIL_FROM || 'Methna App <verify@waqti.pro>',
+            from: process.env.MAIL_FROM || 'Verify <verify@methna.com>',
         },
 
         resend: {
             apiKey: process.env.RESEND_API_KEY || '',
+            verificationTemplateId:
+                process.env.RESEND_VERIFICATION_TEMPLATE_ID || 'email-verification',
             agreementTemplateId: process.env.RESEND_AGREEMENT_TEMPLATE_ID || 'agreement-confirmation',
             agreementDelayMs: parseInt(process.env.RESEND_AGREEMENT_DELAY_MS || '120000', 10),
         },
