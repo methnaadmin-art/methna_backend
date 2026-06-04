@@ -60,6 +60,14 @@ export class ProfilesService {
         });
 
         if (profile) {
+            if (
+                sanitizedDto.gender !== undefined &&
+                profile.gender &&
+                sanitizedDto.gender !== profile.gender
+            ) {
+                delete (sanitizedDto as Record<string, any>).gender;
+            }
+
             Object.keys(sanitizedDto).forEach((key) => {
                 if (profile && (sanitizedDto as any)[key] !== undefined) {
                     (profile as any)[key] = (sanitizedDto as any)[key];
@@ -281,6 +289,7 @@ export class ProfilesService {
         const textFields = [
             'bio',
             'aboutPartner',
+            'reasonToUseMethna',
             'company',
             'jobTitle',
             'educationDetails',

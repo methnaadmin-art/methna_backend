@@ -373,6 +373,12 @@ export class CreateProfileDto {
     @MaxLength(1000)
     aboutPartner?: string;
 
+    @ApiPropertyOptional({ maxLength: 250 })
+    @IsOptional()
+    @IsString()
+    @MaxLength(250)
+    reasonToUseMethna?: string;
+
     @ApiPropertyOptional({
         maxLength: 1000,
         description: 'Alias for aboutPartner used by newer clients',
@@ -502,6 +508,5 @@ export class UpdatePreferencesDto {
     @IsEnum(SecondWifePreference)
     preferredSecondWifePreference?: SecondWifePreference;
 }
-
 
 

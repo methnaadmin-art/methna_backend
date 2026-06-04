@@ -348,6 +348,9 @@ export class Profile {
     @Column({ nullable: true, length: 1000 })
     aboutPartner: string;
 
+    @Column({ nullable: true, length: 250 })
+    reasonToUseMethna: string;
+
     // Privacy settings
     @Column({ default: true })
     showAge: boolean;

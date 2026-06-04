@@ -7,6 +7,7 @@ import {
     Body,
     Query,
     UseGuards,
+    ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SupportService } from './support.service';
@@ -18,11 +19,15 @@ import { TicketStatus } from '../../database/entities/support-ticket.entity';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { UserRole } from '../../database/entities/user.entity';
+import { MonetizationService } from '../monetization/monetization.service';
 
 @ApiTags('support')
 @Controller('support')
 export class SupportController {
-    constructor(private readonly supportService: SupportService) { }
+    constructor(
+        private readonly supportService: SupportService,
+        private readonly monetizationService: MonetizationService,
+    ) { }
 
     // ─── Public: Create ticket from website (no auth) ──────
 
@@ -52,6 +57,7 @@ export class SupportController {
         @CurrentUser('sub') userId: string,
         @Body() dto: CreateSupportTicketDto,
     ) {
+        await this.ensurePremiumSupportAccess(userId);
         return this.supportService.createTicket(userId, dto);
     }
 
@@ -63,6 +69,7 @@ export class SupportController {
         @CurrentUser('sub') userId: string,
         @Query() pagination: PaginationDto,
     ) {
+        await this.ensurePremiumSupportAccess(userId);
         return this.supportService.getMyTickets(userId, pagination);
     }
 
@@ -74,6 +81,7 @@ export class SupportController {
         @CurrentUser('sub') userId: string,
         @Param('id') ticketId: string,
     ) {
+        await this.ensurePremiumSupportAccess(userId);
         return this.supportService.getTicketById(userId, ticketId);
     }
 
@@ -120,5 +128,14 @@ export class SupportController {
         @Body() dto: CreateFeedbackDto,
     ) {
         return this.supportService.submitFeedback(userId, dto);
+    }
+
+    private async ensurePremiumSupportAccess(userId: string): Promise<void> {
+        const hasPremium = await this.monetizationService.isPremium(userId);
+        if (!hasPremium) {
+            throw new ForbiddenException(
+                'Support tickets are currently available for premium users only.',
+            );
+        }
     }
 }
