@@ -192,6 +192,7 @@ export class PlansService {
         }
 
         await this.assertGooglePlayPlanMapping(dto);
+        await this.assertApplePlanMapping(dto);
         this.normalizeAppleProductMapping(dto);
         await this.ensureStripeBillingForPlan(dto);
 
@@ -219,6 +220,7 @@ export class PlansService {
         }
 
         await this.assertGooglePlayPlanMapping(dto, id, plan);
+        await this.assertApplePlanMapping(dto, id, plan);
         this.normalizeAppleProductMapping(dto);
         await this.ensureStripeBillingForPlan(dto, plan);
 
@@ -578,6 +580,37 @@ export class PlansService {
         }
 
         dto.appleProductId = this.normalizeNullableString(dto.appleProductId);
+    }
+
+    private async assertApplePlanMapping(
+        dto: Partial<Plan>,
+        currentPlanId?: string,
+        currentPlan?: Plan,
+    ): Promise<void> {
+        const effectivePrice = dto.price !== undefined ? Number(dto.price) : Number(currentPlan?.price ?? 0);
+        const isPaidPlan = Number.isFinite(effectivePrice) && effectivePrice > 0;
+        if (!isPaidPlan) {
+            return;
+        }
+
+        const appleProductId =
+            this.normalizeNullableString(dto.appleProductId) || currentPlan?.appleProductId || null;
+        if (!appleProductId) {
+            throw new BadRequestException('appleProductId is required for paid plans');
+        }
+
+        const appleCollision = await this.planRepository.findOne({
+            where: {
+                appleProductId,
+            },
+        });
+        if (appleCollision && appleCollision.id !== currentPlanId) {
+            throw new BadRequestException(
+                `appleProductId '${appleProductId}' is already mapped to another plan`,
+            );
+        }
+
+        dto.appleProductId = appleProductId;
     }
 
     private async ensureStripeBillingForPlan(
