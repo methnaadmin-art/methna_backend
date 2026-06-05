@@ -104,7 +104,7 @@ interface AppleVerificationSnapshot {
 @Injectable()
 export class AppleAppStoreService {
     private readonly logger = new Logger(AppleAppStoreService.name);
-    private readonly allowedProductIds = new Set([
+    private readonly fallbackAllowedProductIds = new Set([
         'com.methnapp.app.premium_monthly',
         'com.methnapp.app.premium_yearly',
     ]);
@@ -131,9 +131,7 @@ export class AppleAppStoreService {
         if (!requestedProductId) {
             throw new BadRequestException('productId is required');
         }
-        if (!this.allowedProductIds.has(requestedProductId)) {
-            throw new BadRequestException(`Unsupported Apple productId '${requestedProductId}'`);
-        }
+        await this.assertAllowedProduct(requestedProductId);
         if (!['apple', 'app_store', 'ios'].includes(provider)) {
             throw new BadRequestException('Only Apple App Store provider is supported for this endpoint.');
         }
@@ -538,7 +536,6 @@ export class AppleAppStoreService {
         if (productId !== requestedProductId) {
             throw new BadRequestException('Apple transaction productId does not match request productId.');
         }
-        this.assertAllowedProduct(productId);
         this.assertBundleId(bundleId);
 
         const purchaseDate = this.parseAppleDate(transactionInfo.purchaseDate) || new Date();
@@ -645,7 +642,6 @@ export class AppleAppStoreService {
         const productId = String(latest.product_id || '').trim();
         const transactionId = String(latest.transaction_id || '').trim();
         const originalTransactionId = String(latest.original_transaction_id || '').trim();
-        this.assertAllowedProduct(productId);
 
         const expiryDate = this.parseAppleDate(latest.expires_date_ms);
         if (!expiryDate) {
@@ -1119,8 +1115,28 @@ export class AppleAppStoreService {
         await this.purchaseRepo.save(purchase);
     }
 
-    private assertAllowedProduct(productId: string): void {
-        if (!this.allowedProductIds.has(productId)) {
+    private async assertAllowedProduct(productId: string): Promise<void> {
+        const normalizedProductId = String(productId || '').trim();
+        if (!normalizedProductId) {
+            throw new BadRequestException('Apple productId is required');
+        }
+
+        const configuredProductIds = await this.planRepo
+            .createQueryBuilder('plan')
+            .select('plan.appleProductId', 'appleProductId')
+            .where('plan.isActive = :isActive', { isActive: true })
+            .andWhere('plan.appleProductId IS NOT NULL')
+            .andWhere(`TRIM(plan.appleProductId) <> ''`)
+            .getRawMany<{ appleProductId: string }>();
+
+        const allowedProductIds = new Set([
+            ...this.fallbackAllowedProductIds,
+            ...configuredProductIds
+                .map((row) => String(row.appleProductId || '').trim())
+                .filter((value) => value.length > 0),
+        ]);
+
+        if (!allowedProductIds.has(normalizedProductId)) {
             throw new BadRequestException(`Unsupported Apple productId '${productId}'`);
         }
     }
