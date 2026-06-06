@@ -26,6 +26,7 @@ import {
 } from '../../database/entities/subscription.entity';
 import { User } from '../../database/entities/user.entity';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { ConsumableService } from '../consumables/consumable.service';
 
 export interface VerifyApplePurchaseDto {
     platform?: string;
@@ -120,6 +121,7 @@ export class AppleAppStoreService {
         @InjectRepository(User)
         private readonly userRepo: Repository<User>,
         private readonly subscriptionsService: SubscriptionsService,
+        private readonly consumableService: ConsumableService,
         private readonly dataSource: DataSource,
     ) {}
 
@@ -141,6 +143,72 @@ export class AppleAppStoreService {
 
         await this.ensureUserExists(userId);
 
+        // ─── CONSUMABLE PRODUCT REDIRECT FLOW ───────────────────
+        const consumable = await this.consumableService.findByAppleProductId(requestedProductId);
+        if (consumable) {
+            const verificationInput = this.resolveVerificationInput(dto);
+            if (
+                !verificationInput.transactionId &&
+                !verificationInput.originalTransactionId &&
+                !verificationInput.serverVerificationData
+            ) {
+                throw new BadRequestException(
+                    'transactionId, originalTransactionId, or purchaseToken/serverVerificationData is required',
+                );
+            }
+
+            this.logger.log(
+                `[PAYMENT] Apple consumable token received user=${userId} productId=${requestedProductId} transactionId=${
+                    verificationInput.transactionId || 'n/a'
+                } originalTransactionId=${verificationInput.originalTransactionId || 'n/a'}`,
+            );
+
+            const verification = await this.verifyWithApple(requestedProductId, dto, verificationInput);
+            if (!verification.verified) {
+                await this.recordFailedPurchase(userId, dto, verificationInput, verification.raw);
+                throw new BadRequestException({
+                    status: 'verification_failed',
+                    error: 'Invalid or unverified Apple transaction',
+                    reason: verification.raw?.reason || 'apple_verification_failed',
+                });
+            }
+
+            const purchaseToken = verification.originalTransactionId || verification.transactionId;
+            const existingPurchase = await this.purchaseRepo.findOne({ where: { purchaseToken } });
+            if (existingPurchase?.userId && existingPurchase.userId !== userId) {
+                throw new BadRequestException('This Apple purchase is already linked to another account.');
+            }
+
+            const balances = await this.consumableService.grantBalance(
+                userId,
+                consumable.id,
+                PurchaseProvider.APPLE,
+                purchaseToken,
+                verification.transactionId,
+                verification.raw,
+                verification.purchaseDate,
+            );
+
+            return {
+                status: balances.granted ? 'verified' : 'already_verified',
+                provider: 'apple',
+                platform: 'ios',
+                restored: !!dto.restored,
+                environment: verification.environment,
+                product: {
+                    id: consumable.id,
+                    code: consumable.code,
+                    title: consumable.title,
+                    type: consumable.type,
+                    quantity: consumable.quantity,
+                    price: consumable.price,
+                    currency: consumable.currency,
+                },
+                balances: balances.balances,
+            };
+        }
+
+        // ─── SUBSCRIPTION PLAN FLOW ─────────────────────────────
         const verificationInput = this.resolveVerificationInput(dto);
         if (
             !verificationInput.transactionId &&
@@ -1129,11 +1197,14 @@ export class AppleAppStoreService {
             .andWhere(`TRIM(plan.appleProductId) <> ''`)
             .getRawMany<{ appleProductId: string }>();
 
+        const activeConsumableIds = await this.consumableService.getActiveAppleProductIds();
+
         const allowedProductIds = new Set([
             ...this.fallbackAllowedProductIds,
             ...configuredProductIds
                 .map((row) => String(row.appleProductId || '').trim())
                 .filter((value) => value.length > 0),
+            ...activeConsumableIds,
         ]);
 
         if (!allowedProductIds.has(normalizedProductId)) {

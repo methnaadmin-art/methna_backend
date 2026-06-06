@@ -20,7 +20,7 @@ function testEndpointExists() {
         const options = {
             hostname: 'web-production-afbe4.up.railway.app',
             port: 443,
-            path: '/mobile/payments/apple/verify',
+            path: '/api/v1/mobile/payments/apple/verify',
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -54,7 +54,7 @@ function testEndpointExists() {
 // Test 2: Check plans endpoint
 function testPlansEndpoint() {
     return new Promise((resolve) => {
-        https.get(`${API_URL}/mobile/plans`, (res) => {
+        https.get(`${API_URL}/api/v1/mobile/plans`, (res) => {
             let data = '';
             res.on('data', (chunk) => data += chunk);
             res.on('end', () => {
@@ -118,7 +118,8 @@ async function runTests() {
     } else if (plansResult.status === 200) {
         console.log(`   ✅ Plans endpoint working (200)`);
         try {
-            const plans = JSON.parse(plansResult.body);
+            const parsed = JSON.parse(plansResult.body);
+            const plans = Array.isArray(parsed) ? parsed : (parsed.data || []);
             console.log(`   Found ${plans.length} plans:`);
             plans.forEach(plan => {
                 console.log(`     - ${plan.name} (${plan.code})`);

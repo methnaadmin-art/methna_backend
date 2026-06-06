@@ -38,6 +38,7 @@ export interface CreateConsumableProductDto {
     platformAvailability?: PlatformAvailability;
     sortOrder?: number;
     googleProductId?: string;
+    appleProductId?: string;
     stripePriceId?: string;
     stripeProductId?: string;
 }
@@ -51,6 +52,7 @@ export interface UpdateConsumableProductDto {
     platformAvailability?: PlatformAvailability;
     sortOrder?: number;
     googleProductId?: string;
+    appleProductId?: string;
     stripePriceId?: string;
     stripeProductId?: string;
     isActive?: boolean;
@@ -88,6 +90,7 @@ export class ConsumableService {
             platformAvailability: PlatformAvailability.ALL,
             sortOrder: 10,
             googleProductId: 'methna_likes_50',
+            appleProductId: 'com.methnapp.app.cosumablelikes',
         },
         {
             code: 'methna_compliments_3',
@@ -228,6 +231,7 @@ export class ConsumableService {
             platformAvailability: dto.platformAvailability || PlatformAvailability.ALL,
             sortOrder: dto.sortOrder || 0,
             googleProductId: dto.googleProductId || null,
+            appleProductId: dto.appleProductId || null,
             stripePriceId: dto.stripePriceId || null,
             stripeProductId: dto.stripeProductId || null,
             isActive: true,
@@ -249,6 +253,7 @@ export class ConsumableService {
         if (dto.platformAvailability !== undefined) product.platformAvailability = dto.platformAvailability;
         if (dto.sortOrder !== undefined) product.sortOrder = dto.sortOrder;
         if (dto.googleProductId !== undefined) product.googleProductId = dto.googleProductId;
+        if (dto.appleProductId !== undefined) product.appleProductId = dto.appleProductId;
         if (dto.stripePriceId !== undefined) product.stripePriceId = dto.stripePriceId;
         if (dto.stripeProductId !== undefined) product.stripeProductId = dto.stripeProductId;
         if (dto.isActive !== undefined) product.isActive = dto.isActive;
@@ -563,6 +568,24 @@ export class ConsumableService {
         });
     }
 
+    /** Find a consumable product by Apple App Store product ID */
+    async findByAppleProductId(appleProductId: string): Promise<ConsumableProduct | null> {
+        return this.productRepo.findOne({
+            where: { appleProductId, isActive: true, isArchived: false },
+        });
+    }
+
+    /** Find all active, unarchived consumable Apple product IDs */
+    async getActiveAppleProductIds(): Promise<string[]> {
+        const products = await this.productRepo.find({
+            where: { isActive: true, isArchived: false },
+            select: ['appleProductId'],
+        });
+        return products
+            .map((p) => String(p.appleProductId || '').trim())
+            .filter((v) => v.length > 0);
+    }
+
     /** Find a consumable product by Stripe price ID */
     async findByStripePriceId(stripePriceId: string): Promise<ConsumableProduct | null> {
         return this.productRepo.findOne({
@@ -599,6 +622,7 @@ export class ConsumableService {
         switch (provider) {
             case PurchaseProvider.GOOGLE_PLAY: return product.googleProductId || product.code;
             case PurchaseProvider.STRIPE: return product.stripePriceId || product.code;
+            case PurchaseProvider.APPLE: return product.appleProductId || product.code;
             default: return product.code;
         }
     }
@@ -614,6 +638,7 @@ export class ConsumableService {
                     'platformAvailability',
                     'sortOrder',
                     'googleProductId',
+                    'appleProductId',
                     'stripePriceId',
                     'stripeProductId',
                     'isActive',
@@ -642,6 +667,10 @@ export class ConsumableService {
                 }
                 if (!existing.googleProductId && productData.googleProductId) {
                     existing.googleProductId = productData.googleProductId;
+                    changed = true;
+                }
+                if (!existing.appleProductId && productData.appleProductId) {
+                    existing.appleProductId = productData.appleProductId;
                     changed = true;
                 }
                 if (!existing.stripePriceId && productData.stripePriceId) {
@@ -674,6 +703,7 @@ export class ConsumableService {
                 platformAvailability: productData.platformAvailability || PlatformAvailability.ALL,
                 sortOrder: productData.sortOrder || 0,
                 googleProductId: productData.googleProductId || productData.code,
+                appleProductId: productData.appleProductId || null,
                 stripePriceId: productData.stripePriceId || null,
                 stripeProductId: productData.stripeProductId || null,
                 isActive: true,

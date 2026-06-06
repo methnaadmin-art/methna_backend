@@ -63,6 +63,11 @@ export class ConsumableProduct {
     @Column({ type: 'varchar', nullable: true })
     googleProductId: string | null;
 
+    /** Apple App Store product ID (e.g. 'com.methnapp.app.cosumablelikes') */
+    @Index()
+    @Column({ type: 'varchar', nullable: true })
+    appleProductId: string | null;
+
     /** Stripe Price ID (e.g. 'price_abc123') for one-time payment */
     @Index()
     @Column({ type: 'varchar', nullable: true })
