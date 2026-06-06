@@ -627,7 +627,31 @@ export class ConsumableService {
         }
     }
 
+    private async ensureAppleProductIdColumnExists(): Promise<void> {
+        try {
+            const result = await this.dataSource.query(`
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'consumable_products' AND column_name = 'appleProductId'
+            `);
+            if (result.length === 0) {
+                this.logger.log('Dynamically adding missing column appleProductId to consumable_products table...');
+                await this.dataSource.query(`
+                    ALTER TABLE "consumable_products" ADD COLUMN IF NOT EXISTS "appleProductId" character varying NULL
+                `);
+                await this.dataSource.query(`
+                    CREATE INDEX IF NOT EXISTS "IDX_consumable_products_appleProductId" ON "consumable_products" ("appleProductId")
+                `);
+                this.logger.log('Successfully created appleProductId column and index!');
+            }
+        } catch (err) {
+            this.logger.error('Failed to dynamically check/create appleProductId column', err);
+        }
+    }
+
     private async ensureDefaultProducts(): Promise<void> {
+        await this.ensureAppleProductIdColumnExists();
+
         for (const productData of ConsumableService.DEFAULT_PRODUCTS) {
             const existing = await this.productRepo.findOne({
                 where: { code: productData.code },
