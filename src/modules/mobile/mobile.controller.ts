@@ -19,6 +19,10 @@ import {
     VerifyPurchaseDto,
     RestorePurchaseDto,
 } from '../payments/google-play-billing.service';
+import {
+    AppleAppStoreService,
+    VerifyApplePurchaseDto,
+} from '../payments/apple-app-store.service';
 import { ConsumableService } from '../consumables/consumable.service';
 import { AppUpdatePolicyService } from '../app-update-policy/app-update-policy.service';
 
@@ -41,6 +45,7 @@ export class MobileController {
         private readonly plansService: PlansService,
         private readonly subscriptionsService: SubscriptionsService,
         private readonly googlePlayBillingService: GooglePlayBillingService,
+        private readonly appleAppStoreService: AppleAppStoreService,
         private readonly consumableService: ConsumableService,
         private readonly appUpdatePolicyService: AppUpdatePolicyService,
     ) {}
@@ -194,7 +199,7 @@ export class MobileController {
     // ─── Consumable Products (public, no auth) ────────────────
 
     @Get('consumables')
-    @ApiOperation({ summary: 'Get active consumable products for mobile (Google Play fields only)' })
+    @ApiOperation({ summary: 'Get active consumable products for mobile with store product fields' })
     async getMobileConsumables() {
         const products = await this.consumableService.getProducts('mobile');
         return products.map((p) => ({
@@ -207,6 +212,8 @@ export class MobileController {
             price: Number(p.price),
             currency: p.currency,
             googleProductId: p.googleProductId,
+            appleProductId: p.appleProductId,
+            iosProductId: p.appleProductId,
             sortOrder: p.sortOrder,
         }));
     }
@@ -304,6 +311,45 @@ export class MobileController {
     }
 
     // ─── Consumable Purchase History (authenticated) ─────────
+
+    @Post('consumables/apple/verify')
+    @ApiBearerAuth()
+    @UseGuards(JwtAuthGuard)
+    @HttpCode(200)
+    @ApiOperation({ summary: 'Verify an Apple App Store consumable purchase and grant balance' })
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                platform: { type: 'string', example: 'ios' },
+                provider: { type: 'string', example: 'apple' },
+                productId: { type: 'string', description: 'Apple App Store consumable product ID' },
+                transactionId: { type: 'string', description: 'Apple transaction ID' },
+                originalTransactionId: { type: 'string', description: 'Apple original transaction ID' },
+                purchaseToken: { type: 'string', description: 'Apple receipt or signed transaction token' },
+                serverVerificationData: { type: 'string', description: 'Apple receipt or signed transaction token' },
+                verificationData: { type: 'object' },
+                receiptData: { type: 'string' },
+                transactionDate: { type: 'string' },
+                restored: { type: 'boolean' },
+            },
+            required: ['productId'],
+        },
+    })
+    async verifyAppleConsumablePurchase(
+        @CurrentUser('sub') userId: string,
+        @Body() dto: VerifyApplePurchaseDto,
+    ) {
+        this.logger.log(
+            `[PAYMENT] Mobile Apple consumable verify called user=${userId} productId=${dto.productId}`,
+        );
+
+        return this.appleAppStoreService.verifyAndActivatePurchase(userId, {
+            ...dto,
+            platform: 'ios',
+            provider: 'apple',
+        });
+    }
 
     @Get('consumables/purchases')
     @ApiBearerAuth()
