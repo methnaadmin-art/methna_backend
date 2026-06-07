@@ -216,6 +216,7 @@ export class ConsumableService {
 
     async createProduct(dto: CreateConsumableProductDto): Promise<ConsumableProduct> {
         this.validateProductDto(dto);
+        await this.assertStoreMappings(dto);
 
         const existing = await this.productRepo.findOne({ where: { code: dto.code } });
         if (existing) throw new BadRequestException(`Product code '${dto.code}' already exists`);
@@ -230,10 +231,10 @@ export class ConsumableService {
             currency: dto.currency || 'usd',
             platformAvailability: dto.platformAvailability || PlatformAvailability.ALL,
             sortOrder: dto.sortOrder || 0,
-            googleProductId: dto.googleProductId || null,
-            appleProductId: dto.appleProductId || null,
-            stripePriceId: dto.stripePriceId || null,
-            stripeProductId: dto.stripeProductId || null,
+            googleProductId: this.normalizeOptionalString(dto.googleProductId),
+            appleProductId: this.normalizeOptionalString(dto.appleProductId),
+            stripePriceId: this.normalizeOptionalString(dto.stripePriceId),
+            stripeProductId: this.normalizeOptionalString(dto.stripeProductId),
             isActive: true,
             isArchived: false,
         });
@@ -245,6 +246,24 @@ export class ConsumableService {
         const product = await this.productRepo.findOne({ where: { id } });
         if (!product) throw new NotFoundException('Product not found');
 
+        const nextState: CreateConsumableProductDto = {
+            code: product.code,
+            title: dto.title ?? product.title,
+            description: dto.description ?? product.description ?? undefined,
+            type: product.type,
+            quantity: dto.quantity ?? product.quantity,
+            price: dto.price ?? Number(product.price),
+            currency: dto.currency ?? product.currency,
+            platformAvailability: dto.platformAvailability ?? product.platformAvailability,
+            sortOrder: dto.sortOrder ?? product.sortOrder,
+            googleProductId: dto.googleProductId ?? product.googleProductId ?? undefined,
+            appleProductId: dto.appleProductId ?? product.appleProductId ?? undefined,
+            stripePriceId: dto.stripePriceId ?? product.stripePriceId ?? undefined,
+            stripeProductId: dto.stripeProductId ?? product.stripeProductId ?? undefined,
+        };
+        this.validateProductDto(nextState);
+        await this.assertStoreMappings(nextState, id);
+
         if (dto.title !== undefined) product.title = dto.title;
         if (dto.description !== undefined) product.description = dto.description;
         if (dto.quantity !== undefined) product.quantity = dto.quantity;
@@ -252,10 +271,10 @@ export class ConsumableService {
         if (dto.currency !== undefined) product.currency = dto.currency;
         if (dto.platformAvailability !== undefined) product.platformAvailability = dto.platformAvailability;
         if (dto.sortOrder !== undefined) product.sortOrder = dto.sortOrder;
-        if (dto.googleProductId !== undefined) product.googleProductId = dto.googleProductId;
-        if (dto.appleProductId !== undefined) product.appleProductId = dto.appleProductId;
-        if (dto.stripePriceId !== undefined) product.stripePriceId = dto.stripePriceId;
-        if (dto.stripeProductId !== undefined) product.stripeProductId = dto.stripeProductId;
+        if (dto.googleProductId !== undefined) product.googleProductId = this.normalizeOptionalString(dto.googleProductId);
+        if (dto.appleProductId !== undefined) product.appleProductId = this.normalizeOptionalString(dto.appleProductId);
+        if (dto.stripePriceId !== undefined) product.stripePriceId = this.normalizeOptionalString(dto.stripePriceId);
+        if (dto.stripeProductId !== undefined) product.stripeProductId = this.normalizeOptionalString(dto.stripeProductId);
         if (dto.isActive !== undefined) product.isActive = dto.isActive;
         if (dto.isArchived !== undefined) product.isArchived = dto.isArchived;
 
@@ -607,6 +626,90 @@ export class ConsumableService {
         if (!/^[a-z0-9_]+$/.test(dto.code)) {
             throw new BadRequestException('Product code must be lowercase alphanumeric with underscores only');
         }
+    }
+
+    private async assertStoreMappings(
+        dto: Pick<CreateConsumableProductDto, 'platformAvailability' | 'googleProductId' | 'appleProductId' | 'stripePriceId'>,
+        currentProductId?: string,
+    ): Promise<void> {
+        const platformAvailability = dto.platformAvailability || PlatformAvailability.ALL;
+        const googleProductId = this.normalizeOptionalString(dto.googleProductId);
+        const appleProductId = this.normalizeOptionalString(dto.appleProductId);
+        const stripePriceId = this.normalizeOptionalString(dto.stripePriceId);
+
+        if (
+            (platformAvailability === PlatformAvailability.ALL ||
+                platformAvailability === PlatformAvailability.MOBILE) &&
+            !googleProductId
+        ) {
+            throw new BadRequestException(
+                'Google Play Product ID is required for mobile consumable products.',
+            );
+        }
+
+        if (
+            (platformAvailability === PlatformAvailability.ALL ||
+                platformAvailability === PlatformAvailability.MOBILE) &&
+            !appleProductId
+        ) {
+            throw new BadRequestException(
+                'App Store Product ID is required for mobile consumable products.',
+            );
+        }
+
+        if (
+            (platformAvailability === PlatformAvailability.ALL ||
+                platformAvailability === PlatformAvailability.WEB) &&
+            stripePriceId &&
+            stripePriceId.trim().isNotEmpty
+        ) {
+            // accepted, validated below for uniqueness only
+        }
+
+        if (googleProductId) {
+            const duplicate = await this.productRepo.findOne({
+                where: { googleProductId },
+                select: ['id', 'code', 'googleProductId'],
+            });
+            if (duplicate && duplicate.id !== currentProductId) {
+                throw new BadRequestException(
+                    `Google Play Product ID '${googleProductId}' is already used by product '${duplicate.code}'.`,
+                );
+            }
+        }
+
+        if (appleProductId) {
+            const duplicate = await this.productRepo.findOne({
+                where: { appleProductId },
+                select: ['id', 'code', 'appleProductId'],
+            });
+            if (duplicate && duplicate.id !== currentProductId) {
+                throw new BadRequestException(
+                    `App Store Product ID '${appleProductId}' is already used by product '${duplicate.code}'.`,
+                );
+            }
+        }
+
+        if (stripePriceId) {
+            const duplicate = await this.productRepo.findOne({
+                where: { stripePriceId },
+                select: ['id', 'code', 'stripePriceId'],
+            });
+            if (duplicate && duplicate.id !== currentProductId) {
+                throw new BadRequestException(
+                    `Stripe Price ID '${stripePriceId}' is already used by product '${duplicate.code}'.`,
+                );
+            }
+        }
+    }
+
+    private normalizeOptionalString(value?: string | null): string | null {
+        if (value === undefined || value === null) {
+            return null;
+        }
+
+        const normalized = String(value).trim();
+        return normalized.length > 0 ? normalized : null;
     }
 
     private getBalanceField(type: ConsumableType): string {
