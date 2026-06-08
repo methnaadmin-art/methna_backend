@@ -2,6 +2,7 @@ import {
     Injectable,
     BadRequestException,
     NotFoundException,
+    ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -10,8 +11,10 @@ import {
     IntentMode,
     MarriageIntention,
     Profile,
+    ProfileVisibilityAudience,
 } from '../../database/entities/profile.entity';
 import { UserPreference } from '../../database/entities/user-preference.entity';
+import { User } from '../../database/entities/user.entity';
 import { RedisService } from '../redis/redis.service';
 import { CategoriesService } from '../categories/categories.service';
 import { TrustSafetyService } from '../trust-safety/trust-safety.service';
@@ -28,6 +31,8 @@ export class ProfilesService {
     constructor(
         @InjectRepository(Profile)
         private readonly profileRepository: Repository<Profile>,
+        @InjectRepository(User)
+        private readonly userRepository: Repository<User>,
         @InjectRepository(UserPreference)
         private readonly preferenceRepository: Repository<UserPreference>,
         private readonly redisService: RedisService,
@@ -122,6 +127,30 @@ export class ProfilesService {
         if (dto.showDistance !== undefined) profile.showDistance = dto.showDistance;
         if (dto.showOnlineStatus !== undefined) profile.showOnlineStatus = dto.showOnlineStatus;
         if (dto.showLastSeen !== undefined) profile.showLastSeen = dto.showLastSeen;
+        if (dto.visibility !== undefined) {
+            if (dto.visibility === ProfileVisibilityAudience.LIKED_PEOPLE) {
+                const user = await this.userRepository.findOne({
+                    where: { id: userId },
+                    select: ['id', 'isPremium', 'premiumExpiryDate'],
+                });
+
+                const hasPremiumAccess =
+                    user?.isPremium === true &&
+                    (!user.premiumExpiryDate ||
+                        user.premiumExpiryDate.getTime() > Date.now());
+
+                if (!hasPremiumAccess) {
+                    throw new ForbiddenException(
+                        'People I liked visibility is a premium feature.',
+                    );
+                }
+            }
+            profile.visibilityAudience = dto.visibility;
+        }
+
+        if (!profile.visibilityAudience) {
+            profile.visibilityAudience = ProfileVisibilityAudience.EVERYONE;
+        }
 
         const saved = await this.profileRepository.save(profile);
         await this.redisService.del(`profile:${userId}`);

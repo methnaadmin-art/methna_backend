@@ -256,6 +256,7 @@ export class DatabaseCompatibilityService implements OnModuleInit {
             { label: 'profiles.skinComplexion', sql: 'ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "skinComplexion" "profiles_skincomplexion_enum"' },
             { label: 'profiles.build', sql: 'ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "build" "profiles_build_enum"' },
             { label: 'profiles.reasonToUseMethna', sql: 'ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "reasonToUseMethna" character varying(250)' },
+            { label: 'profiles.visibilityAudience', sql: `ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "visibilityAudience" character varying DEFAULT 'everyone'` },
             { label: 'subscriptions.planId', sql: 'ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "planId" character varying' },
             { label: 'subscriptions.plan', sql: `ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "plan" character varying DEFAULT 'free'` },
             { label: 'subscriptions.status', sql: `ALTER TABLE "subscriptions" ADD COLUMN IF NOT EXISTS "status" character varying DEFAULT 'active'` },
@@ -632,4 +633,3 @@ export class DatabaseCompatibilityService implements OnModuleInit {
         }
     }
 }
-

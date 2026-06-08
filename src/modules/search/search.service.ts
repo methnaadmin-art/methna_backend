@@ -8,6 +8,7 @@ import {
     ReligiousLevel,
     MarriageIntention,
     IntentMode,
+    ProfileVisibilityAudience,
 } from '../../database/entities/profile.entity';
 import { User } from '../../database/entities/user.entity';
 import { Photo, PhotoModerationStatus } from '../../database/entities/photo.entity';
@@ -118,6 +119,7 @@ export class SearchService {
         'profile.showDistance',
         'profile.showOnlineStatus',
         'profile.showLastSeen',
+        'profile.visibilityAudience',
         'profile.profileCompletionPercentage',
         'profile.activityScore',
         'profile.isComplete',
@@ -144,6 +146,7 @@ export class SearchService {
         'profile.maritalStatus',
         'profile.education',
         'profile.prayerFrequency',
+        'profile.visibilityAudience',
         'profile.profileCompletionPercentage',
         'profile.activityScore',
         'profile.createdAt',
@@ -474,6 +477,8 @@ export class SearchService {
             .andWhere('(user.lastLoginAt IS NULL OR user.lastLoginAt >= :activeCutoff)', {
                 activeCutoff,
             });
+
+        this.applyVisibilityAudienceFilter(query, userId);
 
         if (!skipRelationshipExclusions) {
             query.andWhere(
@@ -967,6 +972,55 @@ export class SearchService {
             `[Search] Returning ${users.length} ranked users for userId=${userId} (total=${total})`,
         );
         return response;
+    }
+
+    private applyVisibilityAudienceFilter(
+        query: SelectQueryBuilder<Profile>,
+        viewerUserId: string,
+    ): void {
+        query.andWhere(
+            (qb) => {
+                const matchedSubQuery = qb
+                    .subQuery()
+                    .select('1')
+                    .from(Match, 'visibility_match')
+                    .where('visibility_match.status = :visibilityMatchStatus')
+                    .andWhere(
+                        '((visibility_match.user1Id = :viewerUserId AND visibility_match.user2Id = profile.userId) OR (visibility_match.user2Id = :viewerUserId AND visibility_match.user1Id = profile.userId))',
+                    )
+                    .getQuery();
+
+                const likedByOwnerSubQuery = qb
+                    .subQuery()
+                    .select('1')
+                    .from(Like, 'visibility_like')
+                    .where('visibility_like.likerId = profile.userId')
+                    .andWhere('visibility_like.likedId = :viewerUserId')
+                    .andWhere('visibility_like.isLike = :visibilityPositiveLike')
+                    .getQuery();
+
+                return `(
+                    profile."visibilityAudience" IS NULL
+                    OR profile."visibilityAudience" = :visibilityEveryone
+                    OR (
+                        profile."visibilityAudience" = :visibilityMatches
+                        AND EXISTS ${matchedSubQuery}
+                    )
+                    OR (
+                        profile."visibilityAudience" = :visibilityLikedPeople
+                        AND EXISTS ${likedByOwnerSubQuery}
+                    )
+                )`;
+            },
+            {
+                viewerUserId,
+                visibilityEveryone: ProfileVisibilityAudience.EVERYONE,
+                visibilityMatches: ProfileVisibilityAudience.MATCHES,
+                visibilityLikedPeople: ProfileVisibilityAudience.LIKED_PEOPLE,
+                visibilityMatchStatus: MatchStatus.ACTIVE,
+                visibilityPositiveLike: true,
+            },
+        );
     }
 
     private applyGenderFilter(

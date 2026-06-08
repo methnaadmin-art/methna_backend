@@ -36,6 +36,7 @@ import {
     HijabStatus,
     SkinComplexion,
     BodyBuild,
+    ProfileVisibilityAudience,
 } from '../../../database/entities/profile.entity';
 
 const normalizeEnumToken = (value: unknown): string =>
@@ -411,6 +412,12 @@ export class UpdatePrivacySettingsDto {
     @IsOptional()
     @IsBoolean()
     showLastSeen?: boolean;
+
+    @ApiPropertyOptional({ enum: ProfileVisibilityAudience })
+    @IsOptional()
+    @Transform(({ value }) => normalizeEnumToken(value))
+    @IsEnum(ProfileVisibilityAudience)
+    visibility?: ProfileVisibilityAudience;
 }
 
 export class UpdateLocationDto {
@@ -508,5 +515,4 @@ export class UpdatePreferencesDto {
     @IsEnum(SecondWifePreference)
     preferredSecondWifePreference?: SecondWifePreference;
 }
-
 

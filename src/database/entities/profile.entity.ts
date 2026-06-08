@@ -161,6 +161,13 @@ export enum BodyBuild {
     PREFER_NOT_TO_SAY = 'prefer_not_to_say',
 }
 
+export enum ProfileVisibilityAudience {
+    EVERYONE = 'everyone',
+    MATCHES = 'matches',
+    LIKED_PEOPLE = 'liked_people',
+    NOBODY = 'nobody',
+}
+
 @Entity('profiles')
 export class Profile {
     @PrimaryGeneratedColumn('uuid')
@@ -363,6 +370,12 @@ export class Profile {
 
     @Column({ default: true })
     showLastSeen: boolean;
+
+    @Column({
+        type: 'character varying',
+        default: ProfileVisibilityAudience.EVERYONE,
+    })
+    visibilityAudience: ProfileVisibilityAudience;
 
     // Scoring
     @Column({ type: 'float', default: 0 })

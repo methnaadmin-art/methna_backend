@@ -4,12 +4,13 @@ import { ProfilesController } from './profiles.controller';
 import { ProfilesService } from './profiles.service';
 import { Profile } from '../../database/entities/profile.entity';
 import { UserPreference } from '../../database/entities/user-preference.entity';
+import { User } from '../../database/entities/user.entity';
 import { CategoriesModule } from '../categories/categories.module';
 import { TrustSafetyModule } from '../trust-safety/trust-safety.module';
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([Profile, UserPreference]),
+        TypeOrmModule.forFeature([Profile, User, UserPreference]),
         forwardRef(() => CategoriesModule),
         TrustSafetyModule,
     ],
