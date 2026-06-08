@@ -661,7 +661,7 @@ export class ConsumableService {
             (platformAvailability === PlatformAvailability.ALL ||
                 platformAvailability === PlatformAvailability.WEB) &&
             stripePriceId &&
-            stripePriceId.trim().isNotEmpty
+            stripePriceId.trim().length > 0
         ) {
             // accepted, validated below for uniqueness only
         }

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Ad, AdPlacement, AdStatus } from '../../database/entities/ad.entity';
 import { Profile } from '../../database/entities/profile.entity';
 import { RedisService } from '../redis/redis.service';
@@ -54,7 +54,7 @@ export class AdsService {
         const ads = await this.adRepository.find({
             where: {
                 status: AdStatus.ACTIVE,
-                placement: AdPlacement.FEED,
+                placement: In([AdPlacement.FEED, AdPlacement.BANNER]),
             },
             order: { weight: 'DESC', createdAt: 'DESC' },
         });
