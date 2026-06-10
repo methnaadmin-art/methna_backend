@@ -301,8 +301,17 @@ export class AppleAppStoreService {
                 inputSource: verificationInput.source,
                 apple: verification.raw,
             };
+            // In sandbox, Apple uses accelerated renewal rates (e.g. 5 min for a month).
+            // For a better testing experience, calculate the end date from the plan's
+            // durationDays so testers see a realistic subscription period.
+            const isSandbox = verification.environment === 'sandbox';
+            const planDurationMs = (plan.durationDays || 30) * 24 * 60 * 60 * 1000;
+            const resolvedEndDate = isSandbox
+                ? new Date(verification.purchaseDate.getTime() + planDurationMs)
+                : verification.expiryDate;
+
             purchase.transactionDate = verification.purchaseDate;
-            purchase.expiryDate = verification.expiryDate;
+            purchase.expiryDate = resolvedEndDate;
 
             const savedPurchase = await purchaseRepository.save(purchase);
 
@@ -318,7 +327,7 @@ export class AppleAppStoreService {
             subscriptionToSave.planEntity = plan;
             subscriptionToSave.status = verification.subscriptionStatus;
             subscriptionToSave.startDate = verification.purchaseDate;
-            subscriptionToSave.endDate = verification.expiryDate;
+            subscriptionToSave.endDate = resolvedEndDate;
             subscriptionToSave.paymentReference = savedPurchase.id;
             subscriptionToSave.paymentProvider = PurchaseProvider.APPLE;
             subscriptionToSave.paymentPlatform = 'ios';
@@ -346,7 +355,7 @@ export class AppleAppStoreService {
         this.logger.log(
             `[PAYMENT] Apple premium activated user=${userId} productId=${verification.productId} subscriptionId=${
                 subscription.id
-            } until=${verification.expiryDate.toISOString()} environment=${verification.environment}`,
+            } until=${subscription.endDate?.toISOString() || 'n/a'} environment=${verification.environment}`,
         );
 
         return {
