@@ -623,7 +623,7 @@ export class AppleAppStoreService {
         }
 
         if (!isConsumable) {
-            this.assertTransactionIsUsable(transactionInfo, appleStatus, expiryDate!);
+            this.assertTransactionIsUsable(transactionInfo, appleStatus, expiryDate!, environment);
         }
         const autoRenewStatus = this.toNullableNumber(renewalInfo?.autoRenewStatus);
 
@@ -733,7 +733,7 @@ export class AppleAppStoreService {
         if (latest.cancellation_date_ms) {
             throw new BadRequestException('Apple receipt transaction was cancelled or refunded.');
         }
-        if (!isConsumable && expiryDate && expiryDate.getTime() <= Date.now()) {
+        if (!isConsumable && environment !== 'sandbox' && expiryDate && expiryDate.getTime() <= Date.now()) {
             throw new BadRequestException('Apple subscription is expired.');
         }
 
@@ -1037,6 +1037,7 @@ export class AppleAppStoreService {
         transactionInfo: AppleTransactionInfo,
         appleStatus: number | null,
         expiryDate: Date,
+        environment?: AppleEnvironment,
     ): void {
         if (transactionInfo.revocationDate) {
             throw new BadRequestException('Apple transaction was refunded or revoked.');
@@ -1053,7 +1054,8 @@ export class AppleAppStoreService {
         if (appleStatus !== null && ![1, 4].includes(appleStatus)) {
             throw new BadRequestException('Apple subscription is not active.');
         }
-        if (expiryDate.getTime() <= Date.now()) {
+        // Skip expiry check in sandbox — Apple uses accelerated renewal rates there
+        if (environment !== 'sandbox' && expiryDate.getTime() <= Date.now()) {
             throw new BadRequestException('Apple subscription is expired.');
         }
     }
