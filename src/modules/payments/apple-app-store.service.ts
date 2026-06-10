@@ -607,12 +607,15 @@ export class AppleAppStoreService {
         this.assertBundleId(bundleId);
 
         const purchaseDate = this.parseAppleDate(transactionInfo.purchaseDate) || new Date();
+        const isConsumable = transactionInfo.type === 'Consumable';
         const expiryDate = this.parseAppleDate(transactionInfo.expiresDate);
-        if (!expiryDate) {
+        if (!isConsumable && !expiryDate) {
             throw new BadRequestException('Apple subscription transaction did not include an expiry date.');
         }
 
-        this.assertTransactionIsUsable(transactionInfo, appleStatus, expiryDate);
+        if (!isConsumable) {
+            this.assertTransactionIsUsable(transactionInfo, appleStatus, expiryDate!);
+        }
         const autoRenewStatus = this.toNullableNumber(renewalInfo?.autoRenewStatus);
 
         return {
@@ -621,8 +624,10 @@ export class AppleAppStoreService {
             transactionId,
             originalTransactionId,
             purchaseDate,
-            expiryDate,
-            subscriptionStatus: this.mapAppleStatusToSubscriptionStatus(appleStatus, autoRenewStatus),
+            expiryDate: expiryDate || purchaseDate,
+            subscriptionStatus: isConsumable
+                ? SubscriptionStatus.ACTIVE
+                : this.mapAppleStatusToSubscriptionStatus(appleStatus, autoRenewStatus),
             appleStatus,
             autoRenewStatus,
             environment,
@@ -712,13 +717,14 @@ export class AppleAppStoreService {
         const originalTransactionId = String(latest.original_transaction_id || '').trim();
 
         const expiryDate = this.parseAppleDate(latest.expires_date_ms);
-        if (!expiryDate) {
+        const isConsumable = !latest.expires_date_ms && !latest.expires_date;
+        if (!isConsumable && !expiryDate) {
             throw new BadRequestException('Apple receipt subscription did not include an expiry date.');
         }
         if (latest.cancellation_date_ms) {
             throw new BadRequestException('Apple receipt transaction was cancelled or refunded.');
         }
-        if (expiryDate.getTime() <= Date.now()) {
+        if (!isConsumable && expiryDate && expiryDate.getTime() <= Date.now()) {
             throw new BadRequestException('Apple subscription is expired.');
         }
 
@@ -737,10 +743,12 @@ export class AppleAppStoreService {
             transactionId,
             originalTransactionId,
             purchaseDate,
-            expiryDate,
-            subscriptionStatus: autoRenewStatus === 0
-                ? SubscriptionStatus.PENDING_CANCELLATION
-                : SubscriptionStatus.ACTIVE,
+            expiryDate: expiryDate || purchaseDate,
+            subscriptionStatus: isConsumable
+                ? SubscriptionStatus.ACTIVE
+                : (autoRenewStatus === 0
+                    ? SubscriptionStatus.PENDING_CANCELLATION
+                    : SubscriptionStatus.ACTIVE),
             appleStatus: null,
             autoRenewStatus,
             environment,
