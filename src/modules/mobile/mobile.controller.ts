@@ -92,13 +92,11 @@ export class MobileController {
     @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Get current user subscription and entitlements (mobile)' })
     async getMySubscription(@CurrentUser('sub') userId: string) {
-        const premiumState = await this.subscriptionsService.syncUserPremiumState(userId);
-        const [subscription, entitlementData] = await Promise.all([
-            this.subscriptionsService.getMySubscription(userId),
-            this.plansService.resolveUserEntitlements(userId),
-        ]);
+        const entitlementData = await this.plansService.resolveUserEntitlements(userId);
+        const subscription = entitlementData.subscription ?? await this.subscriptionsService.getMySubscription(userId);
         const planFeatureFlags = entitlementData.plan?.featureFlags || {};
         const planLimits = entitlementData.plan?.limits || {};
+        const isPremium = (entitlementData.plan?.code ?? subscription.planEntity?.code ?? subscription.plan ?? 'free') !== 'free';
 
         return {
             id: subscription.id,
@@ -116,7 +114,7 @@ export class MobileController {
             appleOriginalTransactionId: subscription.appleOriginalTransactionId,
             appleEnvironment: subscription.appleEnvironment,
             billingCycle: subscription.billingCycle,
-            isPremium: premiumState.isPremium,
+            isPremium,
             entitlements: entitlementData.entitlements,
             features: planFeatureFlags,
             planFeatures: planFeatureFlags,

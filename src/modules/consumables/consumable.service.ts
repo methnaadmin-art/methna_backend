@@ -78,6 +78,10 @@ export interface ConsumeBalanceDto {
 export class ConsumableService {
     private readonly logger = new Logger(ConsumableService.name);
     private static readonly MAX_DAILY_PURCHASES = 10;
+    private appleProductIdColumnChecked = false;
+    private appleProductIdColumnCheckPromise: Promise<void> | null = null;
+    private defaultProductsEnsured = false;
+    private defaultProductsEnsurePromise: Promise<void> | null = null;
     private static readonly DEFAULT_PRODUCTS: Array<CreateConsumableProductDto> = [
         {
             code: 'methna_likes_50',
@@ -731,112 +735,141 @@ export class ConsumableService {
     }
 
     private async ensureAppleProductIdColumnExists(): Promise<void> {
-        try {
-            const result = await this.dataSource.query(`
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'consumable_products' AND column_name = 'appleProductId'
-            `);
-            if (result.length === 0) {
-                this.logger.log('Dynamically adding missing column appleProductId to consumable_products table...');
-                await this.dataSource.query(`
-                    ALTER TABLE "consumable_products" ADD COLUMN IF NOT EXISTS "appleProductId" character varying NULL
-                `);
-                await this.dataSource.query(`
-                    CREATE INDEX IF NOT EXISTS "IDX_consumable_products_appleProductId" ON "consumable_products" ("appleProductId")
-                `);
-                this.logger.log('Successfully created appleProductId column and index!');
-            }
-        } catch (err) {
-            this.logger.error('Failed to dynamically check/create appleProductId column', err);
+        if (this.appleProductIdColumnChecked) {
+            return;
         }
+
+        if (!this.appleProductIdColumnCheckPromise) {
+            this.appleProductIdColumnCheckPromise = (async () => {
+                try {
+                    const result = await this.dataSource.query(`
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_name = 'consumable_products' AND column_name = 'appleProductId'
+                    `);
+                    if (result.length === 0) {
+                        this.logger.log('Dynamically adding missing column appleProductId to consumable_products table...');
+                        await this.dataSource.query(`
+                            ALTER TABLE "consumable_products" ADD COLUMN IF NOT EXISTS "appleProductId" character varying NULL
+                        `);
+                        await this.dataSource.query(`
+                            CREATE INDEX IF NOT EXISTS "IDX_consumable_products_appleProductId" ON "consumable_products" ("appleProductId")
+                        `);
+                        this.logger.log('Successfully created appleProductId column and index!');
+                    }
+
+                    this.appleProductIdColumnChecked = true;
+                } catch (err) {
+                    this.logger.error('Failed to dynamically check/create appleProductId column', err);
+                    throw err;
+                }
+            })().finally(() => {
+                this.appleProductIdColumnCheckPromise = null;
+            });
+        }
+
+        await this.appleProductIdColumnCheckPromise;
     }
 
     private async ensureDefaultProducts(): Promise<void> {
-        await this.ensureAppleProductIdColumnExists();
-
-        for (const productData of ConsumableService.DEFAULT_PRODUCTS) {
-            const existing = await this.productRepo.findOne({
-                where: { code: productData.code },
-                select: [
-                    'id',
-                    'description',
-                    'currency',
-                    'platformAvailability',
-                    'sortOrder',
-                    'googleProductId',
-                    'appleProductId',
-                    'stripePriceId',
-                    'stripeProductId',
-                    'isActive',
-                    'isArchived',
-                ],
-            });
-
-            if (existing) {
-                let changed = false;
-
-                if (!existing.description && productData.description) {
-                    existing.description = productData.description;
-                    changed = true;
-                }
-                if (!existing.currency && productData.currency) {
-                    existing.currency = productData.currency;
-                    changed = true;
-                }
-                if (existing.platformAvailability !== (productData.platformAvailability || PlatformAvailability.ALL)) {
-                    existing.platformAvailability = productData.platformAvailability || PlatformAvailability.ALL;
-                    changed = true;
-                }
-                if ((existing.sortOrder ?? 0) !== (productData.sortOrder || 0)) {
-                    existing.sortOrder = productData.sortOrder || 0;
-                    changed = true;
-                }
-                if (!existing.googleProductId && productData.googleProductId) {
-                    existing.googleProductId = productData.googleProductId;
-                    changed = true;
-                }
-                if (!existing.appleProductId && productData.appleProductId) {
-                    existing.appleProductId = productData.appleProductId;
-                    changed = true;
-                }
-                if (!existing.stripePriceId && productData.stripePriceId) {
-                    existing.stripePriceId = productData.stripePriceId;
-                    changed = true;
-                }
-                if (!existing.stripeProductId && productData.stripeProductId) {
-                    existing.stripeProductId = productData.stripeProductId;
-                    changed = true;
-                }
-                if (!existing.isActive) {
-                    existing.isActive = true;
-                    changed = true;
-                }
-                if (existing.isArchived) {
-                    existing.isArchived = false;
-                    changed = true;
-                }
-
-                if (changed) {
-                    await this.productRepo.save(existing);
-                }
-                continue;
-            }
-
-            await this.productRepo.save(this.productRepo.create({
-                ...productData,
-                description: productData.description || null,
-                currency: productData.currency || 'usd',
-                platformAvailability: productData.platformAvailability || PlatformAvailability.ALL,
-                sortOrder: productData.sortOrder || 0,
-                googleProductId: productData.googleProductId || productData.code,
-                appleProductId: productData.appleProductId || null,
-                stripePriceId: productData.stripePriceId || null,
-                stripeProductId: productData.stripeProductId || null,
-                isActive: true,
-                isArchived: false,
-            }));
+        if (this.defaultProductsEnsured) {
+            return;
         }
+
+        if (!this.defaultProductsEnsurePromise) {
+            this.defaultProductsEnsurePromise = (async () => {
+                await this.ensureAppleProductIdColumnExists();
+
+                for (const productData of ConsumableService.DEFAULT_PRODUCTS) {
+                    const existing = await this.productRepo.findOne({
+                        where: { code: productData.code },
+                        select: [
+                            'id',
+                            'description',
+                            'currency',
+                            'platformAvailability',
+                            'sortOrder',
+                            'googleProductId',
+                            'appleProductId',
+                            'stripePriceId',
+                            'stripeProductId',
+                            'isActive',
+                            'isArchived',
+                        ],
+                    });
+
+                    if (existing) {
+                        let changed = false;
+
+                        if (!existing.description && productData.description) {
+                            existing.description = productData.description;
+                            changed = true;
+                        }
+                        if (!existing.currency && productData.currency) {
+                            existing.currency = productData.currency;
+                            changed = true;
+                        }
+                        if (existing.platformAvailability !== (productData.platformAvailability || PlatformAvailability.ALL)) {
+                            existing.platformAvailability = productData.platformAvailability || PlatformAvailability.ALL;
+                            changed = true;
+                        }
+                        if ((existing.sortOrder ?? 0) !== (productData.sortOrder || 0)) {
+                            existing.sortOrder = productData.sortOrder || 0;
+                            changed = true;
+                        }
+                        if (!existing.googleProductId && productData.googleProductId) {
+                            existing.googleProductId = productData.googleProductId;
+                            changed = true;
+                        }
+                        if (!existing.appleProductId && productData.appleProductId) {
+                            existing.appleProductId = productData.appleProductId;
+                            changed = true;
+                        }
+                        if (!existing.stripePriceId && productData.stripePriceId) {
+                            existing.stripePriceId = productData.stripePriceId;
+                            changed = true;
+                        }
+                        if (!existing.stripeProductId && productData.stripeProductId) {
+                            existing.stripeProductId = productData.stripeProductId;
+                            changed = true;
+                        }
+                        if (!existing.isActive) {
+                            existing.isActive = true;
+                            changed = true;
+                        }
+                        if (existing.isArchived) {
+                            existing.isArchived = false;
+                            changed = true;
+                        }
+
+                        if (changed) {
+                            await this.productRepo.save(existing);
+                        }
+                        continue;
+                    }
+
+                    await this.productRepo.save(this.productRepo.create({
+                        ...productData,
+                        description: productData.description || null,
+                        currency: productData.currency || 'usd',
+                        platformAvailability: productData.platformAvailability || PlatformAvailability.ALL,
+                        sortOrder: productData.sortOrder || 0,
+                        googleProductId: productData.googleProductId || productData.code,
+                        appleProductId: productData.appleProductId || null,
+                        stripePriceId: productData.stripePriceId || null,
+                        stripeProductId: productData.stripeProductId || null,
+                        isActive: true,
+                        isArchived: false,
+                    }));
+                }
+
+                this.defaultProductsEnsured = true;
+            })().finally(() => {
+                this.defaultProductsEnsurePromise = null;
+            });
+        }
+
+        await this.defaultProductsEnsurePromise;
     }
 
     private async getUserWithBalances(userId: string): Promise<User> {

@@ -5,6 +5,8 @@ import { DailyInsight } from '../../database/entities/daily-insight.entity';
 
 @Injectable()
 export class DailyInsightsService {
+    private cachedTodayInsight: { dateKey: string; insight: DailyInsight; expiresAt: number } | null = null;
+
     constructor(
         @InjectRepository(DailyInsight)
         private readonly insightRepository: Repository<DailyInsight>,
@@ -13,6 +15,10 @@ export class DailyInsightsService {
     // ─── Public: Get today's insight ─────────────────────────
     async getTodayInsight(): Promise<DailyInsight> {
         const today = new Date().toISOString().split('T')[0];
+        const cached = this.cachedTodayInsight;
+        if (cached && cached.dateKey === today && cached.expiresAt > Date.now()) {
+            return { ...cached.insight } as DailyInsight;
+        }
 
         // 1. Check for a scheduled insight for today
         const scheduled = await this.insightRepository.findOne({
@@ -21,6 +27,11 @@ export class DailyInsightsService {
         if (scheduled) {
             scheduled.displayCount++;
             await this.insightRepository.save(scheduled);
+            this.cachedTodayInsight = {
+                dateKey: today,
+                insight: { ...scheduled },
+                expiresAt: Date.now() + 5 * 60 * 1000,
+            };
             return scheduled;
         }
 
@@ -60,11 +71,33 @@ export class DailyInsightsService {
         if (insight) {
             insight.displayCount++;
             await this.insightRepository.save(insight);
+            this.cachedTodayInsight = {
+                dateKey: today,
+                insight: { ...insight },
+                expiresAt: Date.now() + 5 * 60 * 1000,
+            };
             return insight;
         }
 
         const fallback = await this.insightRepository.findOne({ where: { isActive: true } });
-        return fallback!;
+        if (fallback) {
+            this.cachedTodayInsight = {
+                dateKey: today,
+                insight: { ...fallback },
+                expiresAt: Date.now() + 5 * 60 * 1000,
+            };
+            return fallback;
+        }
+
+        return {
+            id: 'default',
+            content: 'And among His Signs is that He created for you mates from among yourselves, that you may dwell in tranquility with them.',
+            author: 'Quran 30:21',
+            category: 'marriage',
+            isActive: true,
+            displayCount: 0,
+            createdAt: new Date(),
+        } as DailyInsight;
     }
 
     // ─── Admin: CRUD ─────────────────────────────────────────

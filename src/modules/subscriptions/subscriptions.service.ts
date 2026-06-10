@@ -11,6 +11,8 @@ export class SubscriptionsService {
     private readonly logger = new Logger(SubscriptionsService.name);
     private hasLoggedMissingPremiumColumns = false;
     private hasLoggedMissingPlanCodeColumn = false;
+    private static readonly CURRENT_SUBSCRIPTION_CACHE_TTL = 30;
+    private static readonly PREMIUM_STATE_CACHE_TTL = 30;
 
     constructor(
         @InjectRepository(Subscription)
@@ -59,11 +61,21 @@ export class SubscriptionsService {
     }
 
     async getMySubscription(userId: string): Promise<Subscription> {
+        const cacheKey = `subscription:${userId}`;
+        const cached = await this.redisService.getJson<Subscription>(cacheKey).catch(() => null);
+        if (cached) {
+            return cached;
+        }
+
         let sub = await this.findCurrentSubscriptionForUser(userId, 'getMySubscription');
 
         if (!sub) {
             sub = await this.ensureFreeSubscriptionForUser(userId);
         }
+
+        await this.redisService
+            .setJson(cacheKey, sub, SubscriptionsService.CURRENT_SUBSCRIPTION_CACHE_TTL)
+            .catch(() => undefined);
 
         return sub;
     }
@@ -346,6 +358,18 @@ export class SubscriptionsService {
         premiumStartDate: Date | null;
         premiumExpiryDate: Date | null;
     }> {
+        const cacheKey = `premium_state:${userId}`;
+        const cached = await this.redisService
+            .getJson<{
+                isPremium: boolean;
+                premiumStartDate: Date | null;
+                premiumExpiryDate: Date | null;
+            }>(cacheKey)
+            .catch(() => null);
+        if (cached) {
+            return cached;
+        }
+
         // Check both ACTIVE and PAST_DUE to support provider grace periods.
         const activeSubscription = await this.findCurrentSubscriptionForUser(userId, 'syncUserPremiumState');
         const now = new Date();
@@ -374,11 +398,13 @@ export class SubscriptionsService {
             );
             await this.invalidatePremiumCaches(userId);
 
-            return {
+            const result = {
                 isPremium,
                 premiumStartDate: startDate,
                 premiumExpiryDate: expiryDate,
             };
+            await this.redisService.setJson(cacheKey, result, SubscriptionsService.PREMIUM_STATE_CACHE_TTL).catch(() => undefined);
+            return result;
         }
 
         if (
@@ -399,11 +425,13 @@ export class SubscriptionsService {
             );
             await this.invalidatePremiumCaches(userId);
 
-            return {
+            const result = {
                 isPremium: false,
                 premiumStartDate: startDate,
                 premiumExpiryDate: expiryDate,
             };
+            await this.redisService.setJson(cacheKey, result, SubscriptionsService.PREMIUM_STATE_CACHE_TTL).catch(() => undefined);
+            return result;
         }
 
         if (activeSubscription?.endDate && new Date(activeSubscription.endDate) <= now) {
@@ -424,11 +452,13 @@ export class SubscriptionsService {
             );
             await this.invalidatePremiumCaches(userId);
 
-            return {
+            const result = {
                 isPremium: false,
                 premiumStartDate: null,
                 premiumExpiryDate: null,
             };
+            await this.redisService.setJson(cacheKey, result, SubscriptionsService.PREMIUM_STATE_CACHE_TTL).catch(() => undefined);
+            return result;
         }
 
         const freeSubscription = await this.ensureFreeSubscriptionForUser(userId, now);
@@ -441,11 +471,13 @@ export class SubscriptionsService {
         );
         await this.invalidatePremiumCaches(userId);
 
-        return {
+        const result = {
             isPremium: false,
             premiumStartDate: null,
             premiumExpiryDate: null,
         };
+        await this.redisService.setJson(cacheKey, result, SubscriptionsService.PREMIUM_STATE_CACHE_TTL).catch(() => undefined);
+        return result;
     }
 
     async updateUserPremiumState(
@@ -778,6 +810,8 @@ export class SubscriptionsService {
             this.redisService.del(`plan:${userId}`),
             this.redisService.del(`features:${userId}`),
             this.redisService.del(`entitlements:${userId}`),
+            this.redisService.del(`subscription:${userId}`),
+            this.redisService.del(`premium_state:${userId}`),
         ]);
     }
 }
