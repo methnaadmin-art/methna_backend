@@ -304,7 +304,7 @@ export class AppleAppStoreService {
             // In sandbox, Apple uses accelerated renewal rates (e.g. 5 min for a month).
             // For a better testing experience, calculate the end date from the plan's
             // durationDays so testers see a realistic subscription period.
-            const isSandbox = verification.environment === 'sandbox';
+            const isSandbox = String(verification.environment || '').toLowerCase() === 'sandbox';
             const planDurationMs = (plan.durationDays || 30) * 24 * 60 * 60 * 1000;
             const resolvedEndDate = isSandbox
                 ? new Date(verification.purchaseDate.getTime() + planDurationMs)
