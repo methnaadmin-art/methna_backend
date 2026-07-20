@@ -1045,13 +1045,22 @@ export class AppleAppStoreService {
         if (transactionInfo.isUpgraded === true) {
             throw new BadRequestException('Apple transaction was superseded by an upgraded subscription.');
         }
-        if (appleStatus === 2) {
-            throw new BadRequestException('Apple subscription is expired.');
-        }
         if (appleStatus === 5) {
             throw new BadRequestException('Apple subscription was revoked.');
         }
-        if (appleStatus !== null && ![1, 4].includes(appleStatus)) {
+        // Sandbox uses accelerated renewal rates, so Apple can briefly report
+        // status 2 (Expired) moments after a fresh purchase, right before the
+        // rapid test renewal lands. Treat that as transient in sandbox only —
+        // production must still reject a genuinely expired subscription.
+        const isSandboxAcceleratedExpiry = environment === 'sandbox' && appleStatus === 2;
+        if (appleStatus === 2 && !isSandboxAcceleratedExpiry) {
+            throw new BadRequestException('Apple subscription is expired.');
+        }
+        if (
+            appleStatus !== null &&
+            !isSandboxAcceleratedExpiry &&
+            ![1, 4].includes(appleStatus)
+        ) {
             throw new BadRequestException('Apple subscription is not active.');
         }
         // Skip expiry check in sandbox — Apple uses accelerated renewal rates there
